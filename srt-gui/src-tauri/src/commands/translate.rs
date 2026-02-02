@@ -22,7 +22,7 @@ pub struct TranslateConfig {
     pub output_path: String,
     pub target_lang: String,
     pub api_key: String,
-    pub api_type: String, // "gemini", "openai", "local"
+    pub api_type: String, // "local" or "openrouter"
     pub batch_size: usize,
     pub title_context: Option<String>,
     pub api_url: Option<String>,
@@ -128,35 +128,32 @@ async fn perform_translation(
 
     let total_count = subtitles.len();
 
-    // Determina il tipo di API
+    // Determina il tipo di API - ora solo 2 tipi: Local e OpenRouter
     let api_type = match config.api_type.to_lowercase().as_str() {
-        "gemini" => ApiType::Gemini,
-        "openai" => ApiType::OpenAI,
         "local" => ApiType::Local,
+        "openrouter" | "gemini" | "openai" | "anthropic" | "mistral" => ApiType::OpenRouter,
         _ => return Err(format!("Tipo API non supportato: {}", config.api_type)),
     };
 
     // Determina URL e modello base sul tipo
     let base_url = config.api_url.unwrap_or_else(|| {
         match api_type {
-            ApiType::Gemini => "https://generativelanguage.googleapis.com".to_string(),
-            ApiType::OpenAI => "https://api.openai.com/v1".to_string(),
-            ApiType::Local => "http://localhost:1234/v1".to_string(),
+            ApiType::Local => "http://localhost:11434/v1".to_string(),
+            ApiType::OpenRouter => "https://openrouter.ai/api/v1".to_string(),
         }
     });
 
     let model = config.model.unwrap_or_else(|| {
         match api_type {
-            ApiType::Gemini => "gemini-1.5-flash".to_string(),
-            ApiType::OpenAI => "gpt-4o-mini".to_string(),
-            ApiType::Local => "local-model".to_string(),
+            ApiType::Local => "llama3.2".to_string(),
+            ApiType::OpenRouter => "google/gemini-2.0-flash-001".to_string(),
         }
     });
 
     // Crea il translator con la configurazione corretta
     let translator_config = TranslatorConfig {
         api_type,
-        api_key: Some(config.api_key.clone()),
+        api_key: if config.api_key.is_empty() { None } else { Some(config.api_key.clone()) },
         base_url,
         model,
     };

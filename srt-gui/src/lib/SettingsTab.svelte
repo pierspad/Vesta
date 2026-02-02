@@ -15,11 +15,11 @@
   } from "./models";
   import { locale, currentLanguage, availableUILanguages, setLanguage } from "./i18n";
 
-  // Types
+  // Types - Simplified to only 2 providers
   interface ApiKeyConfig {
     id: string;
     name: string;
-    apiType: "gemini" | "openai" | "local" | "anthropic" | "openrouter" | "mistral";
+    apiType: "local" | "openrouter";
     apiKey: string;
     apiUrl?: string;
     modelName?: string;  // Nome modello preferito

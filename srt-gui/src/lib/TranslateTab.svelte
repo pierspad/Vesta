@@ -51,10 +51,11 @@
     translated_count: number;
   }
 
+  // Simplified to only 2 providers: local and openrouter
   interface ApiKeyConfig {
     id: string;
     name: string;
-    apiType: "gemini" | "openai" | "local" | "anthropic" | "openrouter";
+    apiType: "local" | "openrouter";
     apiKey: string;
     apiUrl?: string;
     isDefault: boolean;

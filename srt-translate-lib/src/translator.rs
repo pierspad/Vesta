@@ -8,22 +8,26 @@ use crate::prompts::{
     build_context_enhanced_translation_prompt,
 };
 
-/// Tipo di API da utilizzare
+/// Tipo di API da utilizzare - SEMPLIFICATO
+/// Tutti usano formato OpenAI-compatible (incluso OpenRouter)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ApiType {
+    /// Server locale (Ollama, LM Studio) - nessuna API key richiesta
     Local,
-    OpenAI,
-    Gemini,
+    /// OpenRouter o qualsiasi API OpenAI-compatible - richiede API key
+    OpenRouter,
 }
 
 /// Configurazione del traduttore
 #[derive(Clone)]
 pub struct TranslatorConfig {
-    /// URL base per l'API (default: http://localhost:1234/v1 per LLM locale)
+    /// URL base per l'API
+    /// - Local: http://localhost:11434/v1 (Ollama) o http://localhost:1234/v1 (LM Studio)
+    /// - OpenRouter: https://openrouter.ai/api/v1
     pub base_url: String,
-    /// Nome del modello (default: local-model)
+    /// Nome del modello (es: llama3.2, google/gemini-2.0-flash-001)
     pub model: String,
-    /// API key opzionale (se presente, usa OpenAI o Gemini, altrimenti LLM locale)
+    /// API key (richiesta per OpenRouter, opzionale per Local)
     pub api_key: Option<String>,
     /// Tipo di API da utilizzare
     pub api_type: ApiType,
@@ -32,8 +36,8 @@ pub struct TranslatorConfig {
 impl Default for TranslatorConfig {
     fn default() -> Self {
         Self {
-            base_url: "http://localhost:1234/v1".to_string(),
-            model: "local-model".to_string(),
+            base_url: "http://localhost:11434/v1".to_string(),
+            model: "llama3.2".to_string(),
             api_key: None,
             api_type: ApiType::Local,
         }
@@ -54,11 +58,9 @@ impl Translator {
         }
     }
 
+    /// Traduce un singolo testo - usa sempre formato OpenAI-compatible
     pub async fn translate(&self, text: &str, target_lang: &str, context: Option<&str>) -> Result<String> {
-        match self.config.api_type {
-            ApiType::Gemini => self.translate_gemini(text, target_lang, context).await,
-            _ => self.translate_llm(text, target_lang, context).await,
-        }
+        self.translate_openai(text, target_lang, context).await
     }
 
     /// Traduce un singolo sottotitolo con contesto aggiuntivo dai sottotitoli circostanti
@@ -70,26 +72,21 @@ impl Translator {
         title_context: Option<&str>,
         surrounding_context: Option<&str>,
     ) -> Result<String> {
-        match self.config.api_type {
-            ApiType::Gemini => self.translate_with_context_gemini(text, target_lang, title_context, surrounding_context).await,
-            _ => self.translate_with_context_llm(text, target_lang, title_context, surrounding_context).await,
-        }
+        self.translate_with_context_openai(text, target_lang, title_context, surrounding_context).await
     }
 
+    /// Traduce un batch di testi - usa sempre formato OpenAI-compatible
     pub async fn translate_batch(
         &self,
         texts_with_ids: &[(u32, String)],
         target_lang: &str,
         context: Option<&str>,
     ) -> Result<HashMap<u32, String>> {
-        match self.config.api_type {
-            ApiType::Gemini => self.translate_batch_gemini(texts_with_ids, target_lang, context).await,
-            _ => self.translate_batch_llm(texts_with_ids, target_lang, context).await,
-        }
+        self.translate_batch_openai(texts_with_ids, target_lang, context).await
     }
 
-    /// Traduzione singola usando API LLM (locale o remota)
-    async fn translate_llm(
+    /// Traduzione singola usando API OpenAI-compatible (funziona con Local, OpenRouter, etc.)
+    async fn translate_openai(
         &self,
         text: &str,
         target_lang: &str,
@@ -132,9 +129,16 @@ impl Translator {
         let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
         let mut req_builder = self.client.post(&url).json(&request);
         
-        // Aggiungi header Authorization solo se API key è presente (remoto)
+        // Aggiungi header Authorization solo se API key è presente
         if let Some(api_key) = &self.config.api_key {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        // Aggiungi header specifici per OpenRouter
+        if self.config.api_type == ApiType::OpenRouter {
+            req_builder = req_builder
+                .header("HTTP-Referer", "https://srt-tools.app")
+                .header("X-Title", "SRT Tools");
         }
 
         let response = req_builder
@@ -150,8 +154,8 @@ impl Translator {
             .unwrap_or_default())
     }
 
-    /// Traduzione batch usando API LLM (locale o remota)
-    async fn translate_batch_llm(
+    /// Traduzione batch usando API OpenAI-compatible
+    async fn translate_batch_openai(
         &self,
         texts_with_ids: &[(u32, String)],
         target_lang: &str,
@@ -196,6 +200,13 @@ impl Translator {
         
         if let Some(api_key) = &self.config.api_key {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        // Aggiungi header specifici per OpenRouter
+        if self.config.api_type == ApiType::OpenRouter {
+            req_builder = req_builder
+                .header("HTTP-Referer", "https://srt-tools.app")
+                .header("X-Title", "SRT Tools");
         }
 
         let response = req_builder
@@ -216,180 +227,8 @@ impl Translator {
         Ok(translations)
     }
 
-    /// Traduzione singola usando API Google Gemini
-    async fn translate_gemini(
-        &self,
-        text: &str,
-        target_lang: &str,
-        context: Option<&str>,
-    ) -> Result<String> {
-        #[derive(Serialize)]
-        struct Part {
-            text: String,
-        }
-
-        #[derive(Serialize)]
-        struct Content {
-            parts: Vec<Part>,
-        }
-
-        #[derive(Serialize)]
-        struct GeminiRequest {
-            contents: Vec<Content>,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiPart {
-            text: String,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiContent {
-            parts: Vec<GeminiPart>,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiCandidate {
-            content: GeminiContent,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiResponse {
-            candidates: Vec<GeminiCandidate>,
-        }
-
-        let prompt = build_single_translation_prompt(text, target_lang, context);
-
-        let request = GeminiRequest {
-            contents: vec![Content {
-                parts: vec![Part { text: prompt }],
-            }],
-        };
-
-        let api_key = self.config.api_key.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Gemini API key is required"))?;
-
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            self.config.model
-        );
-
-        let response = self.client
-            .post(&url)
-            .header("x-goog-api-key", api_key)
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?
-            .json::<GeminiResponse>()
-            .await?;
-
-        Ok(response
-            .candidates
-            .first()
-            .and_then(|c| c.content.parts.first())
-            .map(|p| p.text.trim().trim_matches('"').to_string())
-            .unwrap_or_default())
-    }
-
-    /// Traduzione batch usando API Google Gemini
-    async fn translate_batch_gemini(
-        &self,
-        texts_with_ids: &[(u32, String)],
-        target_lang: &str,
-        context: Option<&str>,
-    ) -> Result<HashMap<u32, String>> {
-        #[derive(Serialize)]
-        struct Part {
-            text: String,
-        }
-
-        #[derive(Serialize)]
-        struct Content {
-            parts: Vec<Part>,
-        }
-
-        /// Configurazione per forzare output JSON nativo da Gemini 1.5+
-        /// Questo garantisce che il decoder dell'LLM produca sempre JSON valido
-        #[derive(Serialize)]
-        struct GenerationConfig {
-            #[serde(rename = "responseMimeType")]
-            response_mime_type: String,
-        }
-
-        #[derive(Serialize)]
-        struct GeminiRequest {
-            contents: Vec<Content>,
-            #[serde(rename = "generationConfig")]
-            generation_config: GenerationConfig,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiPart {
-            text: String,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiContent {
-            parts: Vec<GeminiPart>,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiCandidate {
-            content: GeminiContent,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiResponse {
-            candidates: Vec<GeminiCandidate>,
-        }
-
-        let prompt = build_batch_translation_prompt(texts_with_ids, target_lang, context);
-
-        let request = GeminiRequest {
-            contents: vec![Content {
-                parts: vec![Part { text: prompt }],
-            }],
-            // Gemini Native JSON Mode: forza l'output JSON a livello di decoder
-            // Funziona solo con modelli gemini-1.5-* e successivi
-            generation_config: GenerationConfig {
-                response_mime_type: "application/json".to_string(),
-            },
-        };
-
-        let api_key = self.config.api_key.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Gemini API key is required"))?;
-
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            self.config.model
-        );
-
-        let response = self.client
-            .post(&url)
-            .header("x-goog-api-key", api_key)
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?
-            .json::<GeminiResponse>()
-            .await?;
-
-        let result_text = response
-            .candidates
-            .first()
-            .and_then(|c| c.content.parts.first())
-            .map(|p| p.text.trim().to_string())
-            .unwrap_or_default();
-
-        // Parse JSON result - molto più robusto del parsing manuale
-        let translations = parse_json_translations(&result_text, texts_with_ids.len())?;
-
-        Ok(translations)
-    }
-
-    /// Traduzione con contesto migliorato usando API LLM
-    async fn translate_with_context_llm(
+    /// Traduzione con contesto migliorato usando API OpenAI-compatible
+    async fn translate_with_context_openai(
         &self,
         text: &str,
         target_lang: &str,
@@ -437,6 +276,13 @@ impl Translator {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
         }
 
+        // Aggiungi header specifici per OpenRouter
+        if self.config.api_type == ApiType::OpenRouter {
+            req_builder = req_builder
+                .header("HTTP-Referer", "https://srt-tools.app")
+                .header("X-Title", "SRT Tools");
+        }
+
         let response = req_builder
             .send()
             .await?
@@ -448,157 +294,6 @@ impl Translator {
             .first()
             .map(|c| c.message.content.trim().trim_matches('"').to_string())
             .unwrap_or_default())
-    }
-
-    /// Traduzione con contesto migliorato usando API Gemini
-    async fn translate_with_context_gemini(
-        &self,
-        text: &str,
-        target_lang: &str,
-        title_context: Option<&str>,
-        surrounding_context: Option<&str>,
-    ) -> Result<String> {
-        #[derive(Serialize)]
-        struct Part {
-            text: String,
-        }
-
-        #[derive(Serialize)]
-        struct Content {
-            parts: Vec<Part>,
-        }
-
-        #[derive(Serialize)]
-        struct GeminiRequest {
-            contents: Vec<Content>,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiPart {
-            text: String,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiContent {
-            parts: Vec<GeminiPart>,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiCandidate {
-            content: GeminiContent,
-        }
-
-        #[derive(Deserialize)]
-        struct GeminiResponse {
-            #[serde(default)]
-            candidates: Vec<GeminiCandidate>,
-            #[serde(rename = "promptFeedback")]
-            prompt_feedback: Option<PromptFeedback>,
-        }
-
-        #[derive(Deserialize)]
-        struct PromptFeedback {
-            #[serde(rename = "blockReason")]
-            block_reason: Option<String>,
-        }
-
-        let prompt = build_context_enhanced_translation_prompt(text, target_lang, title_context, surrounding_context);
-
-        let request = GeminiRequest {
-            contents: vec![Content {
-                parts: vec![Part {
-                    text: prompt,
-                }],
-            }],
-        };
-
-        let api_key = self.config.api_key.as_ref()
-            .ok_or_else(|| anyhow::anyhow!("API key required for Gemini"))?;
-
-        let url = format!(
-            "{}/models/{}:generateContent?key={}",
-            self.config.base_url.trim_end_matches('/'),
-            self.config.model,
-            api_key
-        );
-
-        // Implementa retry con exponential backoff
-        let max_retries = 3;
-        let mut last_error = None;
-        
-        for attempt in 0..max_retries {
-            if attempt > 0 {
-                // Exponential backoff: 1s, 2s, 4s
-                let delay = std::time::Duration::from_secs(2_u64.pow(attempt as u32));
-                tokio::time::sleep(delay).await;
-            }
-
-            let response_result = self.client
-                .post(&url)
-                .header("Content-Type", "application/json")
-                .json(&request)
-                .send()
-                .await;
-
-            match response_result {
-                Ok(resp) => {
-                    // Prima leggi la risposta come text per debugging
-                    let response_text = match resp.text().await {
-                        Ok(text) => text,
-                        Err(e) => {
-                            last_error = Some(anyhow::anyhow!("Failed to read response: {}", e));
-                            continue;
-                        }
-                    };
-
-                    // Prova a parsare come JSON
-                    match serde_json::from_str::<GeminiResponse>(&response_text) {
-                        Ok(gemini_response) => {
-                            // Controlla se la risposta è stata bloccata
-                            if gemini_response.candidates.is_empty() {
-                                if let Some(feedback) = gemini_response.prompt_feedback {
-                                    if let Some(reason) = feedback.block_reason {
-                                        // Per contenuti bloccati, usa una traduzione semplice senza contesto
-                                        eprintln!("⚠️  Content blocked by safety filters: {}. Using fallback simple translation.", reason);
-                                        return self.translate_gemini(text, target_lang, title_context).await;
-                                    }
-                                }
-                                last_error = Some(anyhow::anyhow!("Empty response from API, retrying..."));
-                                continue;
-                            }
-
-                            // Estrai il testo tradotto
-                            return Ok(gemini_response
-                                .candidates
-                                .first()
-                                .and_then(|c| c.content.parts.first())
-                                .map(|p| p.text.trim().trim_matches('"').to_string())
-                                .unwrap_or_else(|| {
-                                    // Fallback: se non c'è testo, ritorna l'originale
-                                    text.to_string()
-                                }));
-                        }
-                        Err(e) => {
-                            last_error = Some(anyhow::anyhow!(
-                                "Failed to parse response (attempt {}/{}): {}. Response: {}",
-                                attempt + 1,
-                                max_retries,
-                                e,
-                                &response_text[..response_text.len().min(200)] // primi 200 caratteri
-                            ));
-                            continue;
-                        }
-                    }
-                }
-                Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Request failed (attempt {}/{}): {}", attempt + 1, max_retries, e));
-                    continue;
-                }
-            }
-        }
-
-        // Se tutti i retry falliscono, ritorna l'errore
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Translation failed after {} retries", max_retries)))
     }
 }
 

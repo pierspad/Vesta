@@ -1,16 +1,11 @@
 /**
  * Definizione modelli AI disponibili per la traduzione
  * 
- * Questo file contiene tutti i modelli disponibili per ogni provider.
- * È facile da mantenere: basta aggiungere o rimuovere modelli dagli array.
+ * ARCHITETTURA SEMPLIFICATA:
+ * - Local: per Ollama, LM Studio e altri server locali (API OpenAI-compatible)
+ * - OpenRouter: gateway unificato per tutti i modelli cloud (Gemini, GPT, Claude, Mistral, etc.)
  * 
- * Struttura:
- * - id: identificativo API del modello (usato nelle chiamate)
- * - name: nome visualizzato nell'interfaccia
- * - provider: tipo di provider
- * - contextWindow: finestra di contesto in token (opzionale)
- * - description: descrizione breve (opzionale)
- * - recommended: modello consigliato per il provider (opzionale)
+ * Tutti usano lo stesso formato API (OpenAI-compatible), semplificando enormemente il backend.
  */
 
 export interface ModelInfo {
@@ -25,174 +20,43 @@ export interface ModelInfo {
 export interface ProviderInfo {
   id: string;
   name: string;
-  icon: string; // SVG path o emoji
-  color: string; // Tailwind gradient classes
+  icon: string;
+  color: string;
   description: string;
   requiresApiKey: boolean;
   requiresApiUrl: boolean;
   defaultApiUrl?: string;
 }
 
-// Definizione provider (ordinati: Local, OpenRouter, Mistral, Google, OpenAI, Anthropic)
+// Solo 2 provider: Local e OpenRouter
 export const providers: Record<string, ProviderInfo> = {
   local: {
     id: "local",
     name: "Local LLM",
-    icon: "⬡",
+    icon: "🏠",
     color: "from-purple-500 to-pink-500",
     description: "Ollama, LM Studio, modelli locali",
     requiresApiKey: false,
     requiresApiUrl: true,
-    defaultApiUrl: "http://localhost:11434",
+    defaultApiUrl: "http://localhost:11434/v1",
   },
   openrouter: {
     id: "openrouter",
     name: "OpenRouter",
-    icon: "◇",
-    color: "from-red-500 to-rose-500",
-    description: "Accesso unificato a molti modelli",
+    icon: "🌐",
+    color: "from-indigo-500 to-purple-600",
+    description: "Accesso unificato a GPT, Claude, Gemini, Mistral e altri",
     requiresApiKey: true,
     requiresApiUrl: false,
-  },
-  mistral: {
-    id: "mistral",
-    name: "Mistral AI",
-    icon: "◆",
-    color: "from-amber-500 to-orange-500",
-    description: "Modelli Mistral, veloci e potenti",
-    requiresApiKey: true,
-    requiresApiUrl: false,
-  },
-  gemini: {
-    id: "gemini",
-    name: "Google Gemini",
-    icon: "✦",
-    color: "from-blue-500 to-cyan-500",
-    description: "Modelli Google AI, ottimi per traduzioni",
-    requiresApiKey: true,
-    requiresApiUrl: false,
-  },
-  openai: {
-    id: "openai",
-    name: "OpenAI",
-    icon: "◎",
-    color: "from-green-500 to-emerald-500",
-    description: "GPT-4 e GPT-3.5, modelli versatili",
-    requiresApiKey: true,
-    requiresApiUrl: false,
-  },
-  anthropic: {
-    id: "anthropic",
-    name: "Anthropic Claude",
-    icon: "◈",
-    color: "from-orange-600 to-amber-600",
-    description: "Claude, eccellente per testi lunghi",
-    requiresApiKey: true,
-    requiresApiUrl: false,
+    defaultApiUrl: "https://openrouter.ai/api/v1",
   },
 };
 
-// Array ordinato dei provider IDs per iterazione ordinata
-export const providerOrder = ["local", "openrouter", "mistral", "gemini", "openai", "anthropic"];
+// Solo 2 provider
+export const providerOrder = ["local", "openrouter"];
 
 // Modelli per provider
 export const modelsByProvider: Record<string, ModelInfo[]> = {
-  gemini: [
-    {
-      id: "gemini-2.0-flash",
-      name: "Gemini 2.0 Flash",
-      provider: "gemini",
-      contextWindow: 1048576,
-      description: "Velocissimo, ottimo per traduzioni",
-      recommended: true,
-    },
-    {
-      id: "gemini-2.0-flash-lite",
-      name: "Gemini 2.0 Flash Lite",
-      provider: "gemini",
-      contextWindow: 1048576,
-      description: "Versione lite, più economico",
-    },
-    {
-      id: "gemini-1.5-flash",
-      name: "Gemini 1.5 Flash",
-      provider: "gemini",
-      contextWindow: 1048576,
-      description: "Veloce, buon rapporto qualità/prezzo",
-    },
-    {
-      id: "gemini-1.5-flash-8b",
-      name: "Gemini 1.5 Flash 8B",
-      provider: "gemini",
-      contextWindow: 1048576,
-      description: "Versione 8B, più leggero",
-    },
-    {
-      id: "gemini-1.5-pro",
-      name: "Gemini 1.5 Pro",
-      provider: "gemini",
-      contextWindow: 2097152,
-      description: "Più potente, migliore qualità",
-    },
-  ],
-
-  openai: [
-    {
-      id: "gpt-4o",
-      name: "GPT-4o",
-      provider: "openai",
-      contextWindow: 128000,
-      description: "Il più potente, multimodale",
-      recommended: true,
-    },
-    {
-      id: "gpt-4o-mini",
-      name: "GPT-4o Mini",
-      provider: "openai",
-      contextWindow: 128000,
-      description: "Economico, buona qualità",
-    },
-    {
-      id: "gpt-4-turbo",
-      name: "GPT-4 Turbo",
-      provider: "openai",
-      contextWindow: 128000,
-      description: "Potente con contesto ampio",
-    },
-    {
-      id: "gpt-3.5-turbo",
-      name: "GPT-3.5 Turbo",
-      provider: "openai",
-      contextWindow: 16385,
-      description: "Veloce ed economico",
-    },
-  ],
-
-  anthropic: [
-    {
-      id: "claude-3-5-sonnet-20241022",
-      name: "Claude 3.5 Sonnet",
-      provider: "anthropic",
-      contextWindow: 200000,
-      description: "Ottimo per traduzioni",
-      recommended: true,
-    },
-    {
-      id: "claude-3-5-haiku-20241022",
-      name: "Claude 3.5 Haiku",
-      provider: "anthropic",
-      contextWindow: 200000,
-      description: "Veloce ed economico",
-    },
-    {
-      id: "claude-3-opus-20240229",
-      name: "Claude 3 Opus",
-      provider: "anthropic",
-      contextWindow: 200000,
-      description: "Il più potente",
-    },
-  ],
-
   local: [
     {
       id: "llama3.2",
@@ -240,81 +104,125 @@ export const modelsByProvider: Record<string, ModelInfo[]> = {
   ],
 
   openrouter: [
+    // Google Gemini (via OpenRouter)
     {
       id: "google/gemini-2.0-flash-001",
-      name: "Gemini 2.0 Flash",
+      name: "🔷 Gemini 2.0 Flash",
       provider: "openrouter",
-      description: "Via OpenRouter",
+      contextWindow: 1048576,
+      description: "Google - Velocissimo, ottimo per traduzioni",
       recommended: true,
     },
     {
-      id: "anthropic/claude-3.5-sonnet",
-      name: "Claude 3.5 Sonnet",
+      id: "google/gemini-1.5-flash",
+      name: "🔷 Gemini 1.5 Flash",
       provider: "openrouter",
-      description: "Via OpenRouter",
+      contextWindow: 1048576,
+      description: "Google - Veloce, buon rapporto qualità/prezzo",
     },
     {
-      id: "openai/gpt-4o",
-      name: "GPT-4o",
+      id: "google/gemini-1.5-pro",
+      name: "🔷 Gemini 1.5 Pro",
       provider: "openrouter",
-      description: "Via OpenRouter",
+      contextWindow: 2097152,
+      description: "Google - Più potente, migliore qualità",
+    },
+    // OpenAI GPT (via OpenRouter)
+    {
+      id: "openai/gpt-4o",
+      name: "🟢 GPT-4o",
+      provider: "openrouter",
+      contextWindow: 128000,
+      description: "OpenAI - Il più potente, multimodale",
     },
     {
       id: "openai/gpt-4o-mini",
-      name: "GPT-4o Mini",
+      name: "🟢 GPT-4o Mini",
       provider: "openrouter",
-      description: "Via OpenRouter",
+      contextWindow: 128000,
+      description: "OpenAI - Economico, buona qualità",
     },
     {
-      id: "meta-llama/llama-3.3-70b-instruct",
-      name: "Llama 3.3 70B",
+      id: "openai/gpt-4-turbo",
+      name: "🟢 GPT-4 Turbo",
       provider: "openrouter",
-      description: "Via OpenRouter",
+      contextWindow: 128000,
+      description: "OpenAI - Potente con contesto ampio",
     },
+    // Anthropic Claude (via OpenRouter)
+    {
+      id: "anthropic/claude-3.5-sonnet",
+      name: "🟠 Claude 3.5 Sonnet",
+      provider: "openrouter",
+      contextWindow: 200000,
+      description: "Anthropic - Ottimo per traduzioni",
+    },
+    {
+      id: "anthropic/claude-3.5-haiku",
+      name: "🟠 Claude 3.5 Haiku",
+      provider: "openrouter",
+      contextWindow: 200000,
+      description: "Anthropic - Veloce ed economico",
+    },
+    {
+      id: "anthropic/claude-3-opus",
+      name: "🟠 Claude 3 Opus",
+      provider: "openrouter",
+      contextWindow: 200000,
+      description: "Anthropic - Il più potente",
+    },
+    // Mistral (via OpenRouter)
     {
       id: "mistralai/mistral-large-2411",
-      name: "Mistral Large",
+      name: "🟡 Mistral Large",
       provider: "openrouter",
-      description: "Via OpenRouter",
-    },
-  ],
-
-  mistral: [
-    {
-      id: "mistral-large-latest",
-      name: "Mistral Large",
-      provider: "mistral",
       contextWindow: 128000,
-      description: "Il più potente, ottimo per traduzioni",
-      recommended: true,
+      description: "Mistral - Il più potente, ottimo per traduzioni",
     },
     {
-      id: "mistral-medium-latest",
-      name: "Mistral Medium",
-      provider: "mistral",
+      id: "mistralai/mistral-medium",
+      name: "🟡 Mistral Medium",
+      provider: "openrouter",
       contextWindow: 32000,
-      description: "Bilanciato tra qualità e velocità",
+      description: "Mistral - Bilanciato",
     },
     {
-      id: "mistral-small-latest",
-      name: "Mistral Small",
-      provider: "mistral",
+      id: "mistralai/mistral-small-3.1-24b-instruct",
+      name: "🟡 Mistral Small",
+      provider: "openrouter",
       contextWindow: 32000,
-      description: "Veloce ed economico",
+      description: "Mistral - Veloce ed economico",
     },
+    // Meta Llama (via OpenRouter)
     {
-      id: "open-mistral-nemo",
-      name: "Mistral Nemo",
-      provider: "mistral",
+      id: "meta-llama/llama-3.3-70b-instruct",
+      name: "🦙 Llama 3.3 70B",
+      provider: "openrouter",
       contextWindow: 128000,
-      description: "Modello open, alta qualità",
+      description: "Meta - Open source, alta qualità",
     },
     {
-      id: "codestral-latest",
-      name: "Codestral",
-      provider: "mistral",
-      contextWindow: 32000,
-      description: "Ottimizzato per codice",
+      id: "meta-llama/llama-3.1-405b-instruct",
+      name: "🦙 Llama 3.1 405B",
+      provider: "openrouter",
+      contextWindow: 128000,
+      description: "Meta - Il più grande open model",
+    },
+    // DeepSeek (via OpenRouter)
+    {
+      id: "deepseek/deepseek-chat",
+      name: "🔮 DeepSeek Chat",
+      provider: "openrouter",
+      contextWindow: 64000,
+      description: "DeepSeek - Ottimo rapporto qualità/prezzo",
+    },
+    // Qwen (via OpenRouter)
+    {
+      id: "qwen/qwen-2.5-72b-instruct",
+      name: "🌙 Qwen 2.5 72B",
+      provider: "openrouter",
+      contextWindow: 128000,
+      description: "Alibaba - Eccellente per multilingue",
     },
   ],
 };

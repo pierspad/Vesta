@@ -113,15 +113,11 @@
   "settings.language": "Lingua Interfaccia",
   "settings.languageDesc": "Scegli la lingua dell'applicazione",
 
-  "provider.local": "Local",
+  "provider.local": "LLM Locale",
   "provider.openrouter": "OpenRouter",
-  "provider.mistral": "Mistral",
-  "provider.google": "Google",
-  "provider.openai": "OpenAI",
-  "provider.anthropic": "Anthropic",
 
   "translate.title": "Traduzione Sottotitoli",
-  "translate.subtitle": "Traduci file SRT usando AI (Gemini, OpenAI, Claude, Local LLM)",
+  "translate.subtitle": "Traduci file SRT usando AI via OpenRouter (GPT, Claude, Gemini, Mistral) o LLM locale",
   "translate.noApiWarning": "Nessuna chiave API configurata.",
   "translate.goToSettings": "Vai alle Impostazioni",
   "translate.toAddOne": "per aggiungerne una.",
@@ -212,6 +208,9 @@
 
   "sync.videoPlaceholder": "Carica un video per iniziare",
   "sync.videoFormats": "Formati supportati: MP4, MKV, AVI, WebM",
+  "sync.videoCodecError": "Impossibile riprodurre questo video",
+  "sync.videoCodecHint": "Codec video mancanti. Su Linux, installa: gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav",
+  "sync.tryAnotherVideo": "Prova un altro video",
   "sync.srtPlaceholder": "Carica un file SRT per iniziare",
   "sync.averageOffset": "Offset medio",
   "sync.completed": "completato",

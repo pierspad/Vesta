@@ -9,6 +9,7 @@
 mod translator;
 mod language_info;
 mod prompts;
+mod rate_limiter;
 
 use anyhow::Result;
 use srt_parser::{SrtParser, Subtitle};
@@ -18,6 +19,7 @@ use tokio::sync::Semaphore;
 
 // Re-export dei tipi pubblici
 pub use translator::{Translator, TranslatorConfig, ApiType};
+pub use rate_limiter::{RateLimiter, RateLimitConfig, create_rate_limiter, create_rate_limiter_with_burst};
 
 /// Dati di progresso della traduzione passati al callback
 #[derive(Debug, Clone)]
@@ -58,8 +60,52 @@ pub struct BatchResult {
 /// * `title_context` - Contesto opzionale (es: titolo del film)
 /// * `output_path` - Percorso del file di output per salvataggio incrementale
 /// * `on_progress` - Callback invocato ad ogni aggiornamento di progresso
+///
+/// **Nota**: Questa funzione usa solo il semaforo per limitare la concorrenza.
+/// Per un vero rate limiting basato su RPM, usa `translate_subtitles_with_rate_limit`.
 pub async fn translate_subtitles_async<F>(
     translators: Vec<Translator>,
+    subtitles: HashMap<u32, Subtitle>,
+    target_lang: &str,
+    batch_size: usize,
+    title_context: Option<&str>,
+    output_path: &std::path::Path,
+    on_progress: F,
+) -> Result<HashMap<u32, Subtitle>>
+where
+    F: FnMut(TranslationProgress) + Send + 'static,
+{
+    // Delega alla nuova funzione senza rate limiters (usa solo semaforo)
+    translate_subtitles_with_rate_limit(
+        translators,
+        None, // Nessun rate limiter, usa solo semaforo
+        subtitles,
+        target_lang,
+        batch_size,
+        title_context,
+        output_path,
+        on_progress,
+    ).await
+}
+
+/// Traduce tutti i sottotitoli usando multiple API keys in parallelo con rate limiting RPM
+///
+/// Questa versione implementa un vero rate limiter basato su token bucket che rispetta
+/// i limiti RPM (Richieste Per Minuto) delle API, non solo la concorrenza.
+///
+/// # Argomenti
+///
+/// * `translators` - Vector di Translator pre-configurati (uno per API provider)
+/// * `rate_limiters` - Optional: Vector di RateLimiter (uno per provider), se None usa solo semaforo
+/// * `subtitles` - HashMap dei sottotitoli da tradurre
+/// * `target_lang` - Codice lingua target (es: "it", "en", "es")
+/// * `batch_size` - Numero di sottotitoli da tradurre insieme
+/// * `title_context` - Contesto opzionale (es: titolo del film)
+/// * `output_path` - Percorso del file di output per salvataggio incrementale
+/// * `on_progress` - Callback invocato ad ogni aggiornamento di progresso
+pub async fn translate_subtitles_with_rate_limit<F>(
+    translators: Vec<Translator>,
+    rate_limiters: Option<Vec<std::sync::Arc<RateLimiter>>>,
     subtitles: HashMap<u32, Subtitle>,
     target_lang: &str,
     batch_size: usize,
@@ -198,6 +244,9 @@ where
     
     // Crea un semaforo per limitare le richieste concorrenti
     let semaphore = Arc::new(Semaphore::new(total_workers));
+    
+    // Wrappa i rate limiters in Arc se presenti
+    let rate_limiters: Option<Vec<Arc<RateLimiter>>> = rate_limiters;
 
     // Task handles
     let mut handles = vec![];
@@ -209,6 +258,10 @@ where
         let translator = translators[translator_idx].clone();
         
         let semaphore = semaphore.clone();
+        // Clona il rate limiter per questo provider (se disponibile)
+        let rate_limiter = rate_limiters.as_ref().map(|limiters| {
+            limiters[translator_idx % limiters.len()].clone()
+        });
         let translated = translated.clone();
         let progress_callback = progress_callback.clone();
         let timing_stats = timing_stats.clone();
@@ -217,8 +270,16 @@ where
         let title_context = title_context.map(|s| s.to_string());
 
         let handle = tokio::spawn(async move {
-            // Acquisisce permit dal semaforo
-            let _permit = semaphore.acquire().await.unwrap();
+            // Prima: aspetta il rate limiter RPM (se configurato)
+            // Questo garantisce di non superare il limite RPM dell'API
+            if let Some(ref limiter) = rate_limiter {
+                limiter.until_ready().await;
+            }
+            
+            // Poi: acquisisce permit dal semaforo per limitare la concorrenza
+            // Questo non fallisce a meno che il semaforo non sia chiuso
+            let _permit = semaphore.acquire().await
+                .expect("Semaphore should never be closed during translation");
             
             let batch_start_time = Instant::now();
             let batch_start = batch_idx * batch_size + 1;
@@ -471,6 +532,35 @@ pub async fn repair_translation<F>(
 where
     F: FnMut(TranslationProgress) + Send + 'static,
 {
+    // Delega alla versione con rate limiter senza rate limiters
+    repair_translation_with_rate_limit(
+        translators,
+        None,
+        original,
+        translated,
+        missing_ids,
+        target_lang,
+        title_context,
+        on_progress,
+    ).await
+}
+
+/// Ripara una traduzione incompleta con supporto per rate limiting RPM
+///
+/// Versione avanzata che supporta rate limiters per rispettare i limiti RPM delle API.
+pub async fn repair_translation_with_rate_limit<F>(
+    translators: Vec<Translator>,
+    rate_limiters: Option<Vec<std::sync::Arc<RateLimiter>>>,
+    original: &HashMap<u32, Subtitle>,
+    translated: &mut HashMap<u32, Subtitle>,
+    missing_ids: Vec<u32>,
+    target_lang: &str,
+    title_context: Option<&str>,
+    on_progress: F,
+) -> Result<()>
+where
+    F: FnMut(TranslationProgress) + Send + 'static,
+{
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
@@ -487,6 +577,9 @@ where
     
     // Crea un semaforo per controllare il parallelismo (come nella traduzione principale)
     let semaphore = Arc::new(Semaphore::new(translators_len));
+    
+    // Wrappa i rate limiters
+    let rate_limiters: Option<Vec<Arc<RateLimiter>>> = rate_limiters;
 
     {
         let mut callback = progress_callback.lock().await;
@@ -514,6 +607,10 @@ where
             let translator = translators[translator_idx].clone();
             
             let semaphore = semaphore.clone();
+            // Clona il rate limiter per questo provider (se disponibile)
+            let rate_limiter = rate_limiters.as_ref().map(|limiters| {
+                limiters[translator_idx % limiters.len()].clone()
+            });
             let id = *id;
             let subtitle = subtitle.clone();
             let target_lang = target_lang.to_string();
@@ -526,8 +623,15 @@ where
             let context_text = build_repair_context(id, original, translated);
 
             let handle = tokio::spawn(async move {
-                // Acquisisce permit dal semaforo per limitare il parallelismo
-                let _permit = semaphore.acquire().await.unwrap();
+                // Prima: aspetta il rate limiter RPM (se configurato)
+                if let Some(ref limiter) = rate_limiter {
+                    limiter.until_ready().await;
+                }
+                
+                // Poi: acquisisce permit dal semaforo per limitare il parallelismo
+                // Questo non fallisce a meno che il semaforo non sia chiuso
+                let _permit = semaphore.acquire().await
+                    .expect("Semaphore should never be closed during repair");
                 
                 let task_start = Instant::now();
 

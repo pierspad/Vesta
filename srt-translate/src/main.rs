@@ -10,14 +10,17 @@ use serde::Deserialize;
 use srt_parser::SrtParser;
 use std::path::PathBuf;
 use std::io::{self, Write};
+use std::sync::Arc;
 use srt_translate_lib::{
-    translate_subtitles_async, 
+    translate_subtitles_with_rate_limit, 
+    repair_translation_with_rate_limit,
     TranslationProgress,
     verify_translation_completeness,
-    repair_translation,
     Translator,
     TranslatorConfig,
-    ApiType
+    ApiType,
+    create_rate_limiter,
+    RateLimiter,
 };
 
 /// Configurazione caricata da config.toml
@@ -63,7 +66,9 @@ fn default_filename_pattern() -> String {
 fn expand_env_vars(content: &str) -> Result<String> {
     use regex::Regex;
     
-    let re = Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}").unwrap();
+    // La regex è una costante valida, expect è appropriato qui
+    let re = Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}")
+        .expect("Regex pattern is a compile-time constant");
     let mut result = content.to_string();
     let mut missing_vars = Vec::new();
     
@@ -91,9 +96,28 @@ fn expand_env_vars(content: &str) -> Result<String> {
     Ok(result)
 }
 
-/// Calcola automaticamente il numero di workers per key in base alle CPU disponibili
-/// Lascia sempre 1 CPU libera per il sistema operativo
-fn calculate_workers_per_key(num_providers: usize) -> usize {
+/// Calcola automaticamente il numero di workers per provider in base al RPM
+/// 
+/// Per task I/O bound (come le chiamate API), il numero di workers non è 
+/// limitato dalla CPU ma dalla latenza di rete e dal rate limit dell'API.
+/// 
+/// Strategia:
+/// - Con rate limiters abilitati, possiamo avere più workers in attesa
+/// - Il rate limiter garantisce di non superare l'RPM
+/// - Più workers = migliore parallelizzazione delle richieste
+fn calculate_workers_per_provider(rpm_limit: usize) -> usize {
+    // Per task I/O bound, usiamo un numero di workers basato sul RPM
+    // Più RPM = più workers possibili
+    // Formula: circa 1 worker ogni 5-10 RPM, con min=2 e max=20
+    let base_workers = (rpm_limit / 8).max(2).min(20);
+    
+    base_workers
+}
+
+/// Calcola workers legacy basato su CPU (per retrocompatibilità)
+#[deprecated(note = "Use calculate_workers_per_provider which is optimized for I/O bound tasks")]
+#[allow(dead_code)]
+fn calculate_workers_per_key_legacy(num_providers: usize) -> usize {
     let num_cpus = num_cpus::get();
     
     // Lascia sempre almeno 1 CPU libera
@@ -178,16 +202,14 @@ async fn main() -> Result<()> {
     if config.api.providers.is_empty() {
         return Err(anyhow::anyhow!("No API providers found in config.toml. Please add at least one [[api.providers]] section."));
     }
-
-    // Calcola workers automaticamente se non specificato
-    let default_workers_per_key = calculate_workers_per_key(config.api.providers.len());
     
-    // Applica il default ai provider che non hanno workers_per_key specificato
+    // Applica il calcolo automatico dei workers basato sull'RPM (I/O bound optimization)
     let providers_with_workers: Vec<ProviderConfig> = config.api.providers
         .into_iter()
         .map(|mut p| {
             if p.workers_per_key.is_none() {
-                p.workers_per_key = Some(default_workers_per_key);
+                // Calcola workers in base al RPM del provider (ottimizzato per I/O bound)
+                p.workers_per_key = Some(calculate_workers_per_provider(p.rpm_limit));
             }
             p
         })
@@ -201,14 +223,18 @@ async fn main() -> Result<()> {
     let num_cpus = num_cpus::get();
     
     println!("🔧 Configuration:");
-    println!("  💻 System CPUs: {} (using {} for translation, keeping 1 free)", num_cpus, num_cpus.saturating_sub(1));
+    println!("  💻 System CPUs: {} (not a bottleneck for I/O bound tasks)", num_cpus);
     println!("  📄 Config file: {}", cli.config.display());
     println!("  🔑 API providers: {}", providers_with_workers.len());
     for (idx, provider) in providers_with_workers.iter().enumerate() {
         let workers = provider.workers_per_key.unwrap_or(1);
+        let auto_note = if provider.workers_per_key.is_none() { 
+            " [auto-calculated from RPM]" 
+        } else { 
+            "" 
+        };
         println!("     [{idx}] {} - {} ({} RPM, {} workers{})", 
-            provider.provider, provider.model, provider.rpm_limit, workers,
-            if provider.workers_per_key.is_none() { " [auto]" } else { "" });
+            provider.provider, provider.model, provider.rpm_limit, workers, auto_note);
     }
     println!("  📦 Batch size: {} subtitles per request", config.translation.batch_size);
     println!("  🚀 Total concurrent workers: {}", total_workers);
@@ -269,7 +295,8 @@ async fn main() -> Result<()> {
             
             if progress.message.contains("Starting batch") {
                 print!("  {} (ETA: {}m {}s)...\r", progress.message, minutes, seconds);
-                io::stdout().flush().unwrap();
+                // flush può fallire se stdout è una pipe chiusa - ignoriamo l'errore
+                let _ = io::stdout().flush();
             } else if progress.message.contains("completed") {
                 // Mostra il completamento con l'ETA
                 println!("  {} (ETA: {}m {}s remaining)", progress.message, minutes, seconds);
@@ -283,42 +310,49 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Crea i Translator da tutti i provider configurati
-    let translators: Vec<Translator> = providers_with_workers
-        .iter()
-        .flat_map(|provider| {
-            // Determina tipo API dal provider
-            let api_type = match provider.provider.as_str() {
-                "gemini" => ApiType::Gemini,
-                "openai" => ApiType::OpenAI,
-                "local" => ApiType::Local,
-                _ => ApiType::Gemini, // default fallback
-            };
+    // Crea i Translator e RateLimiters da tutti i provider configurati
+    let mut translators: Vec<Translator> = Vec::new();
+    let mut rate_limiters: Vec<Arc<RateLimiter>> = Vec::new();
+    
+    for provider in &providers_with_workers {
+        // Determina tipo API dal provider
+        let api_type = match provider.provider.as_str() {
+            "gemini" => ApiType::Gemini,
+            "openai" => ApiType::OpenAI,
+            "local" => ApiType::Local,
+            _ => ApiType::Gemini, // default fallback
+        };
 
-            // Determina base URL
-            let base_url = match api_type {
-                ApiType::Gemini => "https://generativelanguage.googleapis.com/v1beta",
-                ApiType::OpenAI => "https://api.openai.com/v1",
-                ApiType::Local => "http://localhost:1234/v1",
-            };
+        // Determina base URL
+        let base_url = match api_type {
+            ApiType::Gemini => "https://generativelanguage.googleapis.com/v1beta",
+            ApiType::OpenAI => "https://api.openai.com/v1",
+            ApiType::Local => "http://localhost:1234/v1",
+        };
 
-            let workers = provider.workers_per_key.unwrap_or(1);
-            
-            // Crea N translators per questo provider (workers_per_key)
-            (0..workers).map(move |_| {
-                Translator::new(TranslatorConfig {
-                    base_url: base_url.to_string(),
-                    model: provider.model.clone(),
-                    api_key: Some(provider.api_key.clone()),
-                    api_type: api_type.clone(),
-                })
-            }).collect::<Vec<_>>()
-        })
-        .collect();
+        let workers = provider.workers_per_key.unwrap_or(1);
+        
+        // Crea un rate limiter condiviso per questo provider (rispetta RPM)
+        // Il rate limiter è condiviso tra tutti i workers dello stesso provider
+        let rate_limiter = create_rate_limiter(provider.rpm_limit as u32);
+        
+        // Crea N translators per questo provider (workers_per_key)
+        for _ in 0..workers {
+            translators.push(Translator::new(TranslatorConfig {
+                base_url: base_url.to_string(),
+                model: provider.model.clone(),
+                api_key: Some(provider.api_key.clone()),
+                api_type: api_type.clone(),
+            }));
+            // Ogni worker dello stesso provider condivide lo stesso rate limiter
+            rate_limiters.push(rate_limiter.clone());
+        }
+    }
 
-    // Esegui la traduzione (clona i translators per poterli riusare nel repair)
-    let mut translated = translate_subtitles_async(
+    // Esegui la traduzione con rate limiting (clona per poterli riusare nel repair)
+    let mut translated = translate_subtitles_with_rate_limit(
         translators.clone(),
+        Some(rate_limiters.clone()),
         original_subtitles.clone(),
         language,
         config.translation.batch_size,
@@ -363,14 +397,15 @@ async fn main() -> Result<()> {
         let repair_progress = |progress: TranslationProgress| {
             if progress.message.contains("Repairing") {
                 print!("  {} \r", progress.message);
-                io::stdout().flush().unwrap();
+                io::stdout().flush().unwrap_or(());
             } else {
                 println!("  {}", progress.message);
             }
         };
         
-        repair_translation(
+        repair_translation_with_rate_limit(
             translators.clone(),
+            Some(rate_limiters.clone()),
             &original_subtitles,
             &mut translated,
             missing_ids,

@@ -4,6 +4,7 @@
 //! Centralizzare i prompt qui rende il codice più pulito e facilita le modifiche future.
 
 use crate::language_info::get_language_info;
+use serde_json;
 
 /// Genera il prompt per la traduzione singola di un sottotitolo
 pub fn build_single_translation_prompt(
@@ -47,16 +48,18 @@ Translation:",
     )
 }
 
-/// Genera il prompt per la traduzione batch di più sottotitoli
+/// Genera il prompt per la traduzione batch di più sottotitoli (JSON output)
 pub fn build_batch_translation_prompt(
     texts_with_ids: &[(u32, String)],
     target_lang: &str,
     context: Option<&str>,
 ) -> String {
-    let mut input_list = String::new();
-    for (id, text) in texts_with_ids {
-        input_list.push_str(&format!("ID:{} | TEXT:{}\n", id, text));
-    }
+    // Crea JSON array come input per chiarezza
+    let input_json: Vec<serde_json::Value> = texts_with_ids
+        .iter()
+        .map(|(id, text)| serde_json::json!({"id": id, "text": text}))
+        .collect();
+    let input_str = serde_json::to_string_pretty(&input_json).unwrap_or_default();
 
     let context_info = if let Some(ctx) = context {
         format!("\n\nContext: These subtitles are from \"{}\". Use this context to better understand references, names, and cultural elements for more accurate translation.", ctx)
@@ -67,14 +70,14 @@ pub fn build_batch_translation_prompt(
     let lang_info = get_language_info(target_lang);
 
     format!(
-        "You are a professional subtitle translator specializing in film and TV content.
+        r#"You are a professional subtitle translator specializing in film and TV content.
 Your task is to translate the following subtitle texts to {} with the highest quality possible.
 {}
 {}
 CRITICAL RULES:
 1. Translate ALL lines in each subtitle text - never skip any line
 2. For each subtitle, maintain the exact same number of lines as the original
-3. Each line break in the original MUST be preserved in the translation
+3. Each line break in the original MUST be preserved in the translation (use \n in JSON)
 4. Keep the same tone, register, and emotional intensity for each subtitle
 5. Preserve cultural references when possible, or adapt them naturally
 6. Keep translations concise - subtitles must be brief and readable
@@ -82,24 +85,20 @@ CRITICAL RULES:
 8. Use natural, colloquial language appropriate for spoken dialogue
 9. Preserve character voice and personality
 10. Translate profanity and vulgar language accurately - do NOT censor or soften it
-11. IMPORTANT: Translate ALL content including sound effects, background noises, and action descriptions in square brackets (e.g., [Chuckles] -> [Ridacchia], [Door slams] -> [Sbatte la porta], [Music playing] -> [Musica in sottofondo])
+11. IMPORTANT: Translate ALL content including sound effects, background noises, and action descriptions in square brackets
 12. Keep square brackets around translated sound effects and actions
-13. Return ONLY the translations in the EXACT format: ID:number | TRANSLATION:text
-14. One translation per line in the response
-15. Do NOT add explanations, quotes, or other text
-16. If a subtitle text contains multiple lines separated by newlines, translate all of them and preserve the line breaks in the translation
+
+OUTPUT FORMAT: You MUST return a valid JSON array. Each object must have "id" (number) and "text" (translated string).
+Use \n for line breaks within the text field. Do NOT wrap in markdown code blocks.
+
+Example output:
+[{{"id":1,"text":"Prima riga tradotta\nSeconda riga tradotta"}},{{"id":2,"text":"Altra traduzione"}}]
 
 Input subtitles:
 {}
 
-Output format example:
-ID:1 | TRANSLATION:translated text here
-ID:2 | TRANSLATION:first line of translation
-second line of translation
-ID:3 | TRANSLATION:another single line translation
-
-Now translate:",
-        lang_info.full_name, lang_info.examples, context_info, input_list
+Return ONLY the JSON array:"#,
+        lang_info.full_name, lang_info.examples, context_info, input_str
     )
 }
 

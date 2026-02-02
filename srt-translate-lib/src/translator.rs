@@ -210,52 +210,8 @@ impl Translator {
             .map(|c| c.message.content.trim().to_string())
             .unwrap_or_default();
 
-        // Parse il risultato - gestisce traduzioni multi-riga
-        let mut translations = HashMap::new();
-        let mut current_id: Option<u32> = None;
-        let mut current_translation = String::new();
-        
-        for line in result_text.lines() {
-            if line.starts_with("ID:") {
-                // Salva la traduzione precedente se esiste
-                if let Some(id) = current_id {
-                    translations.insert(id, current_translation.trim().to_string());
-                }
-                
-                // Inizia una nuova traduzione
-                if let Some((id_part, trans_part)) = line.split_once(" | ") {
-                    if let Some(id_str) = id_part.strip_prefix("ID:") {
-                        if let Ok(id) = id_str.trim().parse::<u32>() {
-                            current_id = Some(id);
-                            current_translation = trans_part
-                                .strip_prefix("TRANSLATION:")
-                                .unwrap_or(trans_part)
-                                .to_string();
-                        }
-                    }
-                }
-            } else if current_id.is_some() && !line.trim().is_empty() {
-                // Aggiungi riga alla traduzione corrente
-                if !current_translation.is_empty() {
-                    current_translation.push('\n');
-                }
-                current_translation.push_str(line);
-            }
-        }
-        
-        // Salva l'ultima traduzione
-        if let Some(id) = current_id {
-            translations.insert(id, current_translation.trim().to_string());
-        }
-
-        // Verifica che abbiamo tutte le traduzioni
-        if translations.len() != texts_with_ids.len() {
-            anyhow::bail!(
-                "Batch translation incomplete: expected {} translations, got {}",
-                texts_with_ids.len(),
-                translations.len()
-            );
-        }
+        // Parse JSON result - molto più robusto del parsing manuale
+        let translations = parse_json_translations(&result_text, texts_with_ids.len())?;
 
         Ok(translations)
     }
@@ -411,52 +367,8 @@ impl Translator {
             .map(|p| p.text.trim().to_string())
             .unwrap_or_default();
 
-        // Parse il risultato - gestisce traduzioni multi-riga
-        let mut translations = HashMap::new();
-        let mut current_id: Option<u32> = None;
-        let mut current_translation = String::new();
-        
-        for line in result_text.lines() {
-            if line.starts_with("ID:") {
-                // Salva la traduzione precedente se esiste
-                if let Some(id) = current_id {
-                    translations.insert(id, current_translation.trim().to_string());
-                }
-                
-                // Inizia una nuova traduzione
-                if let Some((id_part, trans_part)) = line.split_once(" | ") {
-                    if let Some(id_str) = id_part.strip_prefix("ID:") {
-                        if let Ok(id) = id_str.trim().parse::<u32>() {
-                            current_id = Some(id);
-                            current_translation = trans_part
-                                .strip_prefix("TRANSLATION:")
-                                .unwrap_or(trans_part)
-                                .to_string();
-                        }
-                    }
-                }
-            } else if current_id.is_some() && !line.trim().is_empty() {
-                // Aggiungi riga alla traduzione corrente
-                if !current_translation.is_empty() {
-                    current_translation.push('\n');
-                }
-                current_translation.push_str(line);
-            }
-        }
-        
-        // Salva l'ultima traduzione
-        if let Some(id) = current_id {
-            translations.insert(id, current_translation.trim().to_string());
-        }
-
-        // Verifica che abbiamo tutte le traduzioni
-        if translations.len() != texts_with_ids.len() {
-            anyhow::bail!(
-                "Batch translation incomplete: expected {} translations, got {}",
-                texts_with_ids.len(),
-                translations.len()
-            );
-        }
+        // Parse JSON result - molto più robusto del parsing manuale
+        let translations = parse_json_translations(&result_text, texts_with_ids.len())?;
 
         Ok(translations)
     }
@@ -672,5 +584,124 @@ impl Translator {
 
         // Se tutti i retry falliscono, ritorna l'errore
         Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Translation failed after {} retries", max_retries)))
+    }
+}
+
+/// Struttura per deserializzare le traduzioni JSON dall'LLM
+#[derive(Deserialize, Debug)]
+struct TranslationItem {
+    id: u32,
+    text: String,
+}
+
+/// Parsa la risposta JSON dell'LLM in una HashMap di traduzioni
+/// 
+/// Questa funzione è robusta e gestisce:
+/// - JSON puro
+/// - JSON racchiuso in code blocks markdown (```json ... ```)
+/// - Variazioni minori nel formato
+fn parse_json_translations(response: &str, expected_count: usize) -> Result<HashMap<u32, String>> {
+    // Rimuovi eventuali code blocks markdown
+    let cleaned = response
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+    
+    // Trova l'array JSON (cerca '[' e ']')
+    let json_start = cleaned.find('[');
+    let json_end = cleaned.rfind(']');
+    
+    let json_str = match (json_start, json_end) {
+        (Some(start), Some(end)) if end > start => &cleaned[start..=end],
+        _ => cleaned, // Prova comunque con l'intero contenuto
+    };
+    
+    // Prova a parsare come array di TranslationItem
+    match serde_json::from_str::<Vec<TranslationItem>>(json_str) {
+        Ok(items) => {
+            let translations: HashMap<u32, String> = items
+                .into_iter()
+                .map(|item| (item.id, item.text))
+                .collect();
+            
+            // Verifica che abbiamo tutte le traduzioni
+            if translations.len() != expected_count {
+                anyhow::bail!(
+                    "Batch translation incomplete: expected {} translations, got {}",
+                    expected_count,
+                    translations.len()
+                );
+            }
+            
+            Ok(translations)
+        }
+        Err(e) => {
+            // Fallback: prova parsing legacy per retrocompatibilità
+            // (nel caso l'LLM risponda con il vecchio formato)
+            if let Some(translations) = try_legacy_parsing(cleaned, expected_count) {
+                return Ok(translations);
+            }
+            
+            anyhow::bail!(
+                "Failed to parse JSON response: {}. Response was: {}",
+                e,
+                &response[..response.len().min(500)]
+            )
+        }
+    }
+}
+
+/// Fallback al parsing legacy (ID: X | TRANSLATION: Y) per retrocompatibilità
+fn try_legacy_parsing(text: &str, expected_count: usize) -> Option<HashMap<u32, String>> {
+    let mut translations = HashMap::new();
+    let mut current_id: Option<u32> = None;
+    let mut current_translation = String::new();
+    
+    for line in text.lines() {
+        let line_lower = line.to_lowercase();
+        // Supporta varianti: "ID:", "id:", "Subtitle ID:", etc.
+        if line_lower.starts_with("id:") || line_lower.contains("id:") {
+            // Salva la traduzione precedente se esiste
+            if let Some(id) = current_id {
+                translations.insert(id, current_translation.trim().to_string());
+            }
+            
+            // Cerca il pattern ID e TRANSLATION
+            if let Some((id_part, trans_part)) = line.split_once('|') {
+                // Estrai l'ID numerico
+                let id_str: String = id_part.chars().filter(|c| c.is_ascii_digit()).collect();
+                if let Ok(id) = id_str.parse::<u32>() {
+                    current_id = Some(id);
+                    // Rimuovi eventuali prefissi come "TRANSLATION:" (case-insensitive)
+                    let trans = trans_part
+                        .trim()
+                        .trim_start_matches(|c: char| !c.is_alphabetic() || c.is_ascii_uppercase())
+                        .trim_start_matches("TRANSLATION:")
+                        .trim_start_matches("translation:")
+                        .trim_start_matches("Translation:")
+                        .trim();
+                    current_translation = trans.to_string();
+                }
+            }
+        } else if current_id.is_some() && !line.trim().is_empty() {
+            // Aggiungi riga alla traduzione corrente
+            if !current_translation.is_empty() {
+                current_translation.push('\n');
+            }
+            current_translation.push_str(line);
+        }
+    }
+    
+    // Salva l'ultima traduzione
+    if let Some(id) = current_id {
+        translations.insert(id, current_translation.trim().to_string());
+    }
+    
+    if translations.len() >= expected_count {
+        Some(translations)
+    } else {
+        None
     }
 }

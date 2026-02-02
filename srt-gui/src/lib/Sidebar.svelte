@@ -1,7 +1,7 @@
 <script lang="ts">
   interface Props {
-    activeTab: "translate" | "sync" | "settings";
-    onTabChange: (tab: "translate" | "sync" | "settings") => void;
+    activeTab: "translate" | "sync" | "settings" | "shortcuts";
+    onTabChange: (tab: "translate" | "sync" | "settings" | "shortcuts") => void;
   }
 
   let { activeTab, onTabChange }: Props = $props();
@@ -114,6 +114,34 @@
       <div class="text-left">
         <span class="block font-medium">Impostazioni</span>
         <span class="text-xs {activeTab === 'settings' ? 'text-white/70' : 'text-gray-500'}">API Keys e modelli</span>
+      </div>
+    </button>
+
+    <button
+      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 {activeTab ===
+      'shortcuts'
+        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white'}"
+      onclick={() => onTabChange("shortcuts")}
+    >
+      <div class="w-8 h-8 rounded-lg {activeTab === 'shortcuts' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center">
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+          />
+        </svg>
+      </div>
+      <div class="text-left">
+        <span class="block font-medium">Shortcut</span>
+        <span class="text-xs {activeTab === 'shortcuts' ? 'text-white/70' : 'text-gray-500'}">Scorciatoie tastiera</span>
       </div>
     </button>
   </nav>

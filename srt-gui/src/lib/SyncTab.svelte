@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
+  import { convertFileSrc } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
   // Types
@@ -90,13 +91,14 @@
       const selected = await open({
         multiple: false,
         filters: [
-          { name: "Video Files", extensions: ["mp4", "mkv", "avi", "webm"] },
+          { name: "Video Files", extensions: ["mp4", "mkv", "avi", "webm", "mov", "m4v"] },
         ],
       });
 
       if (selected) {
         const path = selected as string;
-        videoSrc = `file://${path}`;
+        // Use convertFileSrc for proper Tauri asset loading
+        videoSrc = convertFileSrc(path);
         status = await invoke<SyncStatus>("sync_set_video", { path });
       }
     } catch (e) {

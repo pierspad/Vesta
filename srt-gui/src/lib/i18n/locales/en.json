@@ -5,11 +5,16 @@
   "app.status.ready": "System ready",
 
   "nav.translate": "Translation",
-  "nav.translate.desc": "Translate subtitles with AI",
+  "nav.translate.desc": "AI-powered subtitle translation",
   "nav.sync": "Synchronization",
-  "nav.sync.desc": "Align with video",
+  "nav.sync.desc": "Align subtitles with video",
+  "nav.transcribe": "Transcribe",
+  "nav.transcribe.desc": "Speech-to-text with Whisper",
+  "nav.flashcards": "Flashcards",
+  "nav.flashcards.desc": "Create Anki cards from subs",
+  "nav.comingSoon": "Soon",
   "nav.settings": "Settings",
-  "nav.settings.desc": "API Keys and models",
+  "nav.settings.desc": "API keys and preferences",
   "nav.shortcuts": "Shortcuts",
   "nav.shortcuts.desc": "Keyboard shortcuts",
 
@@ -53,6 +58,8 @@
   "shortcuts.action.confirmAnchor": "Confirm anchor",
   "shortcuts.action.nextSubtitle": "Next subtitle",
   "shortcuts.action.prevSubtitle": "Previous subtitle",
+  "shortcuts.action.prevAnchor": "Previous anchor",
+  "shortcuts.action.nextAnchor": "Next anchor",
   "shortcuts.action.goToSuggested": "Go to suggested",
   "shortcuts.action.saveFile": "Save SRT",
 
@@ -220,10 +227,31 @@
   "sync.seek": "Seek ±0.1s",
   "sync.offsetAdjust": "Offset ±100ms",
   "sync.confirm": "Confirm",
+  "sync.navigateAnchors": "Navigate anchors",
 
-  "sync.tooltipPlay": "Play video",
-  "sync.tooltipPause": "Pause video",
-  "sync.tooltipOffsetMinus": "Decrease offset by 100ms",
-  "sync.tooltipOffsetPlus": "Increase offset by 100ms",
-  "sync.tooltipRemoveAnchor": "Remove anchor"
+  "sync.tooltipPlay": "Play video (Space)",
+  "sync.tooltipPause": "Pause video (Space)",
+  "sync.tooltipOffsetMinus": "Decrease offset by 100ms (↓)",
+  "sync.tooltipOffsetPlus": "Increase offset by 100ms (↑)",
+  "sync.tooltipOffset": "Fine-tune subtitle timing. Positive values delay subtitles, negative values make them appear earlier.",
+  "sync.tooltipConfirmAnchor": "Mark current subtitle as sync point (Enter). Anchors are reference points used to interpolate timing for surrounding subtitles.",
+  "sync.tooltipRemoveAnchor": "Remove this sync anchor (Del)",
+  "sync.tooltipLoadSession": "Resume a previous sync session. Sessions save your anchors and progress so you can continue later.",
+  "sync.tooltipSaveSession": "Save current progress to continue later. Includes SRT path, video position, and all anchors.",
+  "sync.tooltipSaveFile": "Export synchronized SRT file with all timing corrections applied.",
+  "sync.tooltipPrevAnchor": "Jump to previous anchor",
+  "sync.tooltipNextAnchor": "Jump to next anchor",
+
+  "comingSoon.title": "Coming Soon",
+  "comingSoon.badge": "In Development",
+
+  "transcribe.comingSoonDesc": "Automatic speech-to-text transcription powered by Whisper AI. Generate subtitles directly from audio or video files.",
+  "transcribe.feature1": "Local Whisper AI processing - no cloud required",
+  "transcribe.feature2": "Support for multiple languages and accents",
+  "transcribe.feature3": "Automatic word-level timestamps",
+
+  "flashcards.comingSoonDesc": "Create Anki flashcards automatically from your subtitles. Perfect for language learning with movies and TV shows.",
+  "flashcards.feature1": "Auto-generate cards from subtitle pairs",
+  "flashcards.feature2": "Include audio clips and screenshots",
+  "flashcards.feature3": "Direct export to Anki format (.apkg)"
 }

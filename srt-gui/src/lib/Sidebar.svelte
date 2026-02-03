@@ -2,8 +2,8 @@
   import { locale } from "./i18n";
 
   interface Props {
-    activeTab: "translate" | "sync" | "settings" | "shortcuts";
-    onTabChange: (tab: "translate" | "sync" | "settings" | "shortcuts") => void;
+    activeTab: "translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts";
+    onTabChange: (tab: "translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts") => void;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
   }
@@ -14,7 +14,7 @@
   let t = $derived($locale);
 </script>
 
-<aside class="{collapsed ? 'w-20' : 'w-72'} bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950 border-r border-white/10 flex flex-col transition-all duration-300 relative">
+<aside class="{collapsed ? 'w-20' : 'w-72'} bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950 border-r border-white/10 flex flex-col transition-[width] duration-200 ease-out relative will-change-[width]">
   <!-- Collapse Toggle Button -->
   <button
     onclick={onToggleCollapse}
@@ -45,8 +45,9 @@
     </div>
   </div>
 
-  <!-- Navigation -->
-  <nav class="flex-1 p-4 space-y-2">
+  <!-- Navigation - Main Features -->
+  <nav class="flex-1 p-4 space-y-2 flex flex-col">
+    <!-- Active Features -->
     <button
       class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
       'translate'
@@ -109,6 +110,79 @@
       {/if}
     </button>
 
+    <!-- Transcribe - now clickable -->
+    <button
+      class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
+      'transcribe'
+        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white'}"
+      onclick={() => onTabChange("transcribe")}
+      title={collapsed ? t("nav.transcribe") : undefined}
+    >
+      <div class="w-8 h-8 rounded-lg {activeTab === 'transcribe' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative">
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+          />
+        </svg>
+      </div>
+      {#if !collapsed}
+        <div class="text-left flex-1">
+          <span class="block font-medium {activeTab === 'transcribe' ? 'text-white' : ''}">{t("nav.transcribe")}</span>
+          <span class="text-xs {activeTab === 'transcribe' ? 'text-white/70' : 'text-gray-500'}">{t("nav.transcribe.desc")}</span>
+        </div>
+        <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-medium">{t("nav.comingSoon")}</span>
+      {/if}
+    </button>
+
+    <!-- Flashcards - now clickable -->
+    <button
+      class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
+      'flashcards'
+        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/30'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white'}"
+      onclick={() => onTabChange("flashcards")}
+      title={collapsed ? t("nav.flashcards") : undefined}
+    >
+      <div class="w-8 h-8 rounded-lg {activeTab === 'flashcards' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative">
+        <svg
+          class="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+          />
+        </svg>
+      </div>
+      {#if !collapsed}
+        <div class="text-left flex-1">
+          <span class="block font-medium {activeTab === 'flashcards' ? 'text-white' : ''}">{t("nav.flashcards")}</span>
+          <span class="text-xs {activeTab === 'flashcards' ? 'text-white/70' : 'text-gray-500'}">{t("nav.flashcards.desc")}</span>
+        </div>
+        <span class="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-medium">{t("nav.comingSoon")}</span>
+      {/if}
+    </button>
+
+    <!-- Spacer -->
+    <div class="flex-1"></div>
+
+    <!-- Separator -->
+    <div class="border-t border-white/10 my-2"></div>
+
+    <!-- Settings and Shortcuts at bottom -->
     <button
       class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
       'settings'

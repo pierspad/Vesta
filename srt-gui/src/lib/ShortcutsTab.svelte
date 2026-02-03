@@ -25,8 +25,8 @@
     filter === "all" ? shortcuts : shortcuts.filter((s) => s.category === filter)
   );
 
-  // Group by category (senza settings, spostate in global)
-  let groupedShortcuts = $derived(() => {
+  // Group by category (senza settings, spostate in global) - valore diretto, no funzione
+  let groupedShortcuts = $derived.by(() => {
     const groups: Record<string, ShortcutDefinition[]> = {
       global: [],
       translate: [],
@@ -40,14 +40,14 @@
     return groups;
   });
 
-  // Split sync shortcuts in two columns
-  let syncShortcutsLeft = $derived(() => {
-    const syncShorts = groupedShortcuts().sync;
+  // Split sync shortcuts in two columns - valori diretti
+  let syncShortcutsLeft = $derived.by(() => {
+    const syncShorts = groupedShortcuts.sync;
     return syncShorts.slice(0, Math.ceil(syncShorts.length / 2));
   });
 
-  let syncShortcutsRight = $derived(() => {
-    const syncShorts = groupedShortcuts().sync;
+  let syncShortcutsRight = $derived.by(() => {
+    const syncShorts = groupedShortcuts.sync;
     return syncShorts.slice(Math.ceil(syncShorts.length / 2));
   });
 
@@ -216,7 +216,7 @@
 
   <!-- Shortcuts Grid - Global and Translate -->
   <div class="grid grid-cols-2 gap-6">
-    {#each Object.entries(groupedShortcuts()).filter(([cat]) => cat !== 'sync') as [category, categoryShortcuts]}
+    {#each Object.entries(groupedShortcuts).filter(([cat]) => cat !== 'sync') as [category, categoryShortcuts]}
       {#if categoryShortcuts.length > 0}
         <div class="glass-card p-5">
           <div class="mb-4">
@@ -298,7 +298,7 @@
   </div>
 
   <!-- Sync Shortcuts - Split in 2 columns -->
-  {#if groupedShortcuts().sync.length > 0}
+  {#if groupedShortcuts.sync.length > 0}
     <div class="mt-6">
       <div class="glass-card p-5">
         <div class="mb-4">
@@ -309,7 +309,7 @@
         <div class="grid grid-cols-2 gap-4">
           <!-- Left column -->
           <div class="space-y-2">
-            {#each syncShortcutsLeft() as shortcut}
+            {#each syncShortcutsLeft as shortcut}
               <div
                 class="flex items-center justify-between p-3 rounded-lg transition-all
                   {editingShortcut === shortcut.id ? 'bg-indigo-500/20 ring-1 ring-indigo-500' : 'bg-white/5 hover:bg-white/10'}"
@@ -367,7 +367,7 @@
 
           <!-- Right column -->
           <div class="space-y-2">
-            {#each syncShortcutsRight() as shortcut}
+            {#each syncShortcutsRight as shortcut}
               <div
                 class="flex items-center justify-between p-3 rounded-lg transition-all
                   {editingShortcut === shortcut.id ? 'bg-indigo-500/20 ring-1 ring-indigo-500' : 'bg-white/5 hover:bg-white/10'}"

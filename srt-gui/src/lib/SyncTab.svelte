@@ -282,12 +282,72 @@
     }
   }
 
+  // Navigate to previous anchor
+  function goToPrevAnchor() {
+    if (anchors.length === 0) return;
+    
+    // Sort anchors by subtitle_id
+    const sortedAnchors = [...anchors].sort((a, b) => a.subtitle_id - b.subtitle_id);
+    
+    // Find current position
+    const currentId = activeSubtitleId ?? currentSubtitle?.id ?? 0;
+    
+    // Find previous anchor
+    const prevAnchor = sortedAnchors.reverse().find(a => a.subtitle_id < currentId);
+    if (prevAnchor) {
+      const sub = subtitles.find(s => s.id === prevAnchor.subtitle_id);
+      if (sub) goToSubtitle(sub);
+    } else if (sortedAnchors.length > 0) {
+      // Wrap to last anchor
+      const lastAnchor = sortedAnchors[0]; // reversed, so first is last
+      const sub = subtitles.find(s => s.id === lastAnchor.subtitle_id);
+      if (sub) goToSubtitle(sub);
+    }
+  }
+
+  // Navigate to next anchor
+  function goToNextAnchor() {
+    if (anchors.length === 0) return;
+    
+    // Sort anchors by subtitle_id
+    const sortedAnchors = [...anchors].sort((a, b) => a.subtitle_id - b.subtitle_id);
+    
+    // Find current position
+    const currentId = activeSubtitleId ?? currentSubtitle?.id ?? 0;
+    
+    // Find next anchor
+    const nextAnchor = sortedAnchors.find(a => a.subtitle_id > currentId);
+    if (nextAnchor) {
+      const sub = subtitles.find(s => s.id === nextAnchor.subtitle_id);
+      if (sub) goToSubtitle(sub);
+    } else if (sortedAnchors.length > 0) {
+      // Wrap to first anchor
+      const firstAnchor = sortedAnchors[0];
+      const sub = subtitles.find(s => s.id === firstAnchor.subtitle_id);
+      if (sub) goToSubtitle(sub);
+    }
+  }
+
   // Keyboard shortcuts
   function handleKeydown(e: KeyboardEvent) {
     if (!videoElement) return;
 
     // Ignore text inputs
     if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+
+    // Ctrl+Arrow shortcuts for anchor navigation
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        goToPrevAnchor();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        goToNextAnchor();
+        return;
+      }
+    }
 
     switch (e.key) {
       case " ":
@@ -341,31 +401,35 @@
   <!-- Top Bar -->
   <div class="flex items-center gap-4 p-4 glass-card m-4 mb-0 flex-shrink-0">
     
-    <div class="flex gap-4 flex-1 max-w-lg">
+    <div class="flex items-center gap-2 flex-1 max-w-lg">
         <button
         onclick={selectSrtFile}
-        class="flex-1 btn-primary py-2 px-4 flex items-center justify-center gap-3 shadow-lg shadow-indigo-500/20"
+        class="flex-1 btn-primary py-2 px-4 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+        title={t("sync.tooltip.loadSrt")}
         >
-        <div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">1</div>
-        <div class="flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            {t("sync.loadSrt")}
-        </div>
+        </svg>
+        {t("sync.loadSrt")}
         </button>
+        
+        <!-- Arrow indicator -->
+        <div class="text-gray-500 {status?.is_loaded ? 'text-indigo-400' : ''}">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </div>
+        
         <button
         onclick={selectVideoFile}
         disabled={!status?.is_loaded}
-        class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-30 disabled:cursor-not-allowed py-2 px-4 rounded-xl font-medium flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/30"
+        class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-30 disabled:cursor-not-allowed py-2 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/30"
+        title={t("sync.tooltip.loadVideo")}
         >
-        <div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">2</div>
-        <div class="flex items-center gap-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            {t("sync.loadVideo")}
-        </div>
+        </svg>
+        {t("sync.loadVideo")}
         </button>
     </div>
 
@@ -374,6 +438,7 @@
     <button
       onclick={loadSession}
       class="btn-secondary py-2 px-4 flex items-center gap-2"
+      title={t("sync.tooltipLoadSession")}
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -384,6 +449,7 @@
       onclick={saveSession}
       disabled={!status?.is_loaded}
       class="btn-secondary py-2 px-4 flex items-center gap-2 disabled:opacity-50"
+      title={t("sync.tooltipSaveSession")}
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -394,6 +460,7 @@
       onclick={saveFile}
       disabled={!status?.is_loaded}
       class="btn-success py-2 px-4 flex items-center gap-2 disabled:opacity-50"
+      title={t("sync.tooltipSaveFile")}
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -439,20 +506,6 @@
               {t("sync.tryAnotherVideo")}
             </button>
           </div>
-
-          <!-- Subtitle Overlay -->
-          {#if activeSubtitleId !== null}
-            {@const activeSub = subtitles.find(
-              (s) => s.id === activeSubtitleId
-            )}
-            {#if activeSub}
-              <div class="absolute bottom-20 left-0 right-0 text-center px-4">
-                <p class="inline-block bg-black/80 backdrop-blur-sm px-6 py-3 rounded-xl text-xl text-white shadow-lg">
-                  {activeSub.text}
-                </p>
-              </div>
-            {/if}
-          {/if}
         {:else}
           <div class="text-gray-500 text-center">
             <div class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-white/5 flex items-center justify-center">
@@ -463,6 +516,18 @@
             <p class="text-lg">{t("sync.videoPlaceholder")}</p>
             <p class="text-sm text-gray-600 mt-1">{t("sync.videoFormats")}</p>
           </div>
+        {/if}
+
+        <!-- Subtitle Overlay - always visible when video is loaded -->
+        {#if videoSrc && !videoError && activeSubtitleId !== null}
+          {@const activeSub = subtitles.find((s) => s.id === activeSubtitleId)}
+          {#if activeSub}
+            <div class="absolute bottom-4 left-0 right-0 text-center px-4 pointer-events-none">
+              <p class="inline-block bg-black/80 backdrop-blur-sm px-6 py-3 rounded-xl text-xl text-white shadow-lg">
+                {activeSub.text}
+              </p>
+            </div>
+          {/if}
         {/if}
       </div>
 
@@ -489,31 +554,29 @@
         </div>
 
         <!-- Controls Row -->
-        <div class="flex items-center gap-4">
-          <!-- Play/Pause Button - Icon only -->
+        <div class="flex items-center justify-center gap-4">
+          <!-- Play/Pause Button - More visible -->
           <button
             onclick={() =>
               videoElement && (isPlaying ? videoElement.pause() : videoElement.play())}
-            class="btn-primary w-12 h-12 flex items-center justify-center p-0 relative group shadow-lg shadow-indigo-500/20"
+            class="w-14 h-14 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/30 transition-all"
             aria-label={isPlaying ? t("sync.tooltipPause") : t("sync.tooltipPlay")}
             title={isPlaying ? t("sync.tooltipPause") : t("sync.tooltipPlay")}
           >
             {#if isPlaying}
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
               </svg>
             {:else}
-              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <svg class="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z"/>
               </svg>
             {/if}
           </button>
 
-          <div class="flex-1"></div>
-
-          <!-- Offset Adjustment - Compact layout -->
+          <!-- Offset Adjustment - Centered layout -->
           <div 
-            class="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 cursor-help"
+            class="flex items-center gap-2 bg-white/5 rounded-xl px-4 py-2"
             title={t("sync.tooltipOffset")}
           >
             <button
@@ -525,7 +588,7 @@
               −
             </button>
             <div class="flex flex-col items-center min-w-[80px]">
-              <span class="text-xs text-gray-500 uppercase tracking-wide">Offset</span>
+              <span class="text-xs text-gray-500 uppercase tracking-wide">{t("sync.offset")}</span>
               <span class="text-base font-mono font-medium {offsetAdjustment > 0 ? 'text-green-400' : offsetAdjustment < 0 ? 'text-red-400' : 'text-white'}">
                 {formatOffset(offsetAdjustment)}
               </span>
@@ -574,6 +637,10 @@
           <div class="flex items-center gap-1">
             <kbd class="px-2 py-1 bg-white/10 rounded text-gray-400">Del</kbd>
             <span>{t("sync.removeAnchor")}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <kbd class="px-2 py-1 bg-white/10 rounded text-gray-400">Ctrl+↑/↓</kbd>
+            <span>{t("sync.navigateAnchors")}</span>
           </div>
         </div>
       </div>
@@ -681,10 +748,10 @@
         </div>
         
         <div class="flex-1 overflow-y-auto">
-          {#each subtitles as sub}
+          {#each subtitles as sub (sub.id)}
             <button
               onclick={() => goToSubtitle(sub)}
-              class="w-full text-left p-3 border-b border-white/5 hover:bg-white/5 transition-colors
+              class="w-full text-left p-3 border-b border-white/5 hover:bg-white/5
                 {activeSubtitleId === sub.id ? 'bg-indigo-500/20 border-l-4 border-l-indigo-500' : ''}
                 {sub.is_anchor ? 'bg-green-500/5' : ''}"
             >

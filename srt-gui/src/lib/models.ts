@@ -418,6 +418,8 @@ export const defaultShortcuts: ShortcutDefinition[] = [
   { id: "sync-confirm", action: "confirmAnchor", description: "Conferma ancora", defaultKey: "Enter", category: "sync" },
   { id: "sync-next-sub", action: "nextSubtitle", description: "Sottotitolo successivo", defaultKey: "Tab", category: "sync" },
   { id: "sync-prev-sub", action: "prevSubtitle", description: "Sottotitolo precedente", defaultKey: "Shift+Tab", category: "sync" },
+  { id: "sync-prev-anchor", action: "prevAnchor", description: "Ancora precedente", defaultKey: "Ctrl+ArrowUp", category: "sync" },
+  { id: "sync-next-anchor", action: "nextAnchor", description: "Ancora successiva", defaultKey: "Ctrl+ArrowDown", category: "sync" },
   { id: "sync-go-suggested", action: "goToSuggested", description: "Vai al suggerito", defaultKey: "Ctrl+G", category: "sync" },
   { id: "sync-save", action: "saveFile", description: "Salva SRT", defaultKey: "Ctrl+S", category: "sync" },
 ];

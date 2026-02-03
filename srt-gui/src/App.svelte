@@ -4,8 +4,10 @@
   import SyncTab from "./lib/SyncTab.svelte";
   import SettingsTab from "./lib/SettingsTab.svelte";
   import ShortcutsTab from "./lib/ShortcutsTab.svelte";
+  import TranscribeTab from "./lib/TranscribeTab.svelte";
+  import FlashcardsTab from "./lib/FlashcardsTab.svelte";
 
-  let activeTab = $state<"translate" | "sync" | "settings" | "shortcuts">("translate");
+  let activeTab = $state<"translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts">("translate");
   let sidebarCollapsed = $state(false);
 
   // Expose function to change tab programmatically
@@ -27,16 +29,25 @@
   <!-- Sidebar -->
   <Sidebar {activeTab} onTabChange={(tab) => (activeTab = tab)} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
 
-  <!-- Main Content -->
-  <div class="flex-1 overflow-hidden">
-    {#if activeTab === "translate"}
+  <!-- Main Content - use CSS visibility to preserve state -->
+  <div class="flex-1 overflow-hidden relative">
+    <div class="absolute inset-0" class:hidden={activeTab !== "translate"}>
       <TranslateTab onGoToSettings={() => (activeTab = "settings")} />
-    {:else if activeTab === "sync"}
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "sync"}>
       <SyncTab />
-    {:else if activeTab === "settings"}
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "transcribe"}>
+      <TranscribeTab />
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "flashcards"}>
+      <FlashcardsTab />
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "settings"}>
       <SettingsTab />
-    {:else if activeTab === "shortcuts"}
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "shortcuts"}>
       <ShortcutsTab />
-    {/if}
+    </div>
   </div>
 </main>

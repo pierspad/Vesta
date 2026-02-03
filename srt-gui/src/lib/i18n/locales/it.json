@@ -7,9 +7,14 @@
   "nav.translate": "Traduzione",
   "nav.translate.desc": "Traduci sottotitoli con AI",
   "nav.sync": "Sincronizzazione",
-  "nav.sync.desc": "Allinea con il video",
+  "nav.sync.desc": "Allinea sottotitoli al video",
+  "nav.transcribe": "Trascrizione",
+  "nav.transcribe.desc": "Speech-to-text con Whisper",
+  "nav.flashcards": "Flashcards",
+  "nav.flashcards.desc": "Crea carte Anki dai sub",
+  "nav.comingSoon": "Presto",
   "nav.settings": "Impostazioni",
-  "nav.settings.desc": "API Keys e modelli",
+  "nav.settings.desc": "Chiavi API e preferenze",
   "nav.shortcuts": "Shortcuts",
   "nav.shortcuts.desc": "Scorciatoie tastiera",
 
@@ -53,6 +58,8 @@
   "shortcuts.action.confirmAnchor": "Conferma ancora",
   "shortcuts.action.nextSubtitle": "Sottotitolo successivo",
   "shortcuts.action.prevSubtitle": "Sottotitolo precedente",
+  "shortcuts.action.prevAnchor": "Ancora precedente",
+  "shortcuts.action.nextAnchor": "Ancora successiva",
   "shortcuts.action.goToSuggested": "Vai al suggerito",
   "shortcuts.action.saveFile": "Salva SRT",
 
@@ -220,10 +227,31 @@
   "sync.seek": "Seek ±0.1s",
   "sync.offsetAdjust": "Offset ±100ms",
   "sync.confirm": "Conferma",
+  "sync.navigateAnchors": "Naviga ancore",
 
-  "sync.tooltipPlay": "Riproduci video",
-  "sync.tooltipPause": "Metti in pausa",
-  "sync.tooltipOffsetMinus": "Diminuisci offset di 100ms",
-  "sync.tooltipOffsetPlus": "Aumenta offset di 100ms",
-  "sync.tooltipRemoveAnchor": "Rimuovi ancora"
+  "sync.tooltipPlay": "Riproduci video (Spazio)",
+  "sync.tooltipPause": "Metti in pausa (Spazio)",
+  "sync.tooltipOffsetMinus": "Diminuisci offset di 100ms (↓)",
+  "sync.tooltipOffsetPlus": "Aumenta offset di 100ms (↑)",
+  "sync.tooltipOffset": "Regola fine del timing. Valori positivi ritardano i sottotitoli, negativi li anticipano.",
+  "sync.tooltipConfirmAnchor": "Segna questo sottotitolo come punto di sincronizzazione (Enter). Le ancore sono punti di riferimento usati per interpolare il timing dei sottotitoli circostanti.",
+  "sync.tooltipRemoveAnchor": "Rimuovi questa ancora (Del)",
+  "sync.tooltipLoadSession": "Riprendi una sessione precedente. Le sessioni salvano ancore e progressi per continuare dopo.",
+  "sync.tooltipSaveSession": "Salva i progressi attuali. Include percorso SRT, posizione video e tutte le ancore.",
+  "sync.tooltipSaveFile": "Esporta file SRT sincronizzato con tutte le correzioni di timing applicate.",
+  "sync.tooltipPrevAnchor": "Vai all'ancora precedente",
+  "sync.tooltipNextAnchor": "Vai all'ancora successiva",
+
+  "comingSoon.title": "In Arrivo",
+  "comingSoon.badge": "In Sviluppo",
+
+  "transcribe.comingSoonDesc": "Trascrizione automatica speech-to-text con Whisper AI. Genera sottotitoli direttamente da file audio o video.",
+  "transcribe.feature1": "Elaborazione locale con Whisper AI - nessun cloud",
+  "transcribe.feature2": "Supporto per multiple lingue e accenti",
+  "transcribe.feature3": "Timestamp automatici a livello di parola",
+
+  "flashcards.comingSoonDesc": "Crea flashcard Anki automaticamente dai tuoi sottotitoli. Perfetto per imparare lingue con film e serie TV.",
+  "flashcards.feature1": "Auto-genera carte da coppie di sottotitoli",
+  "flashcards.feature2": "Includi clip audio e screenshot",
+  "flashcards.feature3": "Esporta direttamente in formato Anki (.apkg)"
 }

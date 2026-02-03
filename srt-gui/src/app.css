@@ -360,3 +360,20 @@ kbd {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-weight: 500;
 }
+
+/* Performance optimizations for scrollable lists */
+.overflow-y-auto {
+  contain: layout style;
+  will-change: scroll-position;
+}
+
+/* GPU-accelerated transitions */
+.transition-\[width\] {
+  will-change: width;
+}
+
+/* Reduce paint on hidden elements */
+.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}

@@ -141,14 +141,41 @@ impl Translator {
                 .header("X-Title", "SRT Tools");
         }
 
-        let response = req_builder
-            .send()
-            .await?
-            .json::<Response>()
-            .await?;
+        let http_response = req_builder.send().await?;
+        let status = http_response.status();
+        let response_text = http_response.text().await?;
 
-        Ok(response
-            .choices
+        #[derive(Deserialize)]
+        struct ApiError {
+            message: Option<String>,
+            error: Option<String>,
+        }
+
+        #[derive(Deserialize)]
+        struct ResponseWithError {
+            choices: Option<Vec<Choice>>,
+            error: Option<ApiError>,
+        }
+
+        let response: ResponseWithError = serde_json::from_str(&response_text)
+            .map_err(|e| anyhow::anyhow!(
+                "Failed to parse API response (status {}): {}. Raw: {}", 
+                status, e, &response_text[..response_text.len().min(300)]
+            ))?;
+
+        if let Some(ref api_error) = response.error {
+            let error_msg = api_error.message.as_deref()
+                .or(api_error.error.as_deref())
+                .unwrap_or("Unknown API error");
+            anyhow::bail!("API error: {}", error_msg);
+        }
+
+        let choices = response.choices.ok_or_else(|| {
+            anyhow::anyhow!("API response missing 'choices'. Status: {}. Response: {}", 
+                status, &response_text[..response_text.len().min(300)])
+        })?;
+
+        Ok(choices
             .first()
             .map(|c| c.message.content.trim().trim_matches('"').to_string())
             .unwrap_or_default())
@@ -180,8 +207,17 @@ impl Translator {
         }
 
         #[derive(Deserialize)]
+        struct ApiError {
+            message: Option<String>,
+            error: Option<String>,
+            #[serde(rename = "type")]
+            error_type: Option<String>,
+        }
+
+        #[derive(Deserialize)]
         struct Response {
-            choices: Vec<Choice>,
+            choices: Option<Vec<Choice>>,
+            error: Option<ApiError>,
         }
 
         let prompt = build_batch_translation_prompt(texts_with_ids, target_lang, context);
@@ -209,14 +245,35 @@ impl Translator {
                 .header("X-Title", "SRT Tools");
         }
 
-        let response = req_builder
-            .send()
-            .await?
-            .json::<Response>()
-            .await?;
+        let http_response = req_builder.send().await?;
+        let status = http_response.status();
+        let response_text = http_response.text().await?;
+        
+        // Prova a parsare la risposta
+        let response: Response = serde_json::from_str(&response_text)
+            .map_err(|e| anyhow::anyhow!(
+                "Failed to parse API response (status {}): {}. Raw response: {}", 
+                status, 
+                e, 
+                &response_text[..response_text.len().min(500)]
+            ))?;
 
-        let result_text = response
-            .choices
+        // Controlla se c'è un errore nella risposta
+        if let Some(ref api_error) = response.error {
+            let error_msg = api_error.message.as_deref()
+                .or(api_error.error.as_deref())
+                .unwrap_or("Unknown API error");
+            anyhow::bail!("API error: {}", error_msg);
+        }
+
+        // Estrai il contenuto dalla risposta
+        let choices = response.choices.ok_or_else(|| {
+            anyhow::anyhow!("API response missing 'choices' field. Status: {}. Response: {}", 
+                status, 
+                &response_text[..response_text.len().min(500)])
+        })?;
+
+        let result_text = choices
             .first()
             .map(|c| c.message.content.trim().to_string())
             .unwrap_or_default();
@@ -283,14 +340,41 @@ impl Translator {
                 .header("X-Title", "SRT Tools");
         }
 
-        let response = req_builder
-            .send()
-            .await?
-            .json::<Response>()
-            .await?;
+        let http_response = req_builder.send().await?;
+        let status = http_response.status();
+        let response_text = http_response.text().await?;
 
-        Ok(response
-            .choices
+        #[derive(Deserialize)]
+        struct ApiError {
+            message: Option<String>,
+            error: Option<String>,
+        }
+
+        #[derive(Deserialize)]
+        struct ResponseWithError {
+            choices: Option<Vec<Choice>>,
+            error: Option<ApiError>,
+        }
+
+        let response: ResponseWithError = serde_json::from_str(&response_text)
+            .map_err(|e| anyhow::anyhow!(
+                "Failed to parse API response (status {}): {}. Raw: {}", 
+                status, e, &response_text[..response_text.len().min(300)]
+            ))?;
+
+        if let Some(ref api_error) = response.error {
+            let error_msg = api_error.message.as_deref()
+                .or(api_error.error.as_deref())
+                .unwrap_or("Unknown API error");
+            anyhow::bail!("API error: {}", error_msg);
+        }
+
+        let choices = response.choices.ok_or_else(|| {
+            anyhow::anyhow!("API response missing 'choices'. Status: {}. Response: {}", 
+                status, &response_text[..response_text.len().min(300)])
+        })?;
+
+        Ok(choices
             .first()
             .map(|c| c.message.content.trim().trim_matches('"').to_string())
             .unwrap_or_default())

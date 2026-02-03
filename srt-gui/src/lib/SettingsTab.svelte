@@ -565,7 +565,7 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="col-span-2">
                 <label for="api-url" class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  {t("settings.modal.apiEndpoint")} <span class="text-gray-600 font-normal ml-1">({t("settings.modal.optional")})</span>
+                  {t("settings.modal.apiEndpoint")}
                 </label>
                 <input
                   id="api-url"
@@ -606,10 +606,6 @@
                 {#if newKeyType === "openrouter"}
                   <p class="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
                     💡 {t("settings.modal.openrouterModelHint")} <a href="https://openrouter.ai/models" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline">openrouter.ai/models</a>
-                  </p>
-                {:else}
-                  <p class="text-[10px] text-gray-500 mt-1.5 leading-relaxed">
-                    💡 {t("settings.modal.localEndpointDefault")}
                   </p>
                 {/if}
               </div>

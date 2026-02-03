@@ -18,6 +18,7 @@ serde.workspace = true
 serde_json.workspace = true
 governor = "0.6"
 nonzero_ext = "0.3"
+tokio-util = "0.7"
 
 [lib]
 name = "srt_translate_lib"

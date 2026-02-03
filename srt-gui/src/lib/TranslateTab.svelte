@@ -259,9 +259,9 @@
   }
 </script>
 
-<div class="h-full flex flex-col p-6 overflow-auto bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950">
+<div class="h-full flex flex-col p-6 overflow-hidden bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950">
   <!-- Header -->
-  <div class="mb-4">
+  <div class="mb-4 shrink-0">
     <h2 class="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
       {t("translate.title")}
     </h2>
@@ -505,7 +505,7 @@
   </div>
 
   <!-- Bottom Section: Progress + Live Preview -->
-  <div class="mt-6 flex-1 space-y-4">
+  <div class="mt-6 flex-1 flex flex-col space-y-4 min-h-0">
     <!-- Progress/Result/Error Cards -->
     {#if isTranslating || progress}
       <div class="glass-card p-4 animate-fade-in {isTranslating ? 'animate-pulse-glow' : ''}">
@@ -568,8 +568,8 @@
     {/if}
 
     <!-- Live Translation Preview -->
-    <div class="glass-card p-5 flex-1">
-      <div class="flex items-center justify-between mb-4">
+    <div class="glass-card p-5 flex-1 flex flex-col min-h-0">
+      <div class="flex items-center justify-between mb-4 shrink-0">
         <h3 class="text-lg font-semibold flex items-center gap-2">
           <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -583,7 +583,7 @@
         {/if}
       </div>
 
-      <div class="grid grid-cols-2 gap-4 min-h-32">
+      <div class="grid grid-cols-2 gap-4 h-24 shrink-0">
         <!-- Original Subtitle -->
         <div class="bg-white/5 rounded-xl p-4 overflow-y-auto">
           <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">{t("translate.original")}</p>
@@ -605,14 +605,18 @@
         </div>
       </div>
 
-      <!-- Log messages (compact) -->
-      {#if logs.length > 0}
-        <div class="mt-4 pt-4 border-t border-white/10 max-h-20 overflow-y-auto">
-          {#each logs.slice(-3) as log}
-            <p class="text-gray-500 text-xs">{log}</p>
-          {/each}
-        </div>
-      {/if}
+      <!-- Log messages (scrollable, fills remaining space) -->
+      <div class="mt-4 pt-4 border-t border-white/10 flex-1 min-h-0 overflow-y-auto">
+        {#if logs.length > 0}
+          <div class="space-y-1">
+            {#each logs as log}
+              <p class="text-gray-500 text-xs font-mono">{log}</p>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-gray-600 text-xs">{t("translate.noLog")}</p>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

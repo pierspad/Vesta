@@ -6,11 +6,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex as TokioMutex;
+use tokio_util::sync::CancellationToken;
 
 use srt_parser::SrtParser;
 use srt_translate_lib::{
     ApiType, RateLimitConfig, TranslationProgress, Translator, TranslatorConfig,
-    translate_subtitles_with_rate_limit,
+    translate_subtitles_with_rate_limit_cancellable,
 };
 
 use crate::state::AppTranslateState;
@@ -96,22 +97,27 @@ pub async fn start_translation(
     state: State<'_, AppTranslateState>,
     config: TranslateConfig,
 ) -> Result<TranslateResult, String> {
-    // Controlla se già in traduzione
+    // Crea un nuovo cancellation token
+    let cancellation_token = CancellationToken::new();
+    
+    // Controlla se già in traduzione e salva il token
     {
         let mut translate_state = state.lock().map_err(|e| e.to_string())?;
         if translate_state.is_translating {
             return Err("Traduzione già in corso".to_string());
         }
         translate_state.is_translating = true;
+        translate_state.cancellation_token = Some(cancellation_token.clone());
     }
 
     // Esegui la traduzione
-    let result = perform_translation(app.clone(), config).await;
+    let result = perform_translation(app.clone(), config, cancellation_token.clone()).await;
 
-    // Reset flag traduzione
+    // Reset flag traduzione e rimuovi token
     {
         if let Ok(mut translate_state) = state.lock() {
             translate_state.is_translating = false;
+            translate_state.cancellation_token = None;
         }
     }
 
@@ -121,6 +127,7 @@ pub async fn start_translation(
 async fn perform_translation(
     app: AppHandle,
     config: TranslateConfig,
+    cancellation_token: CancellationToken,
 ) -> Result<TranslateResult, String> {
     // Carica i sottotitoli
     let subtitles = SrtParser::parse_file(&config.input_path)
@@ -196,8 +203,8 @@ async fn perform_translation(
         }
     };
 
-    // Esegui la traduzione
-    let translated = translate_subtitles_with_rate_limit(
+    // Esegui la traduzione con supporto per cancellazione
+    let translated = translate_subtitles_with_rate_limit_cancellable(
         vec![translator],
         Some(vec![rate_limiter]),
         subtitles,
@@ -206,9 +213,33 @@ async fn perform_translation(
         config.title_context.as_deref(),
         &output_path,
         on_progress,
+        cancellation_token,
     )
-    .await
-    .map_err(|e| format!("Errore traduzione: {}", e))?;
+    .await;
+    
+    // Gestisci la cancellazione
+    let translated = match translated {
+        Ok(t) => t,
+        Err(e) => {
+            let error_str = e.to_string();
+            if error_str.contains("cancelled") || error_str.contains("annullat") {
+                // Emetti evento di cancellazione
+                let _ = app.emit("translate-complete", TranslateResult {
+                    success: false,
+                    message: "Traduzione annullata dall'utente".to_string(),
+                    output_path: None,
+                    translated_count: 0,
+                });
+                return Ok(TranslateResult {
+                    success: false,
+                    message: "Traduzione annullata".to_string(),
+                    output_path: None,
+                    translated_count: 0,
+                });
+            }
+            return Err(format!("Errore traduzione: {}", e));
+        }
+    };
 
     // Emetti evento di completamento
     let _ = app.emit("translate-complete", TranslateResult {
@@ -226,13 +257,20 @@ async fn perform_translation(
     })
 }
 
-/// Annulla la traduzione in corso (se possibile)
+/// Annulla la traduzione in corso
 #[tauri::command]
 pub async fn cancel_translation(
     state: State<'_, AppTranslateState>,
 ) -> Result<bool, String> {
     let mut translate_state = state.lock().map_err(|e| e.to_string())?;
+    
+    // Cancella il token se presente - questo fermerà tutte le richieste in corso
+    if let Some(ref token) = translate_state.cancellation_token {
+        token.cancel();
+    }
+    
     translate_state.is_translating = false;
-    // Nota: la cancellazione effettiva richiederebbe un CancellationToken
+    translate_state.cancellation_token = None;
+    
     Ok(true)
 }

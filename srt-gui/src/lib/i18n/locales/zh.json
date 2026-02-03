@@ -123,6 +123,10 @@
 
   "settings.language": "界面语言",
   "settings.languageDesc": "选择应用程序语言",
+  "settings.toggleVisibility": "显示/隐藏API密钥",
+  "settings.hasSpecialChars": "警告：密钥包含空格或特殊字符",
+  "settings.model": "模型",
+  "settings.confirmDelete": "删除",
 
   "provider.local": "本地",
   "provider.openrouter": "OpenRouter",

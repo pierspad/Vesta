@@ -71,6 +71,20 @@
 
   onMount(() => {
     loadApiKeys();
+    
+    // Global ESC key handler for closing modals
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (deleteConfirmId) {
+          cancelDelete();
+        } else if (showAddKey) {
+          showAddKey = false;
+        }
+      }
+    };
+    
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
   });
 
   function loadApiKeys() {
@@ -132,15 +146,34 @@
     setTimeout(() => (success = null), 3000);
   }
 
-  function removeApiKey(id: string) {
+  // Delete confirmation state
+  let deleteConfirmId = $state<string | null>(null);
+  let deleteConfirmName = $state<string>("");
+
+  function askDeleteApiKey(id: string) {
     const key = apiKeys.find((k) => k.id === id);
     if (!key) return;
+    deleteConfirmId = id;
+    deleteConfirmName = key.name;
+  }
 
-    if (!confirm(t("settings.confirmDeleteKey", { name: key.name }))) return;
+  function cancelDelete() {
+    deleteConfirmId = null;
+    deleteConfirmName = "";
+  }
+
+  function confirmDeleteApiKey() {
+    if (!deleteConfirmId) return;
+    
+    const key = apiKeys.find((k) => k.id === deleteConfirmId);
+    if (!key) {
+      cancelDelete();
+      return;
+    }
 
     const wasDefault = key.isDefault;
     const keyType = key.apiType;
-    apiKeys = apiKeys.filter((k) => k.id !== id);
+    apiKeys = apiKeys.filter((k) => k.id !== deleteConfirmId);
 
     // Set new default if needed
     if (wasDefault) {
@@ -153,6 +186,7 @@
     saveApiKeys();
     success = t("settings.keyDeleted");
     setTimeout(() => (success = null), 3000);
+    cancelDelete();
   }
 
   function setDefaultKey(id: string) {
@@ -167,9 +201,40 @@
     saveApiKeys();
   }
 
+  // Visibility toggle for API keys
+  let visibleKeyIds = $state<Set<string>>(new Set());
+
+  function toggleKeyVisibility(keyId: string) {
+    const newSet = new Set(visibleKeyIds);
+    if (newSet.has(keyId)) {
+      newSet.delete(keyId);
+    } else {
+      newSet.add(keyId);
+    }
+    visibleKeyIds = newSet;
+  }
+
   function maskApiKey(key: string): string {
     if (!key || key.length <= 8) return "••••••••";
     return key.substring(0, 4) + "••••" + key.substring(key.length - 4);
+  }
+
+  function formatApiKeyForDisplay(key: string, isVisible: boolean): string {
+    if (!key) return "—";
+    if (isVisible) {
+      // Show full key with special character indicators
+      return key.split('').map(char => {
+        if (char === ' ') return '␣'; // Space indicator
+        if (char === '\t') return '→'; // Tab indicator
+        if (char === '\n') return '↵'; // Newline indicator
+        return char;
+      }).join('');
+    }
+    return maskApiKey(key);
+  }
+
+  function hasSpecialChars(key: string): boolean {
+    return /[\s\t\n]/.test(key);
   }
 
   function onModelClick(model: ModelInfo) {
@@ -308,12 +373,10 @@
                 </span>
                 {#if model.recommended}
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/20">
-                    RECOMMENDED
+                    {t("settings.recommended")}
                   </span>
                 {/if}
               </div>
-              
-              <p class="text-xs text-gray-500 line-clamp-2 mb-2">{model.description}</p>
               
               <div class="flex items-center gap-2 text-[10px] text-gray-600 font-mono">
                 <span class="bg-black/30 px-1.5 py-0.5 rounded">
@@ -321,7 +384,7 @@
                 </span>
                 {#if model.contextWindow}
                   <span class="text-gray-500">
-                    {formatContextWindow(model.contextWindow)} ctx
+                    {formatContextWindow(model.contextWindow)} {t("settings.ctx")}
                   </span>
                 {/if}
               </div>
@@ -355,12 +418,38 @@
                   <div class="flex items-center gap-2 mb-0.5">
                     <span class="font-medium text-gray-200 text-sm truncate">{key.name}</span>
                     {#if key.isDefault}
-                      <span class="text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded font-bold">DEF</span>
+                      <!-- Pin icon for default -->
+                      <svg class="w-3.5 h-3.5 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16 4c.55 0 1 .45 1 1v4.38l1.71 1.71c.18.18.29.43.29.7V14c0 .55-.45 1-1 1h-5v5l-1 1-1-1v-5H6c-.55 0-1-.45-1-1v-2.21c0-.27.11-.52.29-.71L7 9.38V5c0-.55.45-1 1-1h8zm-1 2H9v3.62l-2 2V13h10v-1.38l-2-2V6z"/>
+                      </svg>
                     {/if}
                   </div>
-                  <div class="text-[10px] text-gray-500 font-mono truncate">{maskApiKey(key.apiKey)}</div>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      onclick={() => toggleKeyVisibility(key.id)}
+                      class="text-[10px] text-gray-500 font-mono truncate hover:text-gray-300 transition-colors flex items-center gap-1"
+                      title={t("settings.toggleVisibility")}
+                    >
+                      {#if visibleKeyIds.has(key.id)}
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      {:else}
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      {/if}
+                      <span class="truncate">{formatApiKeyForDisplay(key.apiKey, visibleKeyIds.has(key.id))}</span>
+                    </button>
+                    {#if hasSpecialChars(key.apiKey)}
+                      <span class="text-[9px] bg-amber-500/20 text-amber-400 px-1 py-0.5 rounded flex-shrink-0" title={t("settings.hasSpecialChars")}>
+                        ⚠
+                      </span>
+                    {/if}
+                  </div>
                   {#if key.modelName}
-                    <div class="text-[10px] text-indigo-400 mt-1 truncate">Model: {key.modelName}</div>
+                    <div class="text-[10px] text-indigo-400 mt-1 truncate">{t("settings.model")}: {key.modelName}</div>
                   {/if}
                 </div>
 
@@ -371,13 +460,14 @@
                       class="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-white/10 rounded transition-colors"
                       title={t("settings.setAsDefault")}
                     >
+                      <!-- Pin icon -->
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v4.38l1.71 1.71c.18.18.29.43.29.7V14a2 2 0 01-2 2h-5v4l-2 2-2-2v-4H5a2 2 0 01-2-2v-2.21c0-.27.11-.52.29-.71L5 9.38V5z" />
                       </svg>
                     </button>
                   {/if}
                   <button
-                    onclick={() => removeApiKey(key.id)}
+                    onclick={() => askDeleteApiKey(key.id)}
                     class="p-1.5 text-gray-500 hover:text-red-400 hover:bg-white/10 rounded transition-colors"
                     title={t("settings.delete")}
                   >
@@ -532,6 +622,35 @@
             </button>
             <button onclick={addApiKey} class="flex-1 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20 transition-all text-sm font-bold">
               {t("settings.modal.save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Modal: Delete Confirmation -->
+  {#if deleteConfirmId}
+    <div 
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+      onmousedown={(e) => { if (e.target === e.currentTarget) cancelDelete(); }}
+    >
+      <div class="w-full max-w-sm overflow-hidden animate-fade-in shadow-2xl border border-white/20 bg-gray-900/98 backdrop-blur-xl rounded-xl" onmousedown={(e) => e.stopPropagation()}>
+        <div class="p-6 border-b border-white/5 bg-white/5">
+          <h3 class="text-xl font-bold text-white">{t("app.title")}</h3>
+        </div>
+        
+        <div class="p-6 space-y-4">
+          <p class="text-gray-300">
+            {t("settings.confirmDeleteKey", { name: deleteConfirmName })}
+          </p>
+          
+          <div class="flex gap-3 pt-2">
+            <button onclick={cancelDelete} class="flex-1 py-2.5 rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 hover:text-white transition-all text-sm font-medium">
+              {t("settings.modal.cancel")}
+            </button>
+            <button onclick={confirmDeleteApiKey} class="flex-1 py-2.5 rounded-lg bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/20 transition-all text-sm font-bold">
+              {t("settings.confirmDelete")}
             </button>
           </div>
         </div>

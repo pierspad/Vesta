@@ -121,6 +121,10 @@
 
   "settings.language": "Langue de l'Interface",
   "settings.languageDesc": "Choisissez la langue de l'application",
+  "settings.toggleVisibility": "Afficher/Masquer la clé API",
+  "settings.hasSpecialChars": "Attention: La clé contient des espaces ou des caractères spéciaux",
+  "settings.model": "Modèle",
+  "settings.confirmDelete": "Supprimer",
 
   "provider.local": "Local",
   "provider.openrouter": "OpenRouter",

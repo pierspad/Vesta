@@ -123,6 +123,10 @@
 
   "settings.language": "Язык Интерфейса",
   "settings.languageDesc": "Выберите язык приложения",
+  "settings.toggleVisibility": "Показать/Скрыть API ключ",
+  "settings.hasSpecialChars": "Внимание: Ключ содержит пробелы или специальные символы",
+  "settings.model": "Модель",
+  "settings.confirmDelete": "Удалить",
 
   "provider.local": "Локальный",
   "provider.openrouter": "OpenRouter",

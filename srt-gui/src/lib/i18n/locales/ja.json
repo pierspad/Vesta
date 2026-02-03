@@ -123,6 +123,10 @@
 
   "settings.language": "インターフェース言語",
   "settings.languageDesc": "アプリケーションの言語を選択",
+  "settings.toggleVisibility": "APIキーを表示/非表示",
+  "settings.hasSpecialChars": "警告：キーにスペースまたは特殊文字が含まれています",
+  "settings.model": "モデル",
+  "settings.confirmDelete": "削除",
 
   "provider.local": "ローカル",
   "provider.openrouter": "OpenRouter",

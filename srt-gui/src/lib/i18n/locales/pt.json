@@ -123,6 +123,10 @@
 
   "settings.language": "Idioma da Interface",
   "settings.languageDesc": "Escolha o idioma da aplicação",
+  "settings.toggleVisibility": "Mostrar/Ocultar API Key",
+  "settings.hasSpecialChars": "Atenção: A chave contém espaços ou caracteres especiais",
+  "settings.model": "Modelo",
+  "settings.confirmDelete": "Excluir",
 
   "provider.local": "Local",
   "provider.openrouter": "OpenRouter",

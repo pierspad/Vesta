@@ -123,6 +123,10 @@
 
   "settings.language": "Benutzeroberfläche Sprache",
   "settings.languageDesc": "Wählen Sie die Anwendungssprache",
+  "settings.toggleVisibility": "API-Schlüssel anzeigen/verbergen",
+  "settings.hasSpecialChars": "Warnung: Schlüssel enthält Leerzeichen oder Sonderzeichen",
+  "settings.model": "Modell",
+  "settings.confirmDelete": "Löschen",
 
   "provider.local": "Lokal",
   "provider.openrouter": "OpenRouter",

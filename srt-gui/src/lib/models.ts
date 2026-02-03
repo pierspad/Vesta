@@ -508,10 +508,25 @@ export function loadAndValidateApiKeys(): ApiKeyConfig[] {
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
 
-    // Filtra chiavi con tipo non valido (es. "gemini" legacy)
-    return parsed.filter(k =>
-      k.apiType === "local" || k.apiType === "openrouter"
-    );
+    // Converti chiavi con tipi legacy a "openrouter" e filtra quelle non valide
+    const converted = parsed.map((k: any) => {
+      // Se già ha un tipo valido, mantienilo
+      if (k.apiType === "local" || k.apiType === "openrouter") {
+        return k;
+      }
+      // Converti tipi legacy (gemini, openai, anthropic, etc.) a openrouter
+      if (k.apiType && k.apiType !== "local") {
+        return {
+          ...k,
+          apiType: "openrouter" as const,
+          // Se manca l'URL, aggiungi quello di default per OpenRouter
+          apiUrl: k.apiUrl || "https://openrouter.ai/api/v1"
+        };
+      }
+      return null;
+    }).filter((k: any) => k !== null);
+
+    return converted as ApiKeyConfig[];
   } catch {
     return [];
   }

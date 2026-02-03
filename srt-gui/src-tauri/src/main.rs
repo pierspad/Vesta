@@ -29,6 +29,7 @@ fn main() {
             sync_set_video,
             sync_get_status,
             sync_get_subtitles,
+            sync_get_subtitles_range,
             sync_get_subtitle,
             sync_find_subtitle_at_time,
             sync_find_nearest_subtitle,

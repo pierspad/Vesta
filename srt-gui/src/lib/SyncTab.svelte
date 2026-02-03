@@ -54,6 +54,13 @@
   // Offset adjustment
   let offsetAdjustment = $state(0);
 
+  // Pagination state
+  const PAGE_SIZE = 30; // Load 30 subtitles at a time
+  let loadedRangeStart = $state(1); // First loaded subtitle ID
+  let loadedRangeEnd = $state(0); // Last loaded subtitle ID
+  let isLoadingMore = $state(false);
+  let subtitleListElement = $state<HTMLDivElement | null>(null);
+
   // Computed: current subtitle based on video time
   let activeSubtitleId = $derived.by(() => {
     const time = currentVideoTime * 1000; // Convert to ms
@@ -114,9 +121,135 @@
 
   async function loadSubtitles() {
     try {
-      subtitles = await invoke<SubtitleInfo[]>("sync_get_subtitles");
+      // Load first batch of subtitles
+      subtitles = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
+        startId: 1,
+        count: PAGE_SIZE,
+      });
+      if (subtitles.length > 0) {
+        loadedRangeStart = subtitles[0].id;
+        loadedRangeEnd = subtitles[subtitles.length - 1].id;
+      } else {
+        loadedRangeStart = 1;
+        loadedRangeEnd = 0;
+      }
     } catch (e) {
       error = `${t("sync.errorLoadingSrt")} ${e}`;
+    }
+  }
+
+  // Load subtitles around a specific ID (for "go to suggested" feature)
+  async function loadSubtitlesAround(targetId: number) {
+    try {
+      isLoadingMore = true;
+      // Calculate start ID to center target in the view
+      const halfPage = Math.floor(PAGE_SIZE / 2);
+      const startId = Math.max(1, targetId - halfPage);
+      
+      subtitles = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
+        startId,
+        count: PAGE_SIZE,
+      });
+      
+      if (subtitles.length > 0) {
+        loadedRangeStart = subtitles[0].id;
+        loadedRangeEnd = subtitles[subtitles.length - 1].id;
+      }
+    } catch (e) {
+      error = `${t("sync.errorLoadingSrt")} ${e}`;
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+
+  // Load more subtitles (next page)
+  async function loadMoreSubtitlesAfter() {
+    if (isLoadingMore || !status || loadedRangeEnd >= status.total_subtitles) return;
+    
+    try {
+      isLoadingMore = true;
+      const newSubs = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
+        startId: loadedRangeEnd + 1,
+        count: PAGE_SIZE,
+      });
+      
+      if (newSubs.length > 0) {
+        // Keep only last PAGE_SIZE items from current list + new items
+        // This prevents memory issues with huge lists
+        const maxItems = PAGE_SIZE * 3;
+        let combined = [...subtitles, ...newSubs];
+        
+        if (combined.length > maxItems) {
+          // Remove items from the beginning
+          const toRemove = combined.length - maxItems;
+          combined = combined.slice(toRemove);
+          loadedRangeStart = combined[0].id;
+        }
+        
+        subtitles = combined;
+        loadedRangeEnd = combined[combined.length - 1].id;
+      }
+    } catch (e) {
+      error = `${t("sync.errorLoadingSrt")} ${e}`;
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+
+  // Load more subtitles (previous page)
+  async function loadMoreSubtitlesBefore() {
+    if (isLoadingMore || loadedRangeStart <= 1) return;
+    
+    try {
+      isLoadingMore = true;
+      const startId = Math.max(1, loadedRangeStart - PAGE_SIZE);
+      const count = loadedRangeStart - startId;
+      
+      if (count <= 0) return;
+      
+      const newSubs = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
+        startId,
+        count,
+      });
+      
+      if (newSubs.length > 0) {
+        // Keep only first PAGE_SIZE items from current list + new items
+        const maxItems = PAGE_SIZE * 3;
+        let combined = [...newSubs, ...subtitles];
+        
+        if (combined.length > maxItems) {
+          // Remove items from the end
+          combined = combined.slice(0, maxItems);
+        }
+        
+        subtitles = combined;
+        loadedRangeStart = combined[0].id;
+        loadedRangeEnd = combined[combined.length - 1].id;
+      }
+    } catch (e) {
+      error = `${t("sync.errorLoadingSrt")} ${e}`;
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+
+  // Handle scroll for lazy loading
+  function handleSubtitleListScroll(e: Event) {
+    const target = e.target as HTMLDivElement;
+    if (!target || !status) return;
+    
+    const scrollTop = target.scrollTop;
+    const scrollHeight = target.scrollHeight;
+    const clientHeight = target.clientHeight;
+    
+    // Load more when near bottom
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      loadMoreSubtitlesAfter();
+    }
+    
+    // Load more when near top
+    if (scrollTop < 100) {
+      loadMoreSubtitlesBefore();
     }
   }
 
@@ -131,10 +264,31 @@
   async function refreshStatus() {
     try {
       status = await invoke<SyncStatus>("sync_get_status");
-      await loadSubtitles();
+      await refreshCurrentSubtitles();
       await loadAnchors();
     } catch (e) {
       error = `${t("sync.errorLoadingSrt")} ${e}`;
+    }
+  }
+
+  // Refresh only the currently visible range of subtitles
+  async function refreshCurrentSubtitles() {
+    if (loadedRangeStart > 0 && loadedRangeEnd > 0) {
+      try {
+        const count = loadedRangeEnd - loadedRangeStart + 1;
+        subtitles = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
+          startId: loadedRangeStart,
+          count: Math.max(count, PAGE_SIZE),
+        });
+        if (subtitles.length > 0) {
+          loadedRangeStart = subtitles[0].id;
+          loadedRangeEnd = subtitles[subtitles.length - 1].id;
+        }
+      } catch (e) {
+        error = `${t("sync.errorLoadingSrt")} ${e}`;
+      }
+    } else {
+      await loadSubtitles();
     }
   }
 
@@ -149,7 +303,7 @@
         subtitleId: currentSubtitle.id,
         correctedTimeMs: Math.round(correctedTime),
       });
-      await loadSubtitles();
+      await refreshCurrentSubtitles();
       await loadAnchors();
       offsetAdjustment = 0;
     } catch (e) {
@@ -167,7 +321,7 @@
         subtitleId: activeSubtitleId,
         correctedTimeMs: Math.round(videoTimeMs),
       });
-      await loadSubtitles();
+      await refreshCurrentSubtitles();
       await loadAnchors();
     } catch (e) {
       error = `${t("sync.errorAddingAnchor")} ${e}`;
@@ -179,7 +333,7 @@
       status = await invoke<SyncStatus>("sync_remove_anchor", {
         subtitleId,
       });
-      await loadSubtitles();
+      await refreshCurrentSubtitles();
       await loadAnchors();
     } catch (e) {
       error = `${t("sync.errorRemovingAnchor")} ${e}`;
@@ -189,10 +343,39 @@
   async function goToSuggested() {
     if (!status?.suggested_next_id) return;
 
-    const sub = subtitles.find((s) => s.id === status?.suggested_next_id);
-    if (sub && videoElement) {
-      videoElement.currentTime = sub.synced_start_ms / 1000;
+    const targetId = status.suggested_next_id;
+    
+    // Check if the suggested subtitle is in the current loaded range
+    const sub = subtitles.find((s) => s.id === targetId);
+    
+    if (sub) {
+      // Already loaded, just navigate
+      if (videoElement) {
+        videoElement.currentTime = sub.synced_start_ms / 1000;
+      }
       currentSubtitle = sub;
+      // Scroll to the subtitle in the list
+      scrollToSubtitle(targetId);
+    } else {
+      // Need to load subtitles around the target
+      await loadSubtitlesAround(targetId);
+      
+      // Now find and navigate
+      const loadedSub = subtitles.find((s) => s.id === targetId);
+      if (loadedSub && videoElement) {
+        videoElement.currentTime = loadedSub.synced_start_ms / 1000;
+        currentSubtitle = loadedSub;
+        // Wait for DOM update then scroll
+        setTimeout(() => scrollToSubtitle(targetId), 50);
+      }
+    }
+  }
+
+  function scrollToSubtitle(subtitleId: number) {
+    if (!subtitleListElement) return;
+    const element = subtitleListElement.querySelector(`[data-subtitle-id="${subtitleId}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -280,10 +463,11 @@
     if (videoElement) {
       videoElement.currentTime = sub.synced_start_ms / 1000;
     }
+    scrollToSubtitle(sub.id);
   }
 
   // Navigate to previous anchor
-  function goToPrevAnchor() {
+  async function goToPrevAnchor() {
     if (anchors.length === 0) return;
     
     // Sort anchors by subtitle_id
@@ -294,19 +478,15 @@
     
     // Find previous anchor
     const prevAnchor = sortedAnchors.reverse().find(a => a.subtitle_id < currentId);
-    if (prevAnchor) {
-      const sub = subtitles.find(s => s.id === prevAnchor.subtitle_id);
-      if (sub) goToSubtitle(sub);
-    } else if (sortedAnchors.length > 0) {
-      // Wrap to last anchor
-      const lastAnchor = sortedAnchors[0]; // reversed, so first is last
-      const sub = subtitles.find(s => s.id === lastAnchor.subtitle_id);
-      if (sub) goToSubtitle(sub);
+    const targetAnchor = prevAnchor ?? sortedAnchors[0]; // Wrap to last if no previous
+    
+    if (targetAnchor) {
+      await navigateToSubtitleId(targetAnchor.subtitle_id);
     }
   }
 
   // Navigate to next anchor
-  function goToNextAnchor() {
+  async function goToNextAnchor() {
     if (anchors.length === 0) return;
     
     // Sort anchors by subtitle_id
@@ -317,14 +497,28 @@
     
     // Find next anchor
     const nextAnchor = sortedAnchors.find(a => a.subtitle_id > currentId);
-    if (nextAnchor) {
-      const sub = subtitles.find(s => s.id === nextAnchor.subtitle_id);
-      if (sub) goToSubtitle(sub);
-    } else if (sortedAnchors.length > 0) {
-      // Wrap to first anchor
-      const firstAnchor = sortedAnchors[0];
-      const sub = subtitles.find(s => s.id === firstAnchor.subtitle_id);
-      if (sub) goToSubtitle(sub);
+    const targetAnchor = nextAnchor ?? sortedAnchors[0]; // Wrap to first if no next
+    
+    if (targetAnchor) {
+      await navigateToSubtitleId(targetAnchor.subtitle_id);
+    }
+  }
+
+  // Navigate to a specific subtitle ID, loading if necessary
+  async function navigateToSubtitleId(targetId: number) {
+    // Check if already loaded
+    let sub = subtitles.find(s => s.id === targetId);
+    
+    if (sub) {
+      goToSubtitle(sub);
+    } else {
+      // Need to load subtitles around the target
+      await loadSubtitlesAround(targetId);
+      sub = subtitles.find(s => s.id === targetId);
+      if (sub) {
+        goToSubtitle(sub);
+        setTimeout(() => scrollToSubtitle(targetId), 50);
+      }
     }
   }
 
@@ -744,13 +938,30 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
             </svg>
             {t("sync.subtitles")}
+            {#if status?.is_loaded}
+              <span class="text-gray-500 font-normal">
+                ({loadedRangeStart}-{loadedRangeEnd} / {status.total_subtitles})
+              </span>
+            {/if}
           </h4>
         </div>
         
-        <div class="flex-1 overflow-y-auto">
+        <div 
+          class="flex-1 overflow-y-auto"
+          bind:this={subtitleListElement}
+          onscroll={handleSubtitleListScroll}
+        >
+          <!-- Loading indicator at top -->
+          {#if isLoadingMore && loadedRangeStart > 1}
+            <div class="text-center py-2">
+              <span class="text-xs text-gray-500">{t("sync.loading") || "Loading..."}</span>
+            </div>
+          {/if}
+
           {#each subtitles as sub (sub.id)}
             <button
               onclick={() => goToSubtitle(sub)}
+              data-subtitle-id={sub.id}
               class="w-full text-left p-3 border-b border-white/5 hover:bg-white/5
                 {activeSubtitleId === sub.id ? 'bg-indigo-500/20 border-l-4 border-l-indigo-500' : ''}
                 {sub.is_anchor ? 'bg-green-500/5' : ''}"
@@ -780,6 +991,13 @@
               </div>
             </button>
           {/each}
+
+          <!-- Loading indicator at bottom -->
+          {#if isLoadingMore && status && loadedRangeEnd < status.total_subtitles}
+            <div class="text-center py-2">
+              <span class="text-xs text-gray-500">{t("sync.loading") || "Loading..."}</span>
+            </div>
+          {/if}
 
           {#if subtitles.length === 0 && !status?.is_loaded}
             <div class="text-center text-gray-500 py-12">

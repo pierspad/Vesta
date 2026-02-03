@@ -221,6 +221,7 @@
   "sync.srtPlaceholder": "Load an SRT file to start",
   "sync.averageOffset": "Average offset",
   "sync.completed": "completed",
+  "sync.loading": "Loading...",
   "sync.resetSync": "Reset Synchronization",
   "sync.keySpace": "Space",
   "sync.playPause": "Play/Pause",

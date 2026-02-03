@@ -135,6 +135,50 @@ pub fn sync_get_subtitles(
     Ok(subtitles)
 }
 
+/// Ottiene sottotitoli paginati (per lazy loading)
+#[tauri::command]
+pub fn sync_get_subtitles_range(
+    state: State<'_, AppSyncState>,
+    start_id: u32,
+    count: usize,
+) -> Result<Vec<SubtitleInfo>, String> {
+    let sync_state = state.lock().map_err(|e| e.to_string())?;
+
+    let engine = sync_state.engine.as_ref()
+        .ok_or("Nessun file SRT caricato")?;
+
+    let anchors = engine.get_anchors();
+    let anchor_ids: Vec<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
+
+    let all_subs = engine.get_all_subtitles();
+    
+    // Find starting index based on subtitle ID
+    let start_idx = all_subs.iter().position(|s| s.id >= start_id).unwrap_or(0);
+    
+    let subtitles: Vec<SubtitleInfo> = all_subs
+        .iter()
+        .skip(start_idx)
+        .take(count)
+        .filter_map(|sub| {
+            let synced = engine.get_synced_subtitle(sub.id)?;
+            let offset = engine.get_current_offset(sub.id).unwrap_or(0);
+            
+            Some(SubtitleInfo {
+                id: sub.id,
+                start_ms: sub.start.milliseconds,
+                end_ms: sub.end.milliseconds,
+                text: sub.text.clone(),
+                synced_start_ms: synced.start.milliseconds,
+                synced_end_ms: synced.end.milliseconds,
+                offset_ms: offset,
+                is_anchor: anchor_ids.contains(&sub.id),
+            })
+        })
+        .collect();
+
+    Ok(subtitles)
+}
+
 /// Ottiene un sottotitolo specifico
 #[tauri::command]
 pub fn sync_get_subtitle(

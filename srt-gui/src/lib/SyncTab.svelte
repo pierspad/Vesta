@@ -286,6 +286,9 @@
   function handleKeydown(e: KeyboardEvent) {
     if (!videoElement) return;
 
+    // Ignore text inputs
+    if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+
     switch (e.key) {
       case " ":
         e.preventDefault();
@@ -315,6 +318,16 @@
         e.preventDefault();
         confirmAtCurrentTime();
         break;
+      case "Backspace":
+      case "Delete":
+        if (activeSubtitleId !== null) {
+            const sub = subtitles.find(s => s.id === activeSubtitleId);
+            if (sub && sub.is_anchor) {
+                e.preventDefault();
+                removeAnchor(activeSubtitleId);
+            }
+        }
+        break;
     }
   }
 
@@ -327,24 +340,34 @@
 <div class="h-full flex flex-col overflow-hidden bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900">
   <!-- Top Bar -->
   <div class="flex items-center gap-4 p-4 glass-card m-4 mb-0 flex-shrink-0">
-    <button
-      onclick={selectSrtFile}
-      class="btn-primary py-2 px-4 flex items-center gap-2"
-    >
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      {t("sync.loadSrt")}
-    </button>
-    <button
-      onclick={selectVideoFile}
-      class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 py-2 px-4 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30"
-    >
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-      </svg>
-      {t("sync.loadVideo")}
-    </button>
+    
+    <div class="flex gap-4 flex-1 max-w-lg">
+        <button
+        onclick={selectSrtFile}
+        class="flex-1 btn-primary py-2 px-4 flex items-center justify-center gap-3 shadow-lg shadow-indigo-500/20"
+        >
+        <div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">1</div>
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            {t("sync.loadSrt")}
+        </div>
+        </button>
+        <button
+        onclick={selectVideoFile}
+        disabled={!status?.is_loaded}
+        class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-30 disabled:cursor-not-allowed py-2 px-4 rounded-xl font-medium flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/30"
+        >
+        <div class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">2</div>
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            {t("sync.loadVideo")}
+        </div>
+        </button>
+    </div>
 
     <div class="flex-1"></div>
 
@@ -471,8 +494,9 @@
           <button
             onclick={() =>
               videoElement && (isPlaying ? videoElement.pause() : videoElement.play())}
-            class="btn-primary w-12 h-12 flex items-center justify-center p-0 relative group"
+            class="btn-primary w-12 h-12 flex items-center justify-center p-0 relative group shadow-lg shadow-indigo-500/20"
             aria-label={isPlaying ? t("sync.tooltipPause") : t("sync.tooltipPlay")}
+            title={isPlaying ? t("sync.tooltipPause") : t("sync.tooltipPlay")}
           >
             {#if isPlaying}
               <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -488,7 +512,10 @@
           <div class="flex-1"></div>
 
           <!-- Offset Adjustment - Compact layout -->
-          <div class="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2">
+          <div 
+            class="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 cursor-help"
+            title={t("sync.tooltipOffset")}
+          >
             <button
               onclick={() => (offsetAdjustment -= 100)}
               class="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-lg font-medium transition-colors"
@@ -517,6 +544,7 @@
             onclick={confirmAtCurrentTime}
             disabled={activeSubtitleId === null}
             class="btn-success py-2 px-4 flex items-center gap-2 disabled:opacity-50"
+            title={t("sync.tooltipConfirmAnchor")}
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -542,6 +570,10 @@
           <div class="flex items-center gap-1">
             <kbd class="px-2 py-1 bg-white/10 rounded text-gray-400">Enter</kbd>
             <span>{t("sync.confirm")}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <kbd class="px-2 py-1 bg-white/10 rounded text-gray-400">Del</kbd>
+            <span>{t("sync.removeAnchor")}</span>
           </div>
         </div>
       </div>

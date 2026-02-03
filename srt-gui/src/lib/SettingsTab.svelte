@@ -173,6 +173,9 @@
   }
 
   function onModelClick(model: ModelInfo) {
+    if (model.provider === 'openrouter') {
+        newKeyUrl = "https://openrouter.ai/api/v1";
+    }
     openAddKeyModal(model.provider, model.name);
   }
 </script>
@@ -401,11 +404,11 @@
 
   <!-- Modal: Add API Key -->
   {#if showAddKey}
-    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onclick={() => (showAddKey = false)}>
-      <div class="glass-card w-full max-w-lg overflow-hidden animate-fade-in shadow-2xl border border-white/10 bg-[#1a1b26]" onclick={(e) => e.stopPropagation()}>
+    <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onclick={() => (showAddKey = false)}>
+      <div class="glass-card w-full max-w-lg overflow-hidden animate-fade-in shadow-2xl border border-white/10 bg-gray-900" onclick={(e) => e.stopPropagation()}>
         <div class="p-6 border-b border-white/5 bg-white/5">
           <h3 class="text-xl font-bold text-white flex items-center gap-2">
-            <span class="text-indigo-400">＋</span> {t("settings.modal.addCustomApiKey")}
+             {t("settings.modal.addCustomApiKey")}
           </h3>
         </div>
 
@@ -426,7 +429,14 @@
                 {@const provider = providers[providerId]}
                 <button
                   type="button"
-                  onclick={() => { newKeyType = providerId as ApiKeyConfig["apiType"]; newKeyName = provider.name; }}
+                  onclick={() => { 
+                    newKeyType = providerId as ApiKeyConfig["apiType"]; 
+                    newKeyName = provider.name; 
+                    // Auto-fill endpoint
+                    if (provider.defaultApiUrl) {
+                      newKeyUrl = provider.defaultApiUrl;
+                    }
+                  }}
                   class="flex items-center gap-3 p-3 rounded-lg transition-all duration-200 border text-left
                     {newKeyType === providerId 
                       ? 'bg-indigo-500/20 border-indigo-500/50 text-white' 
@@ -434,8 +444,12 @@
                 >
                   <span class="text-2xl">{provider.icon}</span>
                   <div class="flex flex-col">
-                    <span class="text-sm font-bold">{provider.name}</span>
-                    <span class="text-[10px] opacity-70 leading-tight">{provider.description}</span>
+                    <span class="text-sm font-bold">
+                      {providerId === 'local' ? 'Local Server' : 'Cloud API (OpenRouter)'}
+                    </span>
+                    <span class="text-[10px] opacity-70 leading-tight">
+                      {providerId === 'local' ? 'Ollama, LM Studio (Your PC)' : 'GPT, Claude, Gemini (Online)'}
+                    </span>
                   </div>
                 </button>
               {/each}

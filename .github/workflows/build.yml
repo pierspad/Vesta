@@ -8,7 +8,7 @@ on:
 
 env:
   TAURI_APP_DIR: apps/srt-gui
-  MACOSX_DEPLOYMENT_TARGET: "10.15"
+  MACOSX_DEPLOYMENT_TARGET: "11.0"
 
 jobs:
   # ===========================================================
@@ -321,12 +321,12 @@ jobs:
         shell: bash
         env:
           NO_STRIP: true
-          MACOSX_DEPLOYMENT_TARGET: "10.15"
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
           WHISPER_DONT_GENERATE_BINDINGS: "1"
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-          CFLAGS: "-U__ARM_FEATURE_MATMUL_INT8"
-          CXXFLAGS: "-U__ARM_FEATURE_MATMUL_INT8"
+          CFLAGS: "-U__ARM_FEATURE_MATMUL_INT8 -mmacosx-version-min=11.0"
+          CXXFLAGS: "-U__ARM_FEATURE_MATMUL_INT8 -mmacosx-version-min=11.0"
         run: |
           # Tauri will build both targets and lipo them together into universal binary
           npx tauri build --bundles dmg --target universal-apple-darwin

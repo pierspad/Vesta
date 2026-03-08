@@ -15,7 +15,7 @@
   let sidebarCollapsed = $state(false);
 
   const MIN_WIDTH = 1440;
-  const MIN_HEIGHT = 900;
+  const MIN_HEIGHT = 940;
 
   // Enforce minimum window size at runtime (Linux WMs may ignore config)
   onMount(() => {
@@ -59,7 +59,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <main
-  class="flex h-screen min-w-[1440px] min-h-[900px] bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-gray-100"
+  class="flex h-screen min-w-[1440px] min-h-[940px] bg-gradient-to-br from-gray-900 via-gray-950 to-gray-900 text-gray-100"
   ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; }}
   ondrop={(e) => e.preventDefault()}
 >

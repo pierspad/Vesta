@@ -5,7 +5,11 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { onDestroy, onMount, tick } from "svelte";
   import { locale } from "./i18n";
-  import { languages, loadCardTemplates } from "./models";
+  import {
+    CARD_TEMPLATES_UPDATED_EVENT,
+    languages,
+    loadCardTemplates,
+  } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
 
   const SUBTITLE_EXTENSIONS = ["srt", "ass", "ssa", "vtt"];
@@ -850,20 +854,8 @@
   let helpSection = $state<string | null>(null);
 
   let noteTypeLanguage = $state("");
-  let noteTypeName = $state("");
+  let noteTypeName = $state(loadCardTemplates().noteTypeName);
   let includeTag = $state(true);
-
-  // Auto-update noteTypeName when language changes
-  $effect(() => {
-    if (noteTypeLanguage) {
-      const lang = languages.find((l) => l.code === noteTypeLanguage);
-      if (lang) {
-        noteTypeName = `${lang.nameEn}_vesta`;
-      }
-    } else {
-      noteTypeName = "";
-    }
-  });
   let includeSequence = $state(true);
   let includeAudioField = $state(true);
   let includeSnapshotField = $state(true);
@@ -933,6 +925,11 @@
 
   let unlisten: (() => void) | null = null;
   let unlistenDragDrop: (() => void) | null = null;
+  let removeTemplateListener: (() => void) | null = null;
+
+  function syncNoteTypeNameFromTemplates() {
+    noteTypeName = loadCardTemplates().noteTypeName;
+  }
   let canRunFlashcards = $derived(
     seriesMode
       ? Boolean(
@@ -1137,6 +1134,21 @@
   onMount(async () => {
     // Ensure initial layout rendering matches the current columnCount
     setColumnCount(columnCount);
+    syncNoteTypeNameFromTemplates();
+
+    const handleCardTemplatesUpdated = () => {
+      syncNoteTypeNameFromTemplates();
+    };
+
+    window.addEventListener(
+      CARD_TEMPLATES_UPDATED_EVENT,
+      handleCardTemplatesUpdated,
+    );
+    removeTemplateListener = () =>
+      window.removeEventListener(
+        CARD_TEMPLATES_UPDATED_EVENT,
+        handleCardTemplatesUpdated,
+      );
 
     try {
       const savedNoteTypeLanguage = localStorage.getItem(
@@ -1219,6 +1231,7 @@
   onDestroy(() => {
     if (unlisten) unlisten();
     if (unlistenDragDrop) unlistenDragDrop();
+    if (removeTemplateListener) removeTemplateListener();
   });
 
   // Track the i18n key of the last progress log so sequential updates
@@ -3894,11 +3907,13 @@
               ? 'bg-orange-500/20 border-orange-500/50 text-white'
               : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
           >
-            <span class="text-base block mb-0.5">🍃</span>
+            <span class="block mb-1 text-white">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 14c0-5.523 4.477-10 10-10h4v4c0 5.523-4.477 10-10 10H5v-4z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 17c2.5-2.5 5.5-4.5 9-6" />
+              </svg>
+            </span>
             <span class="font-semibold block">{t("flashcards.cpuEco")}</span>
-            <span class="text-[10px] text-gray-500 block"
-              >{cpuPresets[0].threads} thread</span
-            >
           </button>
           <button
             onclick={() => setCpuPreset("balanced")}
@@ -3907,12 +3922,16 @@
               ? 'bg-orange-500/20 border-orange-500/50 text-white'
               : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
           >
-            <span class="text-base block mb-0.5">⚖️</span>
+            <span class="block mb-1 text-white">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 7h12" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7l-3 5h6L8 7z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 7l-3 5h6l-3-5z" />
+              </svg>
+            </span>
             <span class="font-semibold block"
               >{t("flashcards.cpuBalanced")}</span
-            >
-            <span class="text-[10px] text-gray-500 block"
-              >{cpuPresets[1].threads} thread</span
             >
           </button>
           <button
@@ -3922,12 +3941,14 @@
               ? 'bg-orange-500/20 border-orange-500/50 text-white'
               : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
           >
-            <span class="text-base block mb-0.5">🔥</span>
+            <span class="block mb-1 text-white">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 16l5-5 3 3 6-7" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M14 7h5v5" />
+              </svg>
+            </span>
             <span class="font-semibold block"
               >{t("flashcards.cpuPerformance")}</span
-            >
-            <span class="text-[10px] text-gray-500 block"
-              >{cpuPresets[2].threads} thread</span
             >
           </button>
           <button
@@ -3937,12 +3958,13 @@
               ? 'bg-orange-500/20 border-orange-500/50 text-white'
               : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
           >
-            <span class="text-base block mb-0.5">💪</span>
+            <span class="block mb-1 text-white">
+              <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 3L6 13h5l-1 8 8-12h-5l2-6h-4z" />
+              </svg>
+            </span>
             <span class="font-semibold block"
               >{t("flashcards.cpuFullPower")}</span
-            >
-            <span class="text-[10px] text-gray-500 block"
-              >{cpuPresets[3].threads} thread</span
             >
           </button>
         </div>

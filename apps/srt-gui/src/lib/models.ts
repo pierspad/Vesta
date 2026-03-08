@@ -862,6 +862,41 @@ export interface FieldNamesConfig {
 const CARD_TEMPLATE_KEY = "vesta-card-templates";
 const FIELD_NAMES_KEY = "vesta-field-names";
 
+export const NOTE_TYPE_FIELD_SOFT_LIMIT = 25;
+export const CARD_TEMPLATES_UPDATED_EVENT = "vesta:card-templates-updated";
+export const FIELD_NAMES_UPDATED_EVENT = "vesta:field-names-updated";
+
+export function limitNoteTypeFieldValue(value: string): string {
+  return value.slice(0, NOTE_TYPE_FIELD_SOFT_LIMIT);
+}
+
+function sanitizeFieldNamesConfig(config: FieldNamesConfig): FieldNamesConfig {
+  return {
+    expression: limitNoteTypeFieldValue(config.expression),
+    meaning: limitNoteTypeFieldValue(config.meaning),
+    reading: limitNoteTypeFieldValue(config.reading),
+    audio: limitNoteTypeFieldValue(config.audio),
+    snapshot: limitNoteTypeFieldValue(config.snapshot),
+    video: limitNoteTypeFieldValue(config.video),
+    tags: limitNoteTypeFieldValue(config.tags),
+    sequenceMarker: limitNoteTypeFieldValue(config.sequenceMarker),
+    notes: limitNoteTypeFieldValue(config.notes),
+  };
+}
+
+function sanitizeCardTemplateConfig(config: CardTemplateConfig): CardTemplateConfig {
+  return {
+    ...config,
+    noteTypeName: limitNoteTypeFieldValue(config.noteTypeName),
+  };
+}
+
+function dispatchWindowEvent(eventName: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(eventName));
+  }
+}
+
 export const defaultFieldNames: FieldNamesConfig = {
   expression: "Expression",
   meaning: "Meaning",
@@ -879,7 +914,7 @@ export function loadFieldNames(): FieldNamesConfig {
     const raw = localStorage.getItem(FIELD_NAMES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
+      return sanitizeFieldNamesConfig({
         expression: parsed.expression || defaultFieldNames.expression,
         meaning: parsed.meaning || defaultFieldNames.meaning,
         reading: parsed.reading || defaultFieldNames.reading,
@@ -889,19 +924,22 @@ export function loadFieldNames(): FieldNamesConfig {
         tags: parsed.tags || defaultFieldNames.tags,
         sequenceMarker: parsed.sequenceMarker || defaultFieldNames.sequenceMarker,
         notes: parsed.notes || defaultFieldNames.notes,
-      };
+      });
     }
   } catch { /* ignore */ }
-  return { ...defaultFieldNames };
+  return sanitizeFieldNamesConfig({ ...defaultFieldNames });
 }
 
 export function saveFieldNames(config: FieldNamesConfig): void {
-  localStorage.setItem(FIELD_NAMES_KEY, JSON.stringify(config));
+  const sanitized = sanitizeFieldNamesConfig(config);
+  localStorage.setItem(FIELD_NAMES_KEY, JSON.stringify(sanitized));
+  dispatchWindowEvent(FIELD_NAMES_UPDATED_EVENT);
 }
 
 export function resetFieldNames(): FieldNamesConfig {
   localStorage.removeItem(FIELD_NAMES_KEY);
-  return { ...defaultFieldNames };
+  dispatchWindowEvent(FIELD_NAMES_UPDATED_EVENT);
+  return sanitizeFieldNamesConfig({ ...defaultFieldNames });
 }
 
 export const defaultCardTemplates: CardTemplateConfig = {
@@ -966,22 +1004,25 @@ export function loadCardTemplates(): CardTemplateConfig {
     const raw = localStorage.getItem(CARD_TEMPLATE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
+      return sanitizeCardTemplateConfig({
         frontHtml: parsed.frontHtml || defaultCardTemplates.frontHtml,
         backHtml: parsed.backHtml || defaultCardTemplates.backHtml,
         css: parsed.css || defaultCardTemplates.css,
         noteTypeName: parsed.noteTypeName || defaultCardTemplates.noteTypeName,
-      };
+      });
     }
   } catch { /* ignore */ }
-  return { ...defaultCardTemplates };
+  return sanitizeCardTemplateConfig({ ...defaultCardTemplates });
 }
 
 export function saveCardTemplates(config: CardTemplateConfig): void {
-  localStorage.setItem(CARD_TEMPLATE_KEY, JSON.stringify(config));
+  const sanitized = sanitizeCardTemplateConfig(config);
+  localStorage.setItem(CARD_TEMPLATE_KEY, JSON.stringify(sanitized));
+  dispatchWindowEvent(CARD_TEMPLATES_UPDATED_EVENT);
 }
 
 export function resetCardTemplates(): CardTemplateConfig {
   localStorage.removeItem(CARD_TEMPLATE_KEY);
-  return { ...defaultCardTemplates };
+  dispatchWindowEvent(CARD_TEMPLATES_UPDATED_EVENT);
+  return sanitizeCardTemplateConfig({ ...defaultCardTemplates });
 }

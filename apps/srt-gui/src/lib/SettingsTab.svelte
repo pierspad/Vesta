@@ -8,7 +8,10 @@
     setLanguage,
   } from "./i18n";
   import {
+    CARD_TEMPLATES_UPDATED_EVENT,
+    FIELD_NAMES_UPDATED_EVENT,
     getModelsForProvider,
+    limitNoteTypeFieldValue,
     loadAndValidateApiKeys,
     loadCardTemplates,
     loadFieldNames,
@@ -95,6 +98,23 @@
     });
   }
 
+  function syncLimitedInput(
+    event: Event,
+    applyValue: (value: string) => void,
+    save: () => void,
+  ) {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLInputElement)) return;
+
+    const limitedValue = limitNoteTypeFieldValue(target.value);
+    if (target.value !== limitedValue) {
+      target.value = limitedValue;
+    }
+
+    applyValue(limitedValue);
+    save();
+  }
+
   let newKeyName = $state("");
   let newKeyType = $state<ApiKeyConfig["apiType"]>("google");
   let newKeyValue = $state("");
@@ -143,7 +163,34 @@
     };
 
     window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener(CARD_TEMPLATES_UPDATED_EVENT, syncTemplateStateFromStorage);
+      window.removeEventListener(FIELD_NAMES_UPDATED_EVENT, syncFieldStateFromStorage);
+    };
+  });
+
+  function syncTemplateStateFromStorage() {
+    const templates = loadCardTemplates();
+    noteTypeName = templates.noteTypeName;
+  }
+
+  function syncFieldStateFromStorage() {
+    const fieldNames = loadFieldNames();
+    fieldExpression = fieldNames.expression;
+    fieldMeaning = fieldNames.meaning;
+    fieldReading = fieldNames.reading;
+    fieldAudio = fieldNames.audio;
+    fieldSnapshot = fieldNames.snapshot;
+    fieldVideo = fieldNames.video;
+    fieldTags = fieldNames.tags;
+    fieldSequenceMarker = fieldNames.sequenceMarker;
+    fieldNotes = fieldNames.notes;
+  }
+
+  onMount(() => {
+    window.addEventListener(CARD_TEMPLATES_UPDATED_EVENT, syncTemplateStateFromStorage);
+    window.addEventListener(FIELD_NAMES_UPDATED_EVENT, syncFieldStateFromStorage);
   });
 
   function loadApiKeys() {
@@ -1096,7 +1143,9 @@
                 id="note-type-name"
                 type="text"
                 bind:value={noteTypeName}
-                oninput={() => saveTemplates()}
+                maxlength="25"
+                oninput={(event) =>
+                  syncLimitedInput(event, (value) => (noteTypeName = value), saveTemplates)}
                 class="input-modern w-full text-sm"
                 placeholder="es. subs2srs, Vesta Default..."
               />
@@ -1114,39 +1163,39 @@
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label for="field-expression" class="block text-xs text-gray-400 mb-1">{t("settings.fieldExpression")}</label>
-                  <input id="field-expression" type="text" bind:value={fieldExpression} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Expression" />
+                  <input id="field-expression" type="text" bind:value={fieldExpression} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldExpression = value), saveFields)} class="input-modern w-full text-sm" placeholder="Expression" />
                 </div>
                 <div>
                   <label for="field-meaning" class="block text-xs text-gray-400 mb-1">{t("settings.fieldMeaning")}</label>
-                  <input id="field-meaning" type="text" bind:value={fieldMeaning} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Meaning" />
+                  <input id="field-meaning" type="text" bind:value={fieldMeaning} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldMeaning = value), saveFields)} class="input-modern w-full text-sm" placeholder="Meaning" />
                 </div>
                 <div>
                   <label for="field-reading" class="block text-xs text-gray-400 mb-1">{t("settings.fieldReading")}</label>
-                  <input id="field-reading" type="text" bind:value={fieldReading} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Reading" />
+                  <input id="field-reading" type="text" bind:value={fieldReading} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldReading = value), saveFields)} class="input-modern w-full text-sm" placeholder="Reading" />
                 </div>
                 <div>
                   <label for="field-audio" class="block text-xs text-gray-400 mb-1">{t("settings.fieldAudio")}</label>
-                  <input id="field-audio" type="text" bind:value={fieldAudio} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Audio" />
+                  <input id="field-audio" type="text" bind:value={fieldAudio} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldAudio = value), saveFields)} class="input-modern w-full text-sm" placeholder="Audio" />
                 </div>
                 <div>
                   <label for="field-snapshot" class="block text-xs text-gray-400 mb-1">{t("settings.fieldSnapshot")}</label>
-                  <input id="field-snapshot" type="text" bind:value={fieldSnapshot} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Snapshot" />
+                  <input id="field-snapshot" type="text" bind:value={fieldSnapshot} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldSnapshot = value), saveFields)} class="input-modern w-full text-sm" placeholder="Snapshot" />
                 </div>
                 <div>
                   <label for="field-video" class="block text-xs text-gray-400 mb-1">{t("settings.fieldVideo")}</label>
-                  <input id="field-video" type="text" bind:value={fieldVideo} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Video" />
+                  <input id="field-video" type="text" bind:value={fieldVideo} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldVideo = value), saveFields)} class="input-modern w-full text-sm" placeholder="Video" />
                 </div>
                 <div>
                   <label for="field-tags" class="block text-xs text-gray-400 mb-1">{t("settings.fieldTags")}</label>
-                  <input id="field-tags" type="text" bind:value={fieldTags} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Tags" />
+                  <input id="field-tags" type="text" bind:value={fieldTags} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldTags = value), saveFields)} class="input-modern w-full text-sm" placeholder="Tags" />
                 </div>
                 <div>
                   <label for="field-sequence-marker" class="block text-xs text-gray-400 mb-1">{t("settings.fieldSequenceMarker")}</label>
-                  <input id="field-sequence-marker" type="text" bind:value={fieldSequenceMarker} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="SequenceMarker" />
+                  <input id="field-sequence-marker" type="text" bind:value={fieldSequenceMarker} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldSequenceMarker = value), saveFields)} class="input-modern w-full text-sm" placeholder="SequenceMarker" />
                 </div>
                 <div class="col-span-2">
                   <label for="field-notes" class="block text-xs text-gray-400 mb-1">{t("settings.fieldNotes")}</label>
-                  <input id="field-notes" type="text" bind:value={fieldNotes} oninput={() => saveFields()} class="input-modern w-full text-sm" placeholder="Notes" />
+                  <input id="field-notes" type="text" bind:value={fieldNotes} maxlength="25" oninput={(event) => syncLimitedInput(event, (value) => (fieldNotes = value), saveFields)} class="input-modern w-full text-sm" placeholder="Notes" />
                 </div>
               </div>
             </div>

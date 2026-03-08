@@ -10,7 +10,7 @@ keywords = ["srt", "subtitles", "synchronization", "video"]
 categories = ["multimedia"]
 
 [dependencies]
-srt-parser = { path = "../../core/srt-parser", version = "0.1.0" }
+srt-parser = { workspace = true }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

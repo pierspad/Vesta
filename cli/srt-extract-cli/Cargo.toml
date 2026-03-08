@@ -13,7 +13,7 @@ name = "srt-extract"
 path = "src/main.rs"
 
 [dependencies]
-srt-parser = { path = "../../core/srt-parser" }
-srt-extract = { path = "../../lib/srt-extract" }
+srt-parser = { workspace = true }
+srt-extract = { workspace = true }
 anyhow.workspace = true
 clap.workspace = true

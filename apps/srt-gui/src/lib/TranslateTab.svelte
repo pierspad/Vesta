@@ -1,7 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { open, save } from "@tauri-apps/plugin-dialog";
+  import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
   import { onDestroy, onMount } from "svelte";
   import { locale } from "./i18n";
   import {
@@ -74,6 +76,125 @@
   let titleContext = $state("");
   let selectedModel = $state("");
 
+  // Local server URL with persistence
+  const LOCAL_SERVER_URL_KEY = "vesta-local-server-url";
+  const DEFAULT_LOCAL_URL = "http://localhost:11434/v1";
+  let localServerUrl = $state(localStorage.getItem(LOCAL_SERVER_URL_KEY) || DEFAULT_LOCAL_URL);
+
+  // Dynamically fetched models from local/custom server
+  let fetchedModels = $state<{ id: string; name: string }[]>([]);
+  let isFetchingModels = $state(false);
+  let fetchModelsError = $state("");
+
+  function saveLocalServerUrl(url: string) {
+    localServerUrl = url;
+    localStorage.setItem(LOCAL_SERVER_URL_KEY, url);
+  }
+
+  function extractModelsFromPayload(payload: unknown): { id: string; name: string }[] {
+    const candidates: unknown[] = [];
+
+    if (Array.isArray(payload)) {
+      candidates.push(...payload);
+    } else if (payload && typeof payload === "object") {
+      const record = payload as Record<string, unknown>;
+
+      if (Array.isArray(record.data)) {
+        candidates.push(...record.data);
+      }
+      if (Array.isArray(record.models)) {
+        candidates.push(...record.models);
+      }
+
+      const nestedData = record.data;
+      if (nestedData && typeof nestedData === "object") {
+        const nestedRecord = nestedData as Record<string, unknown>;
+        if (Array.isArray(nestedRecord.models)) {
+          candidates.push(...nestedRecord.models);
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    const models: { id: string; name: string }[] = [];
+
+    for (const candidate of candidates) {
+      let id = "";
+
+      if (typeof candidate === "string") {
+        id = candidate.trim();
+      } else if (candidate && typeof candidate === "object") {
+        const record = candidate as Record<string, unknown>;
+        const rawId = [record.id, record.name, record.model]
+          .find((value) => typeof value === "string" && value.trim().length > 0);
+
+        if (typeof rawId === "string") {
+          id = rawId.trim();
+        }
+      }
+
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      models.push({ id, name: id });
+    }
+
+    return models;
+  }
+
+  function buildModelsUrl(baseUrl: string) {
+    let url = baseUrl.trim().replace(/\/+$/, "");
+
+    if (!url) return url;
+
+    // LM Studio serves the model list at /v1/models, not /api/v1/models.
+    url = url.replace(/\/api(?=\/v1(?:\/models)?$)/, "");
+
+    if (url.endsWith("/models")) {
+      return url;
+    }
+
+    return url.endsWith("/v1") ? `${url}/models` : `${url}/v1/models`;
+  }
+
+  async function fetchModelsFromServer(baseUrl: string) {
+    isFetchingModels = true;
+    fetchModelsError = "";
+    fetchedModels = [];
+    try {
+      const url = buildModelsUrl(baseUrl);
+      const resp = await tauriFetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const responseText = await resp.text();
+      let data: unknown = null;
+      if (responseText.trim().length > 0) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error("Invalid JSON response");
+        }
+      }
+
+      const models = extractModelsFromPayload(data);
+
+      if (models.length === 0) throw new Error("No models found");
+      fetchedModels = models;
+      // Auto-select first model if none selected
+      if (!selectedModel || !models.find((m) => m.id === selectedModel)) {
+        selectedModel = models[0].id;
+      }
+    } catch (e: any) {
+      fetchModelsError = e?.message || "Connection failed";
+      fetchedModels = [];
+    } finally {
+      isFetchingModels = false;
+    }
+  }
+
   const batchPresets = [
     { id: "precise", value: 5 },
     { id: "balanced", value: 15 },
@@ -111,6 +232,18 @@
 
   let unlistenProgress: (() => void) | null = null;
   let unlistenComplete: (() => void) | null = null;
+  let unlistenDragDrop: (() => void) | null = null;
+
+  async function handleFileDrop(paths: string[]) {
+    const srtFile = paths.find(p => p.toLowerCase().endsWith(".srt"));
+    if (srtFile) {
+      inputPath = srtFile;
+      await loadFileInfo();
+      if (!outputPath) {
+        outputPath = inputPath.replace(/\.srt$/i, `.${targetLang}.srt`);
+      }
+    }
+  }
 
   let providerOptions = $derived.by(() => {
     return [
@@ -128,12 +261,18 @@
 
   let availableModels = $derived.by(() => {
     if (!selectedProviderFamily) return [];
+    // For local/custom providers, or when we successfully fetched dynamic models
+    if (fetchedModels.length > 0) {
+      const familyLabel = selectedProviderFamily === "local" || selectedProviderFamily === "custom" ? "Dynamic" : "Fetched API";
+      return fetchedModels.map((m) => ({ id: m.id, name: m.name, provider: selectedProviderFamily, family: familyLabel }));
+    }
+    // Fallback to hardcoded models
     return getModelsForProvider(selectedProviderFamily);
   });
 
-  // Effective model: use localCustomModel if filled (only for local provider), otherwise selectedModel
+  // Effective model: use localCustomModel if filled (for local/custom provider), otherwise selectedModel
   let effectiveModel = $derived(
-    selectedProviderFamily === "local" && localCustomModel.trim()
+    (selectedProviderFamily === "local" || selectedProviderFamily === "custom") && localCustomModel.trim()
       ? localCustomModel.trim()
       : selectedModel
   );
@@ -167,9 +306,92 @@
     }
   });
 
+
+
+  // Fetch models dynamically for managed providers (Google, Groq)
+  async function fetchProviderModels(family: string) {
+    if (family !== "google" && family !== "groq") return;
+    
+    // Find the right API key
+    const currentKeys = apiKeys.filter((k) => k.apiType === family && k.apiKey && k.apiKey.trim());
+    if (currentKeys.length === 0) return;
+    const apiKey = currentKeys[0].apiKey.trim();
+
+    isFetchingModels = true;
+    fetchModelsError = "";
+    
+    try {
+      let url = "";
+      let headers: Record<string, string> = { "Accept": "application/json" };
+      
+      if (family === "google") {
+        url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+      } else if (family === "groq") {
+        url = "https://api.groq.com/openai/v1/models";
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+
+      const resp = await tauriFetch(url, { method: "GET", headers });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      
+      const responseText = await resp.text();
+      let data: unknown = null;
+      if (responseText.trim().length > 0) {
+         data = JSON.parse(responseText);
+      }
+      
+      let models = extractModelsFromPayload(data);
+      if (models.length === 0) throw new Error("No models found dynamically");
+
+      // For Google, strip 'models/' prefix from the ID, use displayName if available
+      if (family === "google") {
+        if (data && typeof data === "object" && Array.isArray((data as any).models)) {
+          models = (data as any).models.map((m: any) => {
+             const id = m.name?.replace("models/", "") || m.id;
+             const name = m.displayName || id;
+             return { id, name };
+          });
+        } else {
+             models = models.map(m => {
+                 const id = m.id.replace("models/", "");
+                 return { id, name: m.name.replace("models/", "") };
+             });
+        }
+      }
+
+      fetchedModels = models;
+
+      // Auto-select first model if current one is not in the list
+      if (!selectedModel || !models.find((m) => m.id === selectedModel)) {
+        selectedModel = models[0].id;
+      }
+    } catch (e: any) {
+      console.warn(`Failed to fetch dynamic models for ${family}:`, e?.message);
+      // We gracefully swallow errors and naturally fall back to hardcoded models (as fetchedModels remains [])
+    } finally {
+      isFetchingModels = false;
+    }
+  }
+
+  // Auto-fetch provider models upon selection logic
   $effect(() => {
-    if (!selectedProviderFamily && providerOptions.length > 0) {
-      selectedProviderFamily = "local"; // Default to Local LLM
+    if (providerConfirmed && (selectedProviderFamily === "google" || selectedProviderFamily === "groq")) {
+      // Only trigger if we haven't fetched them yet to avoid loops
+      if (fetchedModels.length === 0 && !isFetchingModels) {
+        fetchProviderModels(selectedProviderFamily);
+      }
+    }
+  });
+
+  // Reset fetched models when switching away from the current provider
+  $effect(() => {
+    // Only reset if it's changing, avoid resetting immediately after we fetch
+    if (!providerConfirmed) {
+      fetchedModels = [];
+      fetchModelsError = "";
+    } else if (selectedProviderFamily !== "local" && selectedProviderFamily !== "custom" && selectedProviderFamily !== "google" && selectedProviderFamily !== "groq") {
+      fetchedModels = [];
+      fetchModelsError = "";
     }
   });
 
@@ -212,6 +434,16 @@
     // Also listen for custom event for same-window updates
     window.addEventListener("apikeys-updated", loadApiKeys);
 
+    try {
+      unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
+        if (event.payload.type === "drop" && event.payload.paths) {
+          handleFileDrop(event.payload.paths);
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to set up drag-drop listener:", e);
+    }
+
     unlistenProgress = await listen<TranslateProgressEvent>(
       "translate-progress",
       (event) => {
@@ -244,6 +476,7 @@
       clearInterval(previewRefreshInterval);
       previewRefreshInterval = null;
     }
+    if (unlistenDragDrop) unlistenDragDrop();
   });
 
   function loadApiKeys() {
@@ -392,8 +625,7 @@
 
     let apiUrl: string | null = null;
     if (selectedProviderFamily === "local") {
-      const localKey = apiKeys.find((k) => k.apiType === "local");
-      if (localKey && localKey.apiUrl) apiUrl = localKey.apiUrl;
+      apiUrl = localServerUrl || DEFAULT_LOCAL_URL;
     } else if (selectedProviderFamily === "google") {
       apiUrl = "https://generativelanguage.googleapis.com/v1beta";
     } else if (selectedProviderFamily === "groq") {
@@ -554,6 +786,7 @@
   }
 
   function trOnDragOver(e: DragEvent, col: "col1" | "col2", idx: number) {
+    if (!trDraggedPanel) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     trDragOverCol = col;
@@ -561,6 +794,7 @@
   }
 
   function trOnDragOverColumn(e: DragEvent, col: "col1" | "col2") {
+    if (!trDraggedPanel) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     trDragOverCol = col;
@@ -609,7 +843,13 @@
   }
 </script>
 
-<div class="h-full flex flex-col p-6 overflow-y-auto translate-tab-scroll">
+<div 
+  role="region"
+  aria-label="Translate content"
+  class="h-full flex flex-col p-6 overflow-y-auto overflow-x-hidden translate-tab-scroll"
+  ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; }}
+  ondrop={(e) => e.preventDefault()}
+>
 
   {#snippet panelContent(panelId: TranslatePanelId)}
     {#if panelId === "options"}
@@ -693,21 +933,20 @@
                 <div class="relative group">
                 <button
                   type="button"
+                  disabled={!hasCustomKey}
                   onclick={() => {
                     if (!hasCustomKey) return;
                     selectedProviderFamily = "custom";
                     providerConfirmed = true;
                   }}
-                  disabled={!hasCustomKey}
                   class="w-full flex items-center gap-2 p-2.5 rounded-lg transition-all duration-200 border text-left text-xs
-                    {!hasCustomKey
-                    ? 'opacity-40 cursor-not-allowed bg-white/5 border-transparent text-gray-500'
-                    : selectedProviderFamily === 'custom'
+                    {selectedProviderFamily === 'custom'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
-                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
+                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
+                    {!hasCustomKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
                 >
                   <div
-                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white shadow-lg flex-shrink-0"
+                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasCustomKey ? 'grayscale' : ''}"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                       ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -733,21 +972,20 @@
                 <div class="relative group">
                 <button
                   type="button"
+                  disabled={!hasGoogleKey}
                   onclick={() => {
                     if (!hasGoogleKey) return;
                     selectedProviderFamily = "google";
                     providerConfirmed = true;
                   }}
-                  disabled={!hasGoogleKey}
                   class="w-full flex items-center gap-2 p-2.5 rounded-lg transition-all duration-200 border text-left text-xs
-                    {!hasGoogleKey
-                    ? 'opacity-40 cursor-not-allowed bg-white/5 border-transparent text-gray-500'
-                    : selectedProviderFamily === 'google'
+                    {selectedProviderFamily === 'google'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
-                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
+                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
+                    {!hasGoogleKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
                 >
                   <div
-                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg flex-shrink-0"
+                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasGoogleKey ? 'grayscale' : ''}"
                   >
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"
                       ><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -773,21 +1011,20 @@
                 <div class="relative group">
                 <button
                   type="button"
+                  disabled={!hasGroqKey}
                   onclick={() => {
                     if (!hasGroqKey) return;
                     selectedProviderFamily = "groq";
                     providerConfirmed = true;
                   }}
-                  disabled={!hasGroqKey}
                   class="w-full flex items-center gap-2 p-2.5 rounded-lg transition-all duration-200 border text-left text-xs
-                    {!hasGroqKey
-                    ? 'opacity-40 cursor-not-allowed bg-white/5 border-transparent text-gray-500'
-                    : selectedProviderFamily === 'groq'
+                    {selectedProviderFamily === 'groq'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
-                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
+                    : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
+                    {!hasGroqKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
                 >
                   <div
-                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white shadow-lg flex-shrink-0"
+                    class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasGroqKey ? 'grayscale' : ''}"
                   >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                       ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -833,7 +1070,7 @@
                 </div>
                 <button
                   type="button"
-                  onclick={() => { providerConfirmed = false; }}
+                  onclick={() => { providerConfirmed = false; selectedProviderFamily = ""; selectedModel = ""; localCustomModel = ""; }}
                   class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all border border-transparent hover:border-white/10"
                   title={t("translate.changeProvider")}
                 >
@@ -878,12 +1115,77 @@
             </div>
           {/if}
 
-          <!-- Model selector (only when provider is confirmed and not custom without selection) -->
-          {#if providerConfirmed && selectedProviderFamily !== "custom"}
+          <!-- Local Server URL (shown when local provider is confirmed) -->
+          {#if providerConfirmed && selectedProviderFamily === "local"}
+            <div>
+              <label for="local-server-url" class="block text-sm text-gray-400 mb-1">{t("translate.localServerUrl")}</label>
+              <div class="flex items-center gap-2">
+                <input
+                  id="local-server-url"
+                  type="text"
+                  value={localServerUrl}
+                  oninput={(e) => saveLocalServerUrl((e.target as HTMLInputElement).value)}
+                  placeholder={DEFAULT_LOCAL_URL}
+                  class="input-modern flex-1 text-sm font-mono"
+                />
+                <button
+                  type="button"
+                  onclick={() => fetchModelsFromServer(localServerUrl)}
+                  disabled={isFetchingModels || !localServerUrl.trim()}
+                  class="px-3 py-2 rounded-lg text-xs font-medium transition-all
+                    {isFetchingModels ? 'bg-white/5 text-gray-500 cursor-wait' : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/50'}"
+                >
+                  {#if isFetchingModels}
+                    <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  {:else}
+                    {t("translate.fetchModels")}
+                  {/if}
+                </button>
+              </div>
+              {#if fetchModelsError}
+                <p class="text-[10px] text-amber-400 mt-1">⚠ {fetchModelsError}</p>
+              {:else if fetchedModels.length > 0}
+                <p class="text-[10px] text-emerald-400 mt-1">✓ {fetchedModels.length} {t("translate.modelsFound")}</p>
+              {/if}
+            </div>
+
+            <!-- Fetch models for custom provider -->
+            {#if selectedCustomProviderId}
+              {@const customProviderEntry = apiKeys.find((k) => k.id === selectedCustomProviderId)}
+              {#if customProviderEntry?.apiUrl}
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onclick={() => fetchModelsFromServer(customProviderEntry.apiUrl!)}
+                    disabled={isFetchingModels}
+                    class="px-3 py-2 rounded-lg text-xs font-medium transition-all
+                      {isFetchingModels ? 'bg-white/5 text-gray-500 cursor-wait' : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/50'}"
+                  >
+                    {#if isFetchingModels}
+                      <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    {:else}
+                      {t("translate.fetchModels")}
+                    {/if}
+                  </button>
+                  {#if fetchModelsError}
+                    <span class="text-[10px] text-amber-400">⚠ {fetchModelsError}</span>
+                  {:else if fetchedModels.length > 0}
+                    <span class="text-[10px] text-emerald-400">✓ {fetchedModels.length} {t("translate.modelsFound")}</span>
+                  {/if}
+                </div>
+              {/if}
+            {/if}
+          {/if}
+
+          <!-- Model selector (shown for all confirmed providers) -->
+          {#if providerConfirmed && (selectedProviderFamily !== "custom" || (selectedCustomProviderId && availableModels.length > 0))}
             <div>
               <label for="model-select" class="block text-sm text-gray-400 mb-1"
                 >{t("translate.model")}</label
               >
+              {#if availableModels.length === 0 && (selectedProviderFamily === "local" || selectedProviderFamily === "custom")}
+                <p class="text-xs text-gray-500 italic py-2">{t("translate.fetchModelsHint")}</p>
+              {/if}
               {#if availableModels.length > 0}
                 <SearchableSelect
                   noResultsText={t("common.noResults")}
@@ -900,8 +1202,8 @@
                 />
               {/if}
 
-              <!-- Local provider: allow typing arbitrary model IDs -->
-              {#if selectedProviderFamily === "local"}
+              <!-- Local/Custom provider: allow typing arbitrary model IDs -->
+              {#if selectedProviderFamily === "local" || selectedProviderFamily === "custom"}
                 {#if localCustomModel.trim()}
                   <div class="flex items-center gap-2 mt-1.5">
                     <input
@@ -925,6 +1227,21 @@
               {/if}
             </div>
           {/if}
+
+          <!-- Custom provider: manual model input when no models fetched -->
+          {#if providerConfirmed && selectedProviderFamily === "custom" && selectedCustomProviderId && availableModels.length === 0}
+            <div>
+              <label for="custom-model-input" class="block text-sm text-gray-400 mb-1">{t("translate.model")}</label>
+              <input
+                id="custom-model-input"
+                type="text"
+                bind:value={localCustomModel}
+                placeholder={t("translate.customModelPlaceholder")}
+                class="input-modern w-full text-sm font-mono"
+              />
+            </div>
+          {/if}
+
           <div
             class="{!inputPath
               ? 'opacity-40 pointer-events-none'
@@ -1533,9 +1850,9 @@
     </button>
   </div>
 
-  <div class="flex-1 grid grid-cols-2 gap-6 min-h-0 overflow-y-auto {!hasValidKey && selectedProviderFamily !== 'local' ? 'opacity-40 pointer-events-none select-none' : ''} transition-opacity">
+  <div class="flex-1 grid grid-cols-2 gap-6 min-h-0 overflow-y-auto transition-opacity">
     <div
-      class="space-y-3 overflow-y-auto pr-1 min-h-[100px]"
+      class="space-y-3 overflow-y-auto overflow-x-hidden pr-1 min-h-[100px]"
       ondragover={(e) => trOnDragOverColumn(e, "col1")}
       ondrop={() => trOnDropColumn("col1")}
       role="list"
@@ -1570,7 +1887,7 @@
     </div>
 
     <div
-      class="space-y-3 overflow-y-auto pr-1 min-h-[100px]"
+      class="space-y-3 overflow-y-auto overflow-x-hidden pr-1 min-h-[100px]"
       ondragover={(e) => trOnDragOverColumn(e, "col2")}
       ondrop={() => trOnDropColumn("col2")}
       role="list"

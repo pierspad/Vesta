@@ -36,6 +36,8 @@
   function toggleSeriesMode() {
     seriesMode = !seriesMode;
     localStorage.setItem(SERIES_MODE_KEY, String(seriesMode));
+    // Ensure layout matches current column count when switching modes
+    setColumnCount(columnCount);
   }
 
   // Episode data for series mode
@@ -455,87 +457,27 @@
     return [];
   }
 
-  async function addSeriesTargetSubs() {
+  async function addSeriesMultipleFiles() {
     try {
       const raw = await open({
         multiple: true,
         filters: [
           {
-            name: t("flashcards.subtitleFiles"),
-            extensions: ["srt", "ass", "ssa", "vtt"],
+            name: "Subtitle and Media Files",
+            extensions: ["srt", "ass", "ssa", "vtt", ...VIDEO_EXTENSIONS, ...AUDIO_EXTENSIONS],
           },
         ],
       });
       const selected = normalizeSelected(raw);
       if (selected.length > 0) {
-        mergeSeriesSubtitleFiles(selected, "target");
-
-        // Infer language from first file if needed
-        if (!noteTypeLanguage) {
-          const inferred = inferLanguageFromPath(selected[0]);
-          if (inferred) {
-            noteTypeLanguage = inferred;
-            localStorage.setItem(NOTE_TYPE_LANGUAGE_KEY, inferred);
-          }
-        }
-
-        addLog(
-          `${episodes.length} ${t("flashcards.seriesEpisodesAdded")}`,
-          "target-subs",
-        );
+        await handleFileDrop(selected);
       }
     } catch (e) {
       error = `${t("flashcards.errorSelectingFile")}: ${e}`;
     }
   }
 
-  async function addSeriesNativeSubs() {
-    try {
-      const raw = await open({
-        multiple: true,
-        filters: [
-          {
-            name: t("flashcards.subtitleFiles"),
-            extensions: ["srt", "ass", "ssa", "vtt"],
-          },
-        ],
-      });
-      const selected = normalizeSelected(raw);
-      if (selected.length > 0) {
-        mergeSeriesSubtitleFiles(selected, "native");
-        addLog(
-          `${selected.length} ${t("flashcards.seriesNativeSubsAdded")}`,
-          "native-subs",
-        );
-      }
-    } catch (e) {
-      error = `${t("flashcards.errorSelectingFile")}: ${e}`;
-    }
-  }
 
-  async function addSeriesMedia() {
-    try {
-      const raw = await open({
-        multiple: true,
-        filters: [
-          {
-            name: t("flashcards.mediaFiles"),
-            extensions: [...VIDEO_EXTENSIONS, ...AUDIO_EXTENSIONS],
-          },
-        ],
-      });
-      const selected = normalizeSelected(raw);
-      if (selected.length > 0) {
-        mergeSeriesMediaFiles(selected);
-        addLog(
-          `${selected.length} ${t("flashcards.seriesMediaAdded")}`,
-          "media",
-        );
-      }
-    } catch (e) {
-      error = `${t("flashcards.errorSelectingFile")}: ${e}`;
-    }
-  }
 
   function removeEpisode(idx: number) {
     episodes = episodes
@@ -547,8 +489,16 @@
     episodes = [];
   }
 
-  let hasMedia = $derived(mediaType !== "none");
-  let hasVideo = $derived(mediaType === "video");
+  let hasMedia = $derived(
+    seriesMode
+      ? episodes.some((ep) => ep.mediaType !== "none")
+      : mediaType !== "none"
+  );
+  let hasVideo = $derived(
+    seriesMode
+      ? episodes.some((ep) => ep.mediaType === "video")
+      : mediaType === "video"
+  );
   let hasAudio = $derived(hasMedia);
 
   let useTimingsFrom = $state<"target" | "native">("target");
@@ -560,7 +510,11 @@
   let showSubtitleOptions = $state(false);
   let showContextLines = $state(false);
   let showFilters = $state(false);
-  let hasAnyFiles = $derived(targetSubsPath !== "");
+  let hasAnyFiles = $derived(
+    seriesMode
+      ? episodes.length > 0
+      : targetSubsPath !== ""
+  );
   let includeWords = $state("");
   let excludeWords = $state("");
   let excludeDuplicatesSubs1 = $state(false);
@@ -662,9 +616,9 @@
   };
 
   const DEFAULT_SERIES_LAYOUT: ColumnLayout = {
-    col1: ["naming", "ankiFields"],
-    col2: ["audioClips", "snapshots", "videoClips", "subtitleOptions", "contextLines", "filters"],
-    col3: ["exportFormat", "cpuCores", "actions", "progressResult", "logs"],
+    col1: ["naming", "ankiFields", "subtitleOptions", "contextLines", "filters"],
+    col2: ["audioClips", "snapshots", "videoClips", "exportFormat"],
+    col3: ["cpuCores", "actions", "progressResult", "logs"],
   };
 
   function loadLayout(): ColumnLayout {
@@ -685,7 +639,7 @@
 
   function loadSeriesLayout(): ColumnLayout {
     try {
-      const saved = localStorage.getItem("vesta-flashcards-series-layout-v1");
+      const saved = localStorage.getItem("vesta-flashcards-series-layout-v2");
       if (saved) {
         const parsed = JSON.parse(saved) as ColumnLayout;
         const all = [...parsed.col1, ...parsed.col2, ...parsed.col3];
@@ -703,7 +657,7 @@
   }
 
   function saveSeriesLayout(layout: ColumnLayout) {
-    localStorage.setItem("vesta-flashcards-series-layout-v1", JSON.stringify(layout));
+    localStorage.setItem("vesta-flashcards-series-layout-v2", JSON.stringify(layout));
   }
 
   let movieLayout = $state<ColumnLayout>(loadLayout());
@@ -818,6 +772,7 @@
     col: "col1" | "col2" | "col3",
     idx: number,
   ) {
+    if (!draggedPanel) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     dragOverCol = col;
@@ -825,6 +780,7 @@
   }
 
   function onDragOverColumn(e: DragEvent, col: "col1" | "col2" | "col3") {
+    if (!draggedPanel) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     dragOverCol = col;
@@ -1043,6 +999,37 @@
   function classifySubtitles(paths: string[]): { target: string; native: string } {
     return classifySubtitleCandidates(paths, "auto");
   }
+  function generateDefaultDeckName(filename: string): string {
+    let base = filename.replace(/\.[^/.]+$/, "");
+    
+    // Remove known suffixes
+    base = base.replace(/[._-](native|original|orig|source|translated|translation|tradotto|traduzione|reference|ref)(?=(\.|_|-|$))/gi, "");
+    
+    // Remove language code
+    const parts = base.split(/[._-]/);
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1].toLowerCase();
+      if (KNOWN_LANGUAGE_CODES.has(lastPart)) {
+        parts.pop();
+        base = parts.join(" ");
+      } else {
+        base = parts.join(" ");
+      }
+    }
+    
+    // Remove episode numbers
+    base = base.replace(/[._\-\s]*[Ss]\d{1,2}[Ee]\d{1,4}[._\-\s]*/gi, " ");
+    base = base.replace(/[._\-\s]*[Ee][Pp]?\.?\s*\d{1,4}[._\-\s]*/gi, " ");
+    base = base.replace(/[._\-\s]*[Ee]pisode\.?\s*\d{1,4}[._\-\s]*/gi, " ");
+    base = base.replace(/[._\-\s]*[Xx]\d{1,4}[._\-\s]*/gi, " ");
+    
+    // Isolated numbers
+    base = base.replace(/[\s_\-\.]\d{1,4}$/, "");
+    base = base.replace(/[\s_\-\.]\d{1,4}[\s_\-\.]/, " ");
+    base = base.replace(/^\d{1,4}[\s_\-\.]/, "");
+    
+    return base.replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "Default Deck";
+  }
 
   async function handleFileDrop(paths: string[]) {
     if (!paths || paths.length === 0) return;
@@ -1078,7 +1065,7 @@
             const info = await invoke<any>("flashcard_load_subs", { path: target });
             targetSubsInfo = info;
             addLog(`${info.count} ${t("flashcards.subtitlesLoaded")} (${info.format.toUpperCase()})`, "target-subs", filename);
-            if (!deckName) deckName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+            if (!deckName) deckName = generateDefaultDeckName(filename);
           } catch (e) {
             error = `Error parsing subtitles: ${e}`;
           }
@@ -1111,7 +1098,7 @@
             const info = await invoke<any>("flashcard_load_subs", { path: subPath });
             targetSubsInfo = info;
             addLog(`${info.count} ${t("flashcards.subtitlesLoaded")} (${info.format.toUpperCase()})`, "target-subs", filename);
-            if (!deckName) deckName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+            if (!deckName) deckName = generateDefaultDeckName(filename);
           } catch (e) {
             error = `Error parsing subtitles: ${e}`;
           }
@@ -1148,6 +1135,9 @@
   }
 
   onMount(async () => {
+    // Ensure initial layout rendering matches the current columnCount
+    setColumnCount(columnCount);
+
     try {
       const savedNoteTypeLanguage = localStorage.getItem(
         NOTE_TYPE_LANGUAGE_KEY,
@@ -1209,13 +1199,19 @@
       params: Record<string, string>;
     }>("flashcard-progress", (event) => {
       const p = event.payload;
-      progress = Math.round(p.percentage);
-      // Translate the i18n key with params from the backend
       const translated = t(p.message, p.params || {});
-      progressMessage = translated;
+      
+      if (seriesMode && seriesTotalEpisodes > 0) {
+        progress = Math.round(((seriesCurrentEpisode - 1) * 100 / seriesTotalEpisodes) + (p.percentage / seriesTotalEpisodes));
+        progressMessage = `[Ep. ${seriesCurrentEpisode}/${seriesTotalEpisodes}] ${translated}`;
+      } else {
+        progress = Math.round(p.percentage);
+        progressMessage = translated;
+      }
+      
       progressStage = p.stage;
       if (p.stage !== "done") {
-        addLog(translated, "progress", undefined, p.message);
+        addLog(progressMessage, "progress", undefined, p.message);
       }
     });
   });
@@ -1379,7 +1375,7 @@
           );
 
           if (!deckName) {
-            deckName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+            deckName = generateDefaultDeckName(filename);
           }
         } catch (e) {
           error = `Error parsing subtitles: ${e}`;
@@ -1638,7 +1634,7 @@
           video_audio_bitrate: videoAudioBitrate,
           video_pad_start_ms: videoPadStart,
           video_pad_end_ms: videoPadEnd,
-          deck_name: deckName,
+          deck_name: seriesOutputMode === "separate" ? `${deckName}_${epNum}` : deckName,
           episode_number: epNum,
           export_format: exportFormat,
           note_type_name: noteTypeName,
@@ -1814,6 +1810,13 @@
     logs = [];
     logIdCounter = 0;
     lastProgressKey = null;
+    
+    // Clear files so the user can insert new ones
+    targetSubsPath = "";
+    nativeSubsPath = "";
+    mediaPath = "";
+    mediaType = "none";
+    episodes = [];
   }
 
   function logStyle(type: LogEntry["type"]): {
@@ -1892,8 +1895,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="h-full flex flex-col p-6 overflow-hidden bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950"
-  ondragover={(e) => e.preventDefault()}
+  class="h-full flex flex-col p-6 overflow-y-auto flashcards-scroll bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950"
+  ondragover={(e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; }}
   ondrop={(e) => e.preventDefault()}
 >
   {#if ffmpegAvailable === false}
@@ -2350,7 +2353,7 @@
             <!-- Add files buttons -->
             <div class="flex flex-wrap gap-2">
               <button
-                onclick={addSeriesTargetSubs}
+                onclick={addSeriesMultipleFiles}
                 class="btn-primary py-1.5 px-3 text-xs flex items-center gap-1.5"
               >
                 <svg
@@ -2365,45 +2368,7 @@
                     d="M12 4v16m8-8H4"
                   /></svg
                 >
-                {t("flashcards.addTargetSubs")}
-              </button>
-              <button
-                onclick={addSeriesNativeSubs}
-                class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5"
-                disabled={episodes.length === 0}
-              >
-                <svg
-                  class="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 4v16m8-8H4"
-                  /></svg
-                >
-                {t("flashcards.addNativeSubs")}
-              </button>
-              <button
-                onclick={addSeriesMedia}
-                class="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5"
-                disabled={episodes.length === 0}
-              >
-                <svg
-                  class="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 4v16m8-8H4"
-                  /></svg
-                >
-                {t("flashcards.addMedia")}
+                Add Files
               </button>
               {#if episodes.length > 0}
                 <button

@@ -241,7 +241,7 @@ async fn perform_translation(
     };
 
     // Esegui la traduzione con supporto per cancellazione
-    let translated = translate_subtitles_with_rate_limit_cancellable(
+    let translated: anyhow::Result<std::collections::HashMap<u32, srt_parser::Subtitle>> = translate_subtitles_with_rate_limit_cancellable(
         translators,
         Some(rate_limiters),
         subtitles,
@@ -255,7 +255,7 @@ async fn perform_translation(
     .await;
     
     // Gestisci la cancellazione
-    let translated = match translated {
+    let translated: std::collections::HashMap<u32, srt_parser::Subtitle> = match translated {
         Ok(t) => t,
         Err(e) => {
             let error_str = e.to_string();

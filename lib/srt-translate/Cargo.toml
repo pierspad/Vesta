@@ -10,7 +10,7 @@ keywords = ["srt", "subtitles", "translation", "llm", "ai"]
 categories = ["multimedia", "localization"]
 
 [dependencies]
-srt-parser = { path = "../../core/srt-parser", version = "0.1.0" }
+srt-parser = { workspace = true }
 anyhow.workspace = true
 tokio.workspace = true
 reqwest.workspace = true

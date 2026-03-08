@@ -13,8 +13,8 @@ name = "srt-translate"
 path = "src/main.rs"
 
 [dependencies]
-srt-parser = { path = "../../core/srt-parser" }
-srt-translate = { path = "../../lib/srt-translate" }
+srt-parser = { workspace = true }
+srt-translate = { workspace = true }
 anyhow.workspace = true
 clap.workspace = true
 tokio.workspace = true

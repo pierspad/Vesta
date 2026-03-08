@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import CodeEditor from "./CodeEditor.svelte";
   import {
     availableUILanguages,
     currentLanguage,
@@ -10,16 +11,14 @@
     getModelsForProvider,
     loadAndValidateApiKeys,
     loadCardTemplates,
-    saveCardTemplates,
-    resetCardTemplates,
-    defaultCardTemplates,
     loadFieldNames,
-    saveFieldNames,
-    resetFieldNames,
-    defaultFieldNames,
     providers,
+    resetCardTemplates,
+    resetFieldNames,
+    saveCardTemplates,
+    saveFieldNames,
     type ApiKeyConfig,
-    type ModelInfo,
+    type ModelInfo
   } from "./models";
 
   const allProviderIds = ["local", "custom", "google", "groq"];
@@ -55,7 +54,6 @@
   let showFieldEditor = $state(false);
   let showResetConfirm = $state<"style" | "fields" | null>(null);
   let helpSection = $state<string | null>(null);
-  let templateInfoOpen = $state<"front" | "back" | "css" | "vars" | null>(null);
   const initTemplates = loadCardTemplates();
   let templateFrontHtml = $state(initTemplates.frontHtml);
   let templateBackHtml = $state(initTemplates.backHtml);
@@ -959,23 +957,17 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"/></svg>
                   {t("settings.cardFrontHtml")}
                   <div class="ml-auto flex items-center gap-1">
-                    <button type="button" onclick={() => (templateInfoOpen = templateInfoOpen === "front" ? null : "front")} class="text-gray-500 hover:text-amber-300 transition-colors" aria-label="Info">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </button>
+                    <div class="relative group">
+                      <button type="button" class="text-gray-500 hover:text-amber-300 transition-colors" aria-label="Info">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </button>
+                  <div class="card-style-tooltip down">{t("settings.cardFrontHtmlInfo")}</div>
+                    </div>
                   </div>
                 </label>
-                {#if templateInfoOpen === "front"}
-                  <div class="p-3 bg-gray-800 border border-white/10 text-xs text-gray-300 rounded-lg">{t("settings.cardFrontHtmlInfo")}</div>
-                {/if}
                 <div class="relative">
-                  <textarea
-                    id="template-front-html"
-                    bind:value={templateFrontHtml}
-                    oninput={() => saveTemplates()}
-                    class="input-modern w-full font-mono text-sm leading-relaxed resize-y h-64 pr-9"
-                    spellcheck="false"
-                  ></textarea>
-                  <button type="button" onclick={() => { navigator.clipboard.writeText(templateFrontHtml); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-amber-300 transition-colors bg-gray-800/80 rounded p-0.5" title="Copy">
+                  <CodeEditor bind:value={templateFrontHtml} language="html" onchange={saveTemplates} />
+                  <button type="button" onclick={() => { navigator.clipboard.writeText(templateFrontHtml); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-amber-300 transition-colors bg-gray-800/80 rounded p-0.5 z-10" title="Copy">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   </button>
                 </div>
@@ -987,23 +979,17 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                   {t("settings.cardBackHtml")}
                   <div class="ml-auto flex items-center gap-1">
-                    <button type="button" onclick={() => (templateInfoOpen = templateInfoOpen === "back" ? null : "back")} class="text-gray-500 hover:text-emerald-300 transition-colors" aria-label="Info">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </button>
+                    <div class="relative group">
+                      <button type="button" class="text-gray-500 hover:text-emerald-300 transition-colors" aria-label="Info">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      </button>
+                  <div class="card-style-tooltip down">{t("settings.cardBackHtmlInfo")}</div>
+                    </div>
                   </div>
                 </label>
-                {#if templateInfoOpen === "back"}
-                  <div class="p-3 bg-gray-800 border border-white/10 text-xs text-gray-300 rounded-lg">{t("settings.cardBackHtmlInfo")}</div>
-                {/if}
                 <div class="relative">
-                  <textarea
-                    id="template-back-html"
-                    bind:value={templateBackHtml}
-                    oninput={() => saveTemplates()}
-                    class="input-modern w-full font-mono text-sm leading-relaxed resize-y h-64 pr-9"
-                    spellcheck="false"
-                  ></textarea>
-                  <button type="button" onclick={() => { navigator.clipboard.writeText(templateBackHtml); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-emerald-300 transition-colors bg-gray-800/80 rounded p-0.5" title="Copy">
+                  <CodeEditor bind:value={templateBackHtml} language="html" onchange={saveTemplates} />
+                  <button type="button" onclick={() => { navigator.clipboard.writeText(templateBackHtml); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-emerald-300 transition-colors bg-gray-800/80 rounded p-0.5 z-10" title="Copy">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   </button>
                 </div>
@@ -1016,23 +1002,17 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                 {t("settings.cardCss")}
                 <div class="ml-auto flex items-center gap-1">
-                  <button type="button" onclick={() => (templateInfoOpen = templateInfoOpen === "css" ? null : "css")} class="text-gray-500 hover:text-blue-300 transition-colors" aria-label="Info">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
+                  <div class="relative group">
+                    <button type="button" class="text-gray-500 hover:text-blue-300 transition-colors" aria-label="Info">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                  <div class="card-style-tooltip">{t("settings.cardCssInfo")}</div>
+                  </div>
                 </div>
               </label>
-              {#if templateInfoOpen === "css"}
-                <div class="p-3 bg-gray-800 border border-white/10 text-xs text-gray-300 rounded-lg">{t("settings.cardCssInfo")}</div>
-              {/if}
               <div class="relative">
-                <textarea
-                  id="template-css"
-                  bind:value={templateCss}
-                  oninput={() => saveTemplates()}
-                  class="input-modern w-full font-mono text-sm leading-relaxed resize-y h-64 pr-9"
-                  spellcheck="false"
-                ></textarea>
-                <button type="button" onclick={() => { navigator.clipboard.writeText(templateCss); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-blue-300 transition-colors bg-gray-800/80 rounded p-0.5" title="Copy">
+                <CodeEditor bind:value={templateCss} language="css" onchange={saveTemplates} />
+                <button type="button" onclick={() => { navigator.clipboard.writeText(templateCss); showSnackbar(t("settings.keyCopied")); }} class="absolute top-2 right-2 text-gray-500 hover:text-blue-300 transition-colors bg-gray-800/80 rounded p-0.5 z-10" title="Copy">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 </button>
               </div>
@@ -1041,13 +1021,13 @@
             <div class="p-4 bg-white/5 border border-white/10 rounded-lg">
               <div class="flex items-center gap-2 mb-2">
                 <h4 class="text-xs font-bold text-gray-400 uppercase">{t("settings.availableVars")}</h4>
-                <button type="button" onclick={() => (templateInfoOpen = templateInfoOpen === "vars" ? null : "vars")} class="text-gray-500 hover:text-gray-300 transition-colors" aria-label="Info">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </button>
+                <div class="relative group">
+                  <button type="button" class="text-gray-500 hover:text-gray-300 transition-colors" aria-label="Info">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                  <div class="card-style-tooltip">{t("settings.availableVarsInfo")}</div>
+                </div>
               </div>
-              {#if templateInfoOpen === "vars"}
-                <div class="mb-3 p-3 bg-gray-800 border border-white/10 text-xs text-gray-300 rounded-lg">{t("settings.availableVarsInfo")}</div>
-              {/if}
               <p class="text-xs text-gray-500 font-mono leading-relaxed">
                 <code class="text-amber-300">{"{{Expression}}"}</code>, <code class="text-emerald-300">{"{{Reading}}"}</code>, <code class="text-blue-300">{"{{Meaning}}"}</code>, 
                 <code class="text-purple-300">{"{{Audio}}"}</code>, <code class="text-pink-300">{"{{Video}}"}</code>, <code class="text-cyan-300">{"{{Snapshot}}"}</code>, 
@@ -1698,5 +1678,32 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Tooltip for Card Style info buttons only */
+  :global(.card-style-tooltip) {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    width: 280px;
+    padding: 8px 10px;
+    background: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #d1d5db;
+    z-index: 50;
+    pointer-events: none;
+    white-space: normal;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+  :global(.card-style-tooltip.down) {
+    bottom: auto;
+    top: calc(100% + 8px);
+  }
+  :global(.group:hover > .card-style-tooltip) {
+    display: block;
   }
 </style>

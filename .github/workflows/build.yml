@@ -247,9 +247,16 @@ jobs:
         working-directory: ${{ env.TAURI_APP_DIR }}
         run: npx tauri icon src-tauri/icons/icon.png -o src-tauri/icons
 
+      - name: Preflight Cargo check
+        shell: pwsh
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+        run: cargo check --manifest-path apps/srt-gui/src-tauri/Cargo.toml --locked
+
       - name: Build Tauri app
         working-directory: ${{ env.TAURI_APP_DIR }}
-        shell: bash
+        shell: pwsh
         env:
           NO_STRIP: true
           SCCACHE_GHA_ENABLED: "true"

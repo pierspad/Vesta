@@ -619,6 +619,9 @@
     col3: PanelId[];
   }
 
+  const MOVIE_LAYOUT_KEY = "vesta-flashcards-layout-v3";
+  const SERIES_LAYOUT_KEY = "vesta-flashcards-series-layout-v3";
+
   const DEFAULT_LAYOUT: ColumnLayout = {
     col1: ["files", "subtitleOptions", "contextLines", "filters"],
     col2: ["naming", "audioClips", "snapshots", "videoClips", "ankiFields"],
@@ -626,14 +629,14 @@
   };
 
   const DEFAULT_SERIES_LAYOUT: ColumnLayout = {
-    col1: ["naming", "ankiFields", "subtitleOptions", "contextLines", "filters"],
-    col2: ["audioClips", "snapshots", "videoClips", "exportFormat"],
-    col3: ["cpuCores", "actions", "progressResult", "logs"],
+    col1: ["files", "subtitleOptions", "contextLines", "filters"],
+    col2: ["naming", "audioClips", "snapshots", "videoClips", "ankiFields"],
+    col3: ["exportFormat", "cpuCores", "actions", "progressResult", "logs"],
   };
 
   function loadLayout(): ColumnLayout {
     try {
-      const saved = localStorage.getItem("vesta-flashcards-layout-v2");
+      const saved = localStorage.getItem(MOVIE_LAYOUT_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as ColumnLayout;
         // Validate: all panel IDs must be present exactly once
@@ -649,7 +652,7 @@
 
   function loadSeriesLayout(): ColumnLayout {
     try {
-      const saved = localStorage.getItem("vesta-flashcards-series-layout-v2");
+      const saved = localStorage.getItem(SERIES_LAYOUT_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as ColumnLayout;
         const all = [...parsed.col1, ...parsed.col2, ...parsed.col3];
@@ -663,11 +666,11 @@
   }
 
   function saveLayout(layout: ColumnLayout) {
-    localStorage.setItem("vesta-flashcards-layout-v2", JSON.stringify(layout));
+    localStorage.setItem(MOVIE_LAYOUT_KEY, JSON.stringify(layout));
   }
 
   function saveSeriesLayout(layout: ColumnLayout) {
-    localStorage.setItem("vesta-flashcards-series-layout-v2", JSON.stringify(layout));
+    localStorage.setItem(SERIES_LAYOUT_KEY, JSON.stringify(layout));
   }
 
   let movieLayout = $state<ColumnLayout>(loadLayout());
@@ -756,111 +759,21 @@
         : "grid-cols-3",
   );
 
-  let draggedPanel = $state<PanelId | null>(null);
-  let dragOverCol = $state<"col1" | "col2" | "col3" | null>(null);
-  let dragOverIdx = $state<number | null>(null);
-
-  function onDragStart(e: DragEvent, panelId: PanelId) {
-    // Don't start drag if the user is interacting with a range input (slider)
-    const target = e.target as HTMLElement;
-    if (
-      target?.tagName === "INPUT" &&
-      (target as HTMLInputElement).type === "range"
-    ) {
-      e.preventDefault();
-      return;
-    }
-    draggedPanel = panelId;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", panelId);
-    }
-  }
-
-  function onDragOver(
-    e: DragEvent,
-    col: "col1" | "col2" | "col3",
-    idx: number,
-  ) {
-    if (!draggedPanel) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    dragOverCol = col;
-    dragOverIdx = idx;
-  }
-
-  function onDragOverColumn(e: DragEvent, col: "col1" | "col2" | "col3") {
-    if (!draggedPanel) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    dragOverCol = col;
-    // If dragging over the column whitespace, set idx to end
-    if (dragOverIdx === null) {
-      dragOverIdx = panelLayout[col].length;
-    }
-  }
-
-  function onDrop(col: "col1" | "col2" | "col3", idx: number) {
-    if (!draggedPanel) return;
-
-    const newLayout = { ...panelLayout };
-
-    for (const c of ["col1", "col2", "col3"] as const) {
-      const i = newLayout[c].indexOf(draggedPanel);
-      if (i !== -1) {
-        newLayout[c] = [...newLayout[c]];
-        newLayout[c].splice(i, 1);
-        // Adjust index if we're moving within the same column and removing from before
-        if (c === col && i < idx) {
-          idx--;
-        }
-        break;
-      }
-    }
-
-    newLayout[col] = [...newLayout[col]];
-    newLayout[col].splice(idx, 0, draggedPanel);
-
-    updatePanelLayout(newLayout);
-    draggedPanel = null;
-    dragOverCol = null;
-    dragOverIdx = null;
-  }
-
-  function onDropColumn(col: "col1" | "col2" | "col3") {
-    onDrop(col, panelLayout[col].length);
-  }
-
-  function onDragEnd() {
-    draggedPanel = null;
-    dragOverCol = null;
-    dragOverIdx = null;
-  }
-
-  function resetLayout() {
-    if (seriesMode) {
-      seriesLayout = {
-        col1: [...DEFAULT_SERIES_LAYOUT.col1],
-        col2: [...DEFAULT_SERIES_LAYOUT.col2],
-        col3: [...DEFAULT_SERIES_LAYOUT.col3],
-      };
-      saveSeriesLayout(seriesLayout);
-    } else {
-      movieLayout = {
-        col1: [...DEFAULT_LAYOUT.col1],
-        col2: [...DEFAULT_LAYOUT.col2],
-        col3: [...DEFAULT_LAYOUT.col3],
-      };
-      saveLayout(movieLayout);
-    }
-    columnCount = 3;
-    localStorage.setItem(COLUMN_COUNT_KEY, "3");
-  }
-
   let helpSection = $state<string | null>(null);
 
   let noteTypeLanguage = $state("");
   let noteTypeName = $state(loadCardTemplates().noteTypeName);
+
+  // Auto-update noteTypeName when language changes
+  $effect(() => {
+    if (noteTypeLanguage) {
+      const lang = languages.find(l => l.code === noteTypeLanguage);
+      noteTypeName = lang ? `${lang.nameEn}_Vesta` : `Vesta_${noteTypeLanguage}`;
+    } else {
+      noteTypeName = loadCardTemplates().noteTypeName;
+    }
+  });
+
   let includeTag = $state(true);
   let includeSequence = $state(true);
   let includeAudioField = $state(true);
@@ -4315,7 +4228,7 @@
     {/if}
   {/snippet}
 
-  <div class="flex items-center justify-between mb-1">
+  <div class="relative mb-1 flex items-center justify-start min-h-[32px]">
     <!-- Column count buttons -->
     <div class="flex items-center gap-1">
       <button
@@ -4374,91 +4287,73 @@
       </button>
     </div>
     <!-- Movie/Series toggle -->
-    <div
-      class="flex items-center gap-2 px-3 py-0.5 rounded-full bg-gray-800/60 border border-gray-700/50"
-    >
-      <button
-        onclick={toggleSeriesMode}
-        class="flex items-center gap-1 text-xs font-medium transition-colors {!seriesMode
-          ? 'text-emerald-400'
-          : 'text-gray-500 hover:text-gray-300'}"
-        title={t("flashcards.modeMovie")}
-      >
-        <svg
-          class="w-3.5 h-3.5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          stroke-width="2"
-        >
-          <rect x="2" y="4" width="20" height="16" rx="2" />
-          <path d="M2 8h20M7 4v4M17 4v4" stroke-linecap="round" />
-        </svg>
-        {t("flashcards.modeMovie")}
-      </button>
+    <div class="absolute left-1/2 -translate-x-1/2">
       <div
-        class="relative w-9 h-5 cursor-pointer"
-        onclick={toggleSeriesMode}
-        role="switch"
-        tabindex="0"
-        aria-checked={seriesMode}
-        onkeydown={(e) => {
-          if (e.key === "Enter" || e.key === " ") toggleSeriesMode();
-        }}
+        class="flex items-center gap-2 px-3 py-0.5 rounded-full bg-gray-800/60 border border-gray-700/50"
       >
-        <div
-          class="absolute inset-0 rounded-full transition-colors {seriesMode
-            ? 'bg-violet-500/40'
-            : 'bg-gray-700'}"
-        ></div>
-        <div
-          class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform {seriesMode
-            ? 'translate-x-4'
-            : 'translate-x-0.5'}"
-        ></div>
-      </div>
-      <button
-        onclick={toggleSeriesMode}
-        class="flex items-center gap-1 text-xs font-medium transition-colors {seriesMode
-          ? 'text-violet-400'
-          : 'text-gray-500 hover:text-gray-300'}"
-        title={t("flashcards.modeSeries")}
-      >
-        <svg
-          class="w-3.5 h-3.5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          stroke-width="2"
+        <button
+          onclick={toggleSeriesMode}
+          class="flex items-center gap-1 text-xs font-medium transition-colors {!seriesMode
+            ? 'text-emerald-400'
+            : 'text-gray-500 hover:text-gray-300'}"
+          title={t("flashcards.modeMovie")}
         >
-          <rect x="2" y="3" width="20" height="6" rx="1" />
-          <rect x="2" y="11" width="20" height="6" rx="1" />
-          <line x1="6" y1="3" x2="6" y2="9" />
-          <line x1="6" y1="11" x2="6" y2="17" />
-        </svg>
-        {t("flashcards.modeSeries")}
-      </button>
+          <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+          >
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="M2 8h20M7 4v4M17 4v4" stroke-linecap="round" />
+          </svg>
+          {t("flashcards.modeMovie")}
+        </button>
+        <div
+          class="relative w-9 h-5 cursor-pointer"
+          onclick={toggleSeriesMode}
+          role="switch"
+          tabindex="0"
+          aria-checked={seriesMode}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") toggleSeriesMode();
+          }}
+        >
+          <div
+            class="absolute inset-0 rounded-full transition-colors {seriesMode
+              ? 'bg-violet-500/40'
+              : 'bg-gray-700'}"
+          ></div>
+          <div
+            class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform {seriesMode
+              ? 'translate-x-4'
+              : 'translate-x-0.5'}"
+          ></div>
+        </div>
+        <button
+          onclick={toggleSeriesMode}
+          class="flex items-center gap-1 text-xs font-medium transition-colors {seriesMode
+            ? 'text-violet-400'
+            : 'text-gray-500 hover:text-gray-300'}"
+          title={t("flashcards.modeSeries")}
+        >
+          <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+          >
+            <rect x="2" y="3" width="20" height="6" rx="1" />
+            <rect x="2" y="11" width="20" height="6" rx="1" />
+            <line x1="6" y1="3" x2="6" y2="9" />
+            <line x1="6" y1="11" x2="6" y2="17" />
+          </svg>
+          {t("flashcards.modeSeries")}
+        </button>
+      </div>
     </div>
-    <!-- Reset layout button -->
-    <button
-      onclick={resetLayout}
-      class="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
-    >
-      <svg
-        class="w-3 h-3"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-        />
-      </svg>
-      {t("flashcards.resetLayout")}
-    </button>
   </div>
 
   <div class="flex-1 grid {gridColClass} gap-4 min-h-0 overflow-y-auto">
@@ -4468,122 +4363,37 @@
         {@render panelContent("files")}
       </div>
     {/if}
-    <div
-      class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]"
-      ondragover={(e) => onDragOverColumn(e, "col1")}
-      ondrop={() => onDropColumn("col1")}
-      role="list"
-    >
+    <div class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]" role="list">
       {#each panelLayout.col1 as panelId, idx (panelId)}
         {#if !(seriesMode && panelId === "files")}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          draggable="true"
-          ondragstart={(e) => onDragStart(e, panelId)}
-          ondragover={(e) => onDragOver(e, "col1", idx)}
-          ondrop={(e) => {
-            e.stopPropagation();
-            onDrop("col1", idx);
-          }}
-          ondragend={onDragEnd}
-          class="cursor-grab active:cursor-grabbing transition-all duration-150 {draggedPanel ===
-          panelId
-            ? 'opacity-40 scale-[0.98]'
-            : ''} {dragOverCol === 'col1' &&
-          dragOverIdx === idx &&
-          draggedPanel !== panelId
-            ? 'border-t-2 border-emerald-400 pt-1'
-            : ''}"
-          role="listitem"
-        >
+        <div class="relative transition-all duration-150" role="listitem">
           {@render panelContent(panelId)}
         </div>
         {/if}
       {/each}
-      {#if draggedPanel && dragOverCol === "col1" && dragOverIdx === panelLayout.col1.length}
-        <div class="h-1 bg-emerald-400 rounded-full mx-4 transition-all"></div>
-      {/if}
     </div>
 
     {#if columnCount >= 2}
-      <div
-        class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]"
-        ondragover={(e) => onDragOverColumn(e, "col2")}
-        ondrop={() => onDropColumn("col2")}
-        role="list"
-      >
+      <div class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]" role="list">
         {#each panelLayout.col2 as panelId, idx (panelId)}
           {#if !(seriesMode && panelId === "files")}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            draggable="true"
-            ondragstart={(e) => onDragStart(e, panelId)}
-            ondragover={(e) => onDragOver(e, "col2", idx)}
-            ondrop={(e) => {
-              e.stopPropagation();
-              onDrop("col2", idx);
-            }}
-            ondragend={onDragEnd}
-            class="cursor-grab active:cursor-grabbing transition-all duration-150 {draggedPanel ===
-            panelId
-              ? 'opacity-40 scale-[0.98]'
-              : ''} {dragOverCol === 'col2' &&
-            dragOverIdx === idx &&
-            draggedPanel !== panelId
-              ? 'border-t-2 border-emerald-400 pt-1'
-              : ''}"
-            role="listitem"
-          >
+          <div class="relative transition-all duration-150" role="listitem">
             {@render panelContent(panelId)}
           </div>
           {/if}
         {/each}
-        {#if draggedPanel && dragOverCol === "col2" && dragOverIdx === panelLayout.col2.length}
-          <div
-            class="h-1 bg-emerald-400 rounded-full mx-4 transition-all"
-          ></div>
-        {/if}
       </div>
     {/if}
 
     {#if columnCount >= 3}
-      <div
-        class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]"
-        ondragover={(e) => onDragOverColumn(e, "col3")}
-        ondrop={() => onDropColumn("col3")}
-        role="list"
-      >
+      <div class="space-y-3 {seriesMode ? '' : 'overflow-y-auto'} pr-1 min-h-[100px]" role="list">
         {#each panelLayout.col3 as panelId, idx (panelId)}
           {#if !(seriesMode && panelId === "files")}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            draggable="true"
-            ondragstart={(e) => onDragStart(e, panelId)}
-            ondragover={(e) => onDragOver(e, "col3", idx)}
-            ondrop={(e) => {
-              e.stopPropagation();
-              onDrop("col3", idx);
-            }}
-            ondragend={onDragEnd}
-            class="cursor-grab active:cursor-grabbing transition-all duration-150 {draggedPanel ===
-            panelId
-              ? 'opacity-40 scale-[0.98]'
-              : ''} {dragOverCol === 'col3' &&
-            dragOverIdx === idx &&
-            draggedPanel !== panelId
-              ? 'border-t-2 border-emerald-400 pt-1'
-              : ''}"
-            role="listitem"
-          >
+          <div class="transition-all duration-150" role="listitem">
             {@render panelContent(panelId)}
           </div>
           {/if}
         {/each}
-        {#if draggedPanel && dragOverCol === "col3" && dragOverIdx === panelLayout.col3.length}
-          <div
-            class="h-1 bg-emerald-400 rounded-full mx-4 transition-all"
-          ></div>
-        {/if}
       </div>
     {/if}
   </div>

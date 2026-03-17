@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
+use tokio::time::sleep;
 
 use crate::prompts::{
     build_single_translation_prompt,
@@ -58,9 +60,14 @@ pub struct Translator {
 
 impl Translator {
     pub fn new(config: TranslatorConfig) -> Self {
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(120))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             config,
-            client: reqwest::Client::new(),
+            client,
         }
     }
 
@@ -140,7 +147,7 @@ impl Translator {
         self.call_google_api(&prompt).await
     }
 
-    /// Chiamata generica all'API Google Gemini
+    /// Chiamata generica all'API Google Gemini con retry automatico su 429
     async fn call_google_api(&self, prompt: &str) -> Result<String> {
         #[derive(Serialize)]
         struct Part {
@@ -194,11 +201,13 @@ impl Translator {
         let api_key = self.config.api_key.as_ref()
             .ok_or_else(|| anyhow::anyhow!("Google API key is required"))?;
 
-        // Formato URL Google: /v1beta/models/{model}:generateContent
+        // Formato URL Google: /v1beta/models/{model}:generateContent?key=API_KEY
+        // Pass key as both query param AND header for maximum compatibility
         let url = format!(
-            "{}/models/{}:generateContent",
+            "{}/models/{}:generateContent?key={}",
             self.config.base_url.trim_end_matches('/'),
-            self.config.model
+            self.config.model,
+            api_key
         );
 
         let request = GeminiRequest {
@@ -212,43 +221,79 @@ impl Translator {
             },
         };
 
-        let http_response = self.client
-            .post(&url)
-            .header("x-goog-api-key", api_key)
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?;
+        const MAX_RETRIES: u32 = 3;
 
-        let status = http_response.status();
-        let response_text = http_response.text().await?;
+        for attempt in 0..=MAX_RETRIES {
+            let http_response = self.client
+                .post(&url)
+                .header("x-goog-api-key", api_key)
+                .header("Content-Type", "application/json")
+                .json(&request)
+                .send()
+                .await
+                .map_err(|e| {
+                    eprintln!("[srt-translate] Google API request failed: {} (url: {})", e, &url[..url.find('?').unwrap_or(url.len())]);
+                    e
+                })?;
 
-        let response: GeminiResponse = serde_json::from_str(&response_text)
-            .map_err(|e| anyhow::anyhow!(
-                "Failed to parse Google API response (status {}): {}. Raw: {}",
-                status, e, &response_text[..response_text.len().min(500)]
-            ))?;
+            let status = http_response.status();
+            let response_text = http_response.text().await?;
 
-        // Controlla errori
-        if let Some(ref error) = response.error {
-            let error_msg = error.message.as_deref().unwrap_or("Unknown Google API error");
-            let error_code = error.code.unwrap_or(0);
-            anyhow::bail!("Google API error (code {}): {}", error_code, error_msg);
+            // Handle 429 rate limit with retry
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < MAX_RETRIES {
+                let delay = parse_retry_delay(&response_text);
+                eprintln!(
+                    "[srt-translate] Rate limited (429), retrying in {:.0}s (attempt {}/{})...",
+                    delay.as_secs_f64(), attempt + 1, MAX_RETRIES
+                );
+                sleep(delay).await;
+                continue;
+            }
+
+            // Handle 5xx server errors with exponential backoff
+            if status.is_server_error() && attempt < MAX_RETRIES {
+                let delay = Duration::from_secs(2_u64.pow(attempt as u32) * 5);
+                eprintln!(
+                    "[srt-translate] Server error ({}), retrying in {:.0}s (attempt {}/{})...",
+                    status, delay.as_secs_f64(), attempt + 1, MAX_RETRIES
+                );
+                sleep(delay).await;
+                continue;
+            }
+
+            if !status.is_success() {
+                eprintln!("[srt-translate] Google API error response (status {}): {}", status, &response_text[..response_text.len().min(500)]);
+            }
+
+            let response: GeminiResponse = serde_json::from_str(&response_text)
+                .map_err(|e| anyhow::anyhow!(
+                    "Failed to parse Google API response (status {}): {}. Raw: {}",
+                    status, e, &response_text[..response_text.len().min(500)]
+                ))?;
+
+            // Controlla errori
+            if let Some(ref error) = response.error {
+                let error_msg = error.message.as_deref().unwrap_or("Unknown Google API error");
+                let error_code = error.code.unwrap_or(0);
+                anyhow::bail!("Google API error (code {}): {}", error_code, error_msg);
+            }
+
+            // Estrai il testo dalla risposta
+            let text = response.candidates
+                .and_then(|c| c.into_iter().next())
+                .and_then(|c| c.content)
+                .and_then(|c| c.parts)
+                .and_then(|p| p.into_iter().next())
+                .and_then(|p| p.text)
+                .ok_or_else(|| anyhow::anyhow!(
+                    "Google API response missing text content. Status: {}. Response: {}",
+                    status, &response_text[..response_text.len().min(500)]
+                ))?;
+
+            return Ok(text.trim().trim_matches('"').to_string());
         }
 
-        // Estrai il testo dalla risposta
-        let text = response.candidates
-            .and_then(|c| c.into_iter().next())
-            .and_then(|c| c.content)
-            .and_then(|c| c.parts)
-            .and_then(|p| p.into_iter().next())
-            .and_then(|p| p.text)
-            .ok_or_else(|| anyhow::anyhow!(
-                "Google API response missing text content. Status: {}. Response: {}",
-                status, &response_text[..response_text.len().min(500)]
-            ))?;
-
-        Ok(text.trim().trim_matches('"').to_string())
+        anyhow::bail!("Google API rate limit exceeded after {} retries", MAX_RETRIES)
     }
 
     // ============== OPENAI-COMPATIBLE API ==============
@@ -258,90 +303,9 @@ impl Translator {
         target_lang: &str,
         context: Option<&str>,
     ) -> Result<String> {
-        #[derive(Serialize, Deserialize)]
-        struct Message {
-            role: String,
-            content: String,
-        }
-
-        #[derive(Serialize)]
-        struct Request {
-            model: String,
-            messages: Vec<Message>,
-            temperature: f32,
-        }
-
-        #[derive(Deserialize)]
-        struct Choice {
-            message: Message,
-        }
-
-
-
         let prompt = build_single_translation_prompt(text, target_lang, context);
-
-        let request = Request {
-            model: self.config.model.clone(),
-            messages: vec![Message {
-                role: "user".to_string(),
-                content: prompt,
-            }],
-            temperature: 0.3,
-        };
-
-        let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
-        let mut req_builder = self.client.post(&url).json(&request);
-        
-        // Aggiungi header Authorization solo se API key è presente
-        if let Some(api_key) = &self.config.api_key {
-            req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
-        }
-
-        // Aggiungi header specifici per OpenRouter
-        if self.config.api_type == ApiType::OpenRouter {
-            req_builder = req_builder
-                .header("HTTP-Referer", "https://srt-tools.app")
-                .header("X-Title", "SRT Tools");
-        }
-
-        let http_response = req_builder.send().await?;
-        let status = http_response.status();
-        let response_text = http_response.text().await?;
-
-        #[derive(Deserialize)]
-        struct ApiError {
-            message: Option<String>,
-            error: Option<String>,
-        }
-
-        #[derive(Deserialize)]
-        struct ResponseWithError {
-            choices: Option<Vec<Choice>>,
-            error: Option<ApiError>,
-        }
-
-        let response: ResponseWithError = serde_json::from_str(&response_text)
-            .map_err(|e| anyhow::anyhow!(
-                "Failed to parse API response (status {}): {}. Raw: {}", 
-                status, e, &response_text[..response_text.len().min(300)]
-            ))?;
-
-        if let Some(ref api_error) = response.error {
-            let error_msg = api_error.message.as_deref()
-                .or(api_error.error.as_deref())
-                .unwrap_or("Unknown API error");
-            anyhow::bail!("API error: {}", error_msg);
-        }
-
-        let choices = response.choices.ok_or_else(|| {
-            anyhow::anyhow!("API response missing 'choices'. Status: {}. Response: {}", 
-                status, &response_text[..response_text.len().min(300)])
-        })?;
-
-        Ok(choices
-            .first()
-            .map(|c| c.message.content.trim().trim_matches('"').to_string())
-            .unwrap_or_default())
+        let result = self.call_openai_api(&prompt).await?;
+        Ok(result.trim().trim_matches('"').to_string())
     }
 
     /// Traduzione batch usando API OpenAI-compatible
@@ -351,100 +315,11 @@ impl Translator {
         target_lang: &str,
         context: Option<&str>,
     ) -> Result<HashMap<u32, String>> {
-        #[derive(Serialize, Deserialize)]
-        struct Message {
-            role: String,
-            content: String,
-        }
-
-        #[derive(Serialize)]
-        struct Request {
-            model: String,
-            messages: Vec<Message>,
-            temperature: f32,
-        }
-
-        #[derive(Deserialize)]
-        struct Choice {
-            message: Message,
-        }
-
-        #[derive(Deserialize)]
-        struct ApiError {
-            message: Option<String>,
-            error: Option<String>,
-            #[serde(rename = "type")]
-            #[allow(dead_code)]
-            error_type: Option<String>,
-        }
-
-        #[derive(Deserialize)]
-        struct Response {
-            choices: Option<Vec<Choice>>,
-            error: Option<ApiError>,
-        }
-
         let prompt = build_batch_translation_prompt(texts_with_ids, target_lang, context);
+        let result_text = self.call_openai_api(&prompt).await?;
 
-        let request = Request {
-            model: self.config.model.clone(),
-            messages: vec![Message {
-                role: "user".to_string(),
-                content: prompt,
-            }],
-            temperature: 0.3,
-        };
-
-        let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
-        let mut req_builder = self.client.post(&url).json(&request);
-        
-        if let Some(api_key) = &self.config.api_key {
-            req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
-        }
-
-        // Aggiungi header specifici per OpenRouter
-        if self.config.api_type == ApiType::OpenRouter {
-            req_builder = req_builder
-                .header("HTTP-Referer", "https://srt-tools.app")
-                .header("X-Title", "SRT Tools");
-        }
-
-        let http_response = req_builder.send().await?;
-        let status = http_response.status();
-        let response_text = http_response.text().await?;
-        
-        // Prova a parsare la risposta
-        let response: Response = serde_json::from_str(&response_text)
-            .map_err(|e| anyhow::anyhow!(
-                "Failed to parse API response (status {}): {}. Raw response: {}", 
-                status, 
-                e, 
-                &response_text[..response_text.len().min(500)]
-            ))?;
-
-        // Controlla se c'è un errore nella risposta
-        if let Some(ref api_error) = response.error {
-            let error_msg = api_error.message.as_deref()
-                .or(api_error.error.as_deref())
-                .unwrap_or("Unknown API error");
-            anyhow::bail!("API error: {}", error_msg);
-        }
-
-        // Estrai il contenuto dalla risposta
-        let choices = response.choices.ok_or_else(|| {
-            anyhow::anyhow!("API response missing 'choices' field. Status: {}. Response: {}", 
-                status, 
-                &response_text[..response_text.len().min(500)])
-        })?;
-
-        let result_text = choices
-            .first()
-            .map(|c| c.message.content.trim().to_string())
-            .unwrap_or_default();
-
-        // Parse JSON result - molto più robusto del parsing manuale
+        // Parse JSON result
         let translations = parse_json_translations(&result_text, texts_with_ids.len())?;
-
         Ok(translations)
     }
 
@@ -456,6 +331,13 @@ impl Translator {
         title_context: Option<&str>,
         surrounding_context: Option<&str>,
     ) -> Result<String> {
+        let prompt = build_context_enhanced_translation_prompt(text, target_lang, title_context, surrounding_context);
+        let result = self.call_openai_api(&prompt).await?;
+        Ok(result.trim().trim_matches('"').to_string())
+    }
+
+    /// Chiamata generica all'API OpenAI-compatible con retry automatico su 429
+    async fn call_openai_api(&self, prompt: &str) -> Result<String> {
         #[derive(Serialize, Deserialize)]
         struct Message {
             role: String,
@@ -474,37 +356,6 @@ impl Translator {
             message: Message,
         }
 
-
-
-        let prompt = build_context_enhanced_translation_prompt(text, target_lang, title_context, surrounding_context);
-
-        let request = Request {
-            model: self.config.model.clone(),
-            messages: vec![Message {
-                role: "user".to_string(),
-                content: prompt,
-            }],
-            temperature: 0.3,
-        };
-
-        let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
-        let mut req_builder = self.client.post(&url).json(&request);
-        
-        if let Some(api_key) = &self.config.api_key {
-            req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
-        }
-
-        // Aggiungi header specifici per OpenRouter
-        if self.config.api_type == ApiType::OpenRouter {
-            req_builder = req_builder
-                .header("HTTP-Referer", "https://srt-tools.app")
-                .header("X-Title", "SRT Tools");
-        }
-
-        let http_response = req_builder.send().await?;
-        let status = http_response.status();
-        let response_text = http_response.text().await?;
-
         #[derive(Deserialize)]
         struct ApiError {
             message: Option<String>,
@@ -517,29 +368,109 @@ impl Translator {
             error: Option<ApiError>,
         }
 
-        let response: ResponseWithError = serde_json::from_str(&response_text)
-            .map_err(|e| anyhow::anyhow!(
-                "Failed to parse API response (status {}): {}. Raw: {}", 
-                status, e, &response_text[..response_text.len().min(300)]
-            ))?;
+        let url = format!("{}/chat/completions", self.config.base_url.trim_end_matches('/'));
 
-        if let Some(ref api_error) = response.error {
-            let error_msg = api_error.message.as_deref()
-                .or(api_error.error.as_deref())
-                .unwrap_or("Unknown API error");
-            anyhow::bail!("API error: {}", error_msg);
+        let request = Request {
+            model: self.config.model.clone(),
+            messages: vec![Message {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }],
+            temperature: 0.3,
+        };
+
+        const MAX_RETRIES: u32 = 3;
+
+        for attempt in 0..=MAX_RETRIES {
+            let mut req_builder = self.client.post(&url).json(&request);
+
+            if let Some(api_key) = &self.config.api_key {
+                req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+            }
+
+            if self.config.api_type == ApiType::OpenRouter {
+                req_builder = req_builder
+                    .header("HTTP-Referer", "https://srt-tools.app")
+                    .header("X-Title", "SRT Tools");
+            }
+
+            let http_response = req_builder.send().await?;
+            let status = http_response.status();
+            let response_text = http_response.text().await?;
+
+            // Handle 429 rate limit with retry
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < MAX_RETRIES {
+                let delay = parse_retry_delay(&response_text);
+                eprintln!(
+                    "[srt-translate] Rate limited (429), retrying in {:.0}s (attempt {}/{})...",
+                    delay.as_secs_f64(), attempt + 1, MAX_RETRIES
+                );
+                sleep(delay).await;
+                continue;
+            }
+
+            // Handle 5xx server errors with exponential backoff
+            if status.is_server_error() && attempt < MAX_RETRIES {
+                let delay = Duration::from_secs(2_u64.pow(attempt as u32) * 5);
+                eprintln!(
+                    "[srt-translate] Server error ({}), retrying in {:.0}s (attempt {}/{})...",
+                    status, delay.as_secs_f64(), attempt + 1, MAX_RETRIES
+                );
+                sleep(delay).await;
+                continue;
+            }
+
+            if !status.is_success() {
+                eprintln!("[srt-translate] API error response (status {}): {}", status, &response_text[..response_text.len().min(500)]);
+            }
+
+            let response: ResponseWithError = serde_json::from_str(&response_text)
+                .map_err(|e| anyhow::anyhow!(
+                    "Failed to parse API response (status {}): {}. Raw: {}",
+                    status, e, &response_text[..response_text.len().min(300)]
+                ))?;
+
+            if let Some(ref api_error) = response.error {
+                let error_msg = api_error.message.as_deref()
+                    .or(api_error.error.as_deref())
+                    .unwrap_or("Unknown API error");
+                anyhow::bail!("API error: {}", error_msg);
+            }
+
+            let choices = response.choices.ok_or_else(|| {
+                anyhow::anyhow!("API response missing 'choices'. Status: {}. Response: {}",
+                    status, &response_text[..response_text.len().min(300)])
+            })?;
+
+            return Ok(choices
+                .first()
+                .map(|c| c.message.content.trim().to_string())
+                .unwrap_or_default());
         }
 
-        let choices = response.choices.ok_or_else(|| {
-            anyhow::anyhow!("API response missing 'choices'. Status: {}. Response: {}", 
-                status, &response_text[..response_text.len().min(300)])
-        })?;
-
-        Ok(choices
-            .first()
-            .map(|c| c.message.content.trim().trim_matches('"').to_string())
-            .unwrap_or_default())
+        anyhow::bail!("API rate limit exceeded after {} retries", MAX_RETRIES)
     }
+}
+
+/// Parse the retry delay from a rate-limit error response body.
+/// Looks for patterns like "Please retry in 42.3s" or "retry after 60 seconds".
+/// Returns a Duration capped between 1s and 120s, defaulting to 60s if no hint is found.
+fn parse_retry_delay(response_body: &str) -> Duration {
+    // Try "retry in X.Xs" (Google Gemini format)
+    if let Some(pos) = response_body.find("retry in ") {
+        let after = &response_body[pos + 9..];
+        // Extract the numeric part (possibly with decimals)
+        let num_str: String = after.chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if let Ok(secs) = num_str.parse::<f64>() {
+            let clamped = secs.max(1.0).min(120.0);
+            // Add a small buffer to avoid hitting the limit immediately
+            return Duration::from_secs_f64(clamped + 2.0);
+        }
+    }
+    // Default: 60 seconds
+    Duration::from_secs(60)
 }
 
 /// Struttura per deserializzare le traduzioni JSON dall'LLM

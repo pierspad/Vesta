@@ -14,7 +14,8 @@
   let recordingKey = $state(false);
   let success = $state<string | null>(null);
   let error = $state<string | null>(null);
-  let filter = $state<"all" | "global" | "translate" | "sync" | "flashcards">(
+  let showResetAllConfirm = $state(false);
+  let filter = $state<"all" | "global" | "translate" | "sync" | "flashcards" | "alignment">(
     "all",
   );
 
@@ -32,6 +33,7 @@
       flashcards: [],
       translate: [],
       sync: [],
+      alignment: [],
     };
     filteredShortcuts.forEach((s) => {
       if (groups[s.category]) {
@@ -56,6 +58,7 @@
     flashcards: "shortcuts.category.flashcards",
     translate: "shortcuts.category.translate",
     sync: "shortcuts.category.sync",
+    alignment: "shortcuts.category.alignment",
   };
 
   const categoryDescriptions: Record<string, string> = {
@@ -63,6 +66,7 @@
     flashcards: "shortcuts.category.flashcards.desc",
     translate: "shortcuts.category.translate.desc",
     sync: "shortcuts.category.sync.desc",
+    alignment: "shortcuts.category.alignment.desc",
   };
 
   onMount(() => {
@@ -135,8 +139,8 @@
     recordingKey = false;
   }
 
-  function resetToDefaults() {
-    if (!confirm(t("shortcuts.confirmReset"))) return;
+  function confirmResetToDefaults() {
+    showResetAllConfirm = false;
     resetShortcuts();
     shortcuts = getShortcuts();
     success = t("shortcuts.reset");
@@ -167,6 +171,7 @@
       {editingShortcut === shortcut.id
       ? 'bg-indigo-500/20 ring-1 ring-indigo-500'
       : 'bg-white/5 hover:bg-white/10'}"
+    style="content-visibility: auto; contain-intrinsic-size: auto 52px;"
   >
     <div class="flex-1">
       <p class="text-sm text-white">{t(shortcut.description)}</p>
@@ -337,7 +342,7 @@
 
     <div class="flex-1"></div>
 
-    <button onclick={resetToDefaults} class="btn-secondary py-2 px-4 text-sm">
+    <button onclick={() => (showResetAllConfirm = true)} class="btn-secondary py-2 px-4 text-sm">
       <svg
         class="w-4 h-4 inline mr-2"
         fill="none"
@@ -402,6 +407,43 @@
               {@render shortcutRow(shortcut)}
             {/each}
           </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if showResetAllConfirm}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={() => (showResetAllConfirm = false)}
+      onkeydown={(e) => {
+        if (e.key === "Escape") showResetAllConfirm = false;
+      }}
+    >
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="p-6 max-w-sm w-full mx-4 shadow-2xl border border-white/10 rounded-2xl"
+        style="background: #1e1e2e;"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+      >
+        <h3 class="text-lg font-semibold text-white mb-2">
+          {t("shortcuts.resetAll")}
+        </h3>
+        <p class="text-gray-400 text-sm mb-6">{t("shortcuts.confirmReset")}</p>
+        <div class="flex gap-3 justify-end">
+          <button
+            onclick={() => (showResetAllConfirm = false)}
+            class="btn-secondary py-2 px-5 text-sm"
+          >
+            {t("sync.cancelReset")}
+          </button>
+          <button onclick={confirmResetToDefaults} class="btn-danger py-2 px-5 text-sm">
+            OK
+          </button>
         </div>
       </div>
     </div>

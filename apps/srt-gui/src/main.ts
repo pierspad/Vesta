@@ -3,8 +3,7 @@ import "./app.css";
 import App from "./App.svelte";
 
 // Prevent WebKit from handling dropped files (triggers GStreamer errors).
-// Only intercept OS file drops (dataTransfer contains "Files"); internal DOM
-// drags (panel rearrangement) are left untouched.
+// Only intercept OS file drops (dataTransfer contains "Files").
 // Must use capture phase to intercept before WebKit's native media handling.
 for (const evt of ["dragenter", "dragover", "drop"] as const) {
   document.addEventListener(
@@ -19,12 +18,22 @@ for (const evt of ["dragenter", "dragover", "drop"] as const) {
   );
 }
 
-// Debug: global error handler
+// Keep global errors visible in logs without destroying the UI state.
 window.onerror = (msg, src, line, col, err) => {
-  document.body.innerHTML = `<pre style="color:red;padding:2em;white-space:pre-wrap">ERROR: ${msg}\nSource: ${src}:${line}:${col}\n${err?.stack || ''}</pre>`;
+  console.error("[GlobalError]", {
+    msg,
+    src,
+    line,
+    col,
+    stack: err?.stack,
+  });
+  return false;
 };
 window.onunhandledrejection = (e) => {
-  document.body.innerHTML += `<pre style="color:orange;padding:2em;white-space:pre-wrap">UNHANDLED REJECTION: ${e.reason}\n${e.reason?.stack || ''}</pre>`;
+  console.error("[UnhandledRejection]", {
+    reason: e.reason,
+    stack: e.reason?.stack,
+  });
 };
 
 try {
@@ -34,7 +43,8 @@ try {
   // @ts-ignore
   window.__app = app;
 } catch (e: any) {
-  document.body.innerHTML = `<pre style="color:red;padding:2em;white-space:pre-wrap">MOUNT ERROR: ${e.message}\n${e.stack}</pre>`;
+  const message = e instanceof Error ? `${e.message}\n${e.stack || ""}` : String(e);
+  document.body.innerHTML = `<pre style="color:red;padding:2em;white-space:pre-wrap">MOUNT ERROR: ${message}</pre>`;
 }
 
 export default {};

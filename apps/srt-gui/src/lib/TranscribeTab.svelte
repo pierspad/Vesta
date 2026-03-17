@@ -7,6 +7,8 @@
   import { languages as allLanguages } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
 
+  let { onGoToSettings } = $props<{ onGoToSettings?: () => void }>();
+
   let t = $derived($locale);
 
   let inputPath = $state("");
@@ -32,7 +34,6 @@
   }
 
   let isTranscribing = $state(false);
-  let isDownloading = $state(false);
   let progress = $state(0);
   let progressMessage = $state("");
   let progressStage = $state("");
@@ -97,43 +98,11 @@
       speed: string;
       downloaded: boolean;
     }[]
-  >([
-    {
-      id: "tiny",
-      name: "Tiny",
-      size: "~75MB",
-      speed: "~32x",
-      downloaded: false,
-    },
-    {
-      id: "base",
-      name: "Base",
-      size: "~150MB",
-      speed: "~16x",
-      downloaded: false,
-    },
-    {
-      id: "small",
-      name: "Small",
-      size: "~500MB",
-      speed: "~6x",
-      downloaded: false,
-    },
-    {
-      id: "medium",
-      name: "Medium",
-      size: "~1.5GB",
-      speed: "~2x",
-      downloaded: false,
-    },
-    {
-      id: "large",
-      name: "Large",
-      size: "~3GB",
-      speed: "~1x",
-      downloaded: false,
-    },
-  ]);
+  >([]);
+
+  let isModelDownloaded = $derived(
+    whisperModels.find((m) => m.id === selectedModel)?.downloaded ?? false
+  );
 
   // Languages for transcription - use the same list as translation tab, with auto-detect option
   let transcriptionLanguages = $derived([
@@ -149,6 +118,15 @@
   let unlistenProgress: (() => void) | null = null;
 
   onMount(async () => {
+    selectedModel = localStorage.getItem("srt-default-whisper-model") || "base";
+
+    window.addEventListener("whisper-model-updated", (e: any) => {
+      if (e.detail) {
+        selectedModel = e.detail;
+      }
+      refreshModels();
+    });
+
     try {
       backends = await invoke<typeof backends>("transcribe_check_backends");
     } catch (e) {
@@ -163,17 +141,13 @@
       percentage: number;
     }>("transcribe-progress", (event) => {
       const p = event.payload;
+      if (p.stage === "download") return; // Ignored here, handled in SettingsTab
+      
       progress = Math.round(p.percentage);
       progressMessage = p.message;
       progressStage = p.stage;
-      if (p.stage === "download") {
-        // Distinguish download-in-progress from download-complete
-        if (p.percentage >= 100) {
-          addLog(p.message, "success");
-        } else {
-          addLog(p.message, "download");
-        }
-      } else if (p.stage !== "done") {
+      
+      if (p.stage !== "done") {
         addLog(p.message, "progress");
       }
     });
@@ -386,28 +360,14 @@
     showOutputPathDialog = false;
   }
 
-  async function downloadModel(modelId: string) {
-    if (isDownloading || isTranscribing) return;
-    isDownloading = true;
-
-    try {
-      await invoke<boolean>("transcribe_download_model", { modelId });
-      showSnackbar(`Model ${modelId} downloaded successfully`);
-      await refreshModels();
-    } catch (e) {
-      addLog(`Failed to download model ${modelId}: ${e}`, "error");
-    } finally {
-      isDownloading = false;
-      // Reset progress bar so it doesn't persist after download
-      progress = 0;
-      progressMessage = "";
-      progressStage = "";
-    }
-  }
-
   async function startTranscription() {
     if (!inputPath || !outputPath) {
       error = t("transcribe.selectFilesFirst");
+      return;
+    }
+
+    if (!isModelDownloaded) {
+      error = "The selected Whisper model is not downloaded. Please download it in Settings.";
       return;
     }
 
@@ -464,52 +424,10 @@
     }
   }
 
-  async function uninstallModel(modelId: string) {
-    if (isDownloading || isTranscribing) return;
-    try {
-      await invoke<boolean>("transcribe_uninstall_model", { modelId });
-      addLog(`${t("transcribe.modelUninstalled")}: ${modelId}`, "success");
-      await refreshModels();
-    } catch (e) {
-      addLog(`${t("transcribe.errorUninstalling")} ${modelId}: ${e}`, "error");
-    }
-  }
-
-  let contextMenu = $state<{
-    x: number;
-    y: number;
-    modelId: string;
-    downloaded: boolean;
-  } | null>(null);
-
-  function openContextMenu(
-    e: MouseEvent,
-    model: { id: string; downloaded: boolean },
-  ) {
-    e.preventDefault();
-    contextMenu = {
-      x: e.clientX,
-      y: e.clientY,
-      modelId: model.id,
-      downloaded: model.downloaded,
-    };
-  }
-
-  function closeContextMenu() {
-    contextMenu = null;
-  }
-
-  function handleModelDblClick(model: { id: string; downloaded: boolean }) {
-    if (!model.downloaded && !isDownloading && !isTranscribing) {
-      downloadModel(model.id);
-    }
-  }
-
   function resetTranscription() {
     inputPath = "";
     outputPath = "";
     isTranscribing = false;
-    isDownloading = false;
     progress = 0;
     progressMessage = "";
     progressStage = "";
@@ -519,7 +437,6 @@
   }
 
   const TRANSCRIBE_PANEL_IDS = [
-    "whisperModel",
     "options",
     "files",
     "actions",
@@ -535,7 +452,7 @@
   }
 
   const TRANSCRIBE_DEFAULT_LAYOUT: TranscribeColumnLayout = {
-    col1: ["files", "whisperModel"],
+    col1: ["files"],
     col2: ["options", "actions", "progress", "logs"],
   };
 
@@ -674,7 +591,7 @@
     <div class="flex items-center justify-end mb-4 shrink-0">
       <button
         onclick={resetTranscription}
-        disabled={isTranscribing || isDownloading}
+        disabled={isTranscribing}
         class="py-1.5 px-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-colors text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
         title={t("transcribe.newTranscriptionDesc")}
       >
@@ -696,128 +613,7 @@
   {/if}
 
   {#snippet panelContent(panelId: TranscribePanelId)}
-    {#if panelId === "whisperModel"}
-      <div class="glass-card p-5">
-        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-          <svg
-            class="w-5 h-5 text-cyan-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            />
-          </svg>
-          {t("transcribe.whisperModel")}
-          <button
-            type="button"
-            onclick={() => (helpSection = "whisperModel")}
-            class="ml-auto text-gray-500 hover:text-cyan-300 transition-colors"
-            title="Info"
-          >
-            <svg
-              class="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </button>
-        </h3>
-        <div class="grid grid-cols-5 gap-2">
-          {#each whisperModels as model}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-              onclick={() => (selectedModel = model.id)}
-              ondblclick={() => handleModelDblClick(model)}
-              oncontextmenu={(e) => openContextMenu(e, model)}
-              onkeydown={(e) => {
-                if (e.key === "Enter" || e.key === " ")
-                  selectedModel = model.id;
-              }}
-              role="radio"
-              aria-checked={selectedModel === model.id}
-              tabindex="0"
-              class="p-3 rounded-lg text-center transition-all duration-200 border relative cursor-pointer
-                {selectedModel === model.id
-                ? 'bg-cyan-500/20 border-cyan-500/50 text-white'
-                : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
-            >
-              <div class="absolute top-1 right-1">
-                {#if model.downloaded}
-                  <svg
-                    class="w-4 h-4 text-green-400"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                    />
-                  </svg>
-                {:else}
-                  <button
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      downloadModel(model.id);
-                    }}
-                    class="text-amber-400 hover:text-cyan-400 transition-colors animate-pulse"
-                    title={t("transcribe.clickToDownload")}
-                    disabled={isDownloading}
-                  >
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                  </button>
-                {/if}
-              </div>
-              <div class="font-bold text-sm">
-                {t(
-                  `transcribe.model${model.id.charAt(0).toUpperCase()}${model.id.slice(1)}`,
-                ) || model.name}
-              </div>
-              <div class="text-[10px] text-gray-500 mt-1">{model.size}</div>
-              {#if !model.downloaded}
-                <div class="text-[9px] text-amber-400/70 mt-0.5">
-                  {t("transcribe.notDownloaded")}
-                </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-        <div
-          class="mt-3 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20"
-        >
-          <div class="flex items-center gap-2">
-            <span class="text-cyan-400">💡</span>
-            <span class="text-sm text-cyan-200">
-              {t("transcribe.speed")}: {whisperModels.find(
-                (m) => m.id === selectedModel,
-              )?.speed || ""}
-            </span>
-          </div>
-        </div>
-      </div>
-    {:else if panelId === "options"}
+    {#if panelId === "options"}
       <div
         class="glass-card p-5 {!inputPath
           ? 'opacity-50 pointer-events-none'
@@ -937,10 +733,6 @@
                   </svg>
                 </button>
               </span>
-              <span
-                class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-xs"
-                >{maxSegmentLength}s</span
-              >
             </div>
             <div class="grid grid-cols-4 gap-2">
               <button
@@ -950,11 +742,23 @@
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-white'
                   : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
               >
-                <span class="text-base block mb-0.5">✂️</span>
-                <span class="font-semibold block"
-                  >{t("transcribe.segmentShort")}</span
-                >
-                <span class="text-[10px] text-gray-500 block">10s</span>
+                <span class="block mb-1">
+                  <svg
+                    class="w-4 h-4 mx-auto"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.8"
+                      d="M7 10h8M7 14h5"
+                    />
+                  </svg>
+                </span>
+                <span class="font-semibold block">{t("transcribe.segmentShort")}</span>
               </button>
               <button
                 onclick={() => setSegmentPreset("medium")}
@@ -963,11 +767,23 @@
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-white'
                   : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
               >
-                <span class="text-base block mb-0.5">📝</span>
-                <span class="font-semibold block"
-                  >{t("transcribe.segmentMedium")}</span
-                >
-                <span class="text-[10px] text-gray-500 block">20s</span>
+                <span class="block mb-1">
+                  <svg
+                    class="w-4 h-4 mx-auto"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.8"
+                      d="M6 9h12M6 13h9M6 17h7"
+                    />
+                  </svg>
+                </span>
+                <span class="font-semibold block">{t("transcribe.segmentMedium")}</span>
               </button>
               <button
                 onclick={() => setSegmentPreset("standard")}
@@ -976,11 +792,23 @@
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-white'
                   : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
               >
-                <span class="text-base block mb-0.5">📄</span>
-                <span class="font-semibold block"
-                  >{t("transcribe.segmentStandard")}</span
-                >
-                <span class="text-[10px] text-gray-500 block">30s</span>
+                <span class="block mb-1">
+                  <svg
+                    class="w-4 h-4 mx-auto"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.8"
+                      d="M5 9h14M5 13h14M5 17h14"
+                    />
+                  </svg>
+                </span>
+                <span class="font-semibold block">{t("transcribe.segmentStandard")}</span>
               </button>
               <button
                 onclick={() => setSegmentPreset("long")}
@@ -989,12 +817,31 @@
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-white'
                   : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
               >
-                <span class="text-base block mb-0.5">📖</span>
-                <span class="font-semibold block"
-                  >{t("transcribe.segmentLong")}</span
-                >
-                <span class="text-[10px] text-gray-500 block">60s</span>
+                <span class="block mb-1">
+                  <svg
+                    class="w-4 h-4 mx-auto"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.8"
+                      d="M4 8h16M4 12h16M4 16h16M4 20h16"
+                    />
+                  </svg>
+                </span>
+                <span class="font-semibold block">{t("transcribe.segmentLong")}</span>
               </button>
+            </div>
+            <div class="mt-2 flex items-center justify-between text-xs">
+              <span class="text-gray-500">Segment length</span>
+              <span
+                class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-sm"
+                >{maxSegmentLength}s</span
+              >
             </div>
           </div>
         </div>
@@ -1191,36 +1038,19 @@
             </button>
           {/if}
         </div>
-        {#if !whisperModels.find((m) => m.id === selectedModel)?.downloaded}
+        {#if !isModelDownloaded}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg"
+            class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg cursor-pointer hover:bg-amber-500/20 transition-colors"
+            onclick={() => onGoToSettings?.()}
           >
             <div class="flex items-start gap-2">
               <span class="text-amber-400">⚠️</span>
               <div class="flex-1 flex flex-col items-center text-center">
                 <p class="text-xs text-amber-200">
-                  {t("transcribe.modelDownloadNote")}
+                  {t("transcribe.modelDownloadNote") || "It is necessary to download and set a Whisper model from Settings. Click here to go to Settings."}
                 </p>
-                <button
-                  onclick={() => downloadModel(selectedModel)}
-                  disabled={isDownloading}
-                  class="mt-2 btn-primary py-1.5 px-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <svg
-                    class="w-4 h-4 inline mr-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
-                  {t("transcribe.modelDownloadAction")}
-                </button>
               </div>
             </div>
           </div>
@@ -1699,75 +1529,7 @@
     </div>
   {/if}
 
-  {#if contextMenu}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="fixed inset-0 z-50"
-      onclick={closeContextMenu}
-      oncontextmenu={(e) => {
-        e.preventDefault();
-        closeContextMenu();
-      }}
-      onkeydown={(e) => {
-        if (e.key === "Escape") closeContextMenu();
-      }}
-      role="presentation"
-      tabindex="-1"
-    >
-      <div
-        class="absolute bg-gray-800 border border-white/20 rounded-lg shadow-xl py-1 min-w-[180px] animate-fade-in"
-        style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
-      >
-        {#if !contextMenu.downloaded}
-          <button
-            onclick={() => {
-              downloadModel(contextMenu!.modelId);
-              closeContextMenu();
-            }}
-            disabled={isDownloading}
-            class="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-cyan-500/20 hover:text-cyan-300 flex items-center gap-2 transition-colors disabled:opacity-50"
-          >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              /></svg
-            >
-            {t("transcribe.downloadModel")}
-          </button>
-        {:else}
-          <button
-            onclick={() => {
-              uninstallModel(contextMenu!.modelId);
-              closeContextMenu();
-            }}
-            disabled={isDownloading || isTranscribing}
-            class="w-full text-left px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 flex items-center gap-2 transition-colors disabled:opacity-50"
-          >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              /></svg
-            >
-            {t("transcribe.uninstallModel")}
-          </button>
-        {/if}
-      </div>
-    </div>
-  {/if}
+
 
   {#if snackbarMessage}
     <div

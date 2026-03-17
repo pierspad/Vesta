@@ -304,9 +304,11 @@ jobs:
           ls -lh release/
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          files: release/*
-          generate_release_notes: true
+          artifacts: "release/*"
+          allowUpdates: true
+          replacesArtifacts: true
+          generateReleaseNotes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

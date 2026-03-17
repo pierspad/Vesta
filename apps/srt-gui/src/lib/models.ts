@@ -703,7 +703,7 @@ export interface ShortcutDefinition {
   action: string;
   description: string; // i18n key, resolved via t() in components
   defaultKey: string;
-  category: "global" | "translate" | "sync" | "flashcards";
+  category: "global" | "translate" | "sync" | "flashcards" | "alignment";
 }
 
 export const defaultShortcuts: ShortcutDefinition[] = [
@@ -744,6 +744,14 @@ export const defaultShortcuts: ShortcutDefinition[] = [
   { id: "sync-next-anchor", action: "nextAnchor", description: "shortcuts.action.nextAnchor", defaultKey: "Ctrl+ArrowDown", category: "sync" },
   { id: "sync-go-suggested", action: "goToSuggested", description: "shortcuts.action.goToSuggested", defaultKey: "Ctrl+G", category: "sync" },
   { id: "sync-save", action: "saveFile", description: "shortcuts.action.saveFile", defaultKey: "Ctrl+S", category: "sync" },
+
+  // Alignment
+  { id: "align-next-page", action: "alignNextPage", description: "shortcuts.action.alignNextPage", defaultKey: "Tab", category: "alignment" },
+  { id: "align-prev-page", action: "alignPrevPage", description: "shortcuts.action.alignPrevPage", defaultKey: "Shift+Tab", category: "alignment" },
+  { id: "align-swap-files", action: "alignSwapFiles", description: "shortcuts.action.alignSwapFiles", defaultKey: "Ctrl+Shift+S", category: "alignment" },
+  { id: "align-undo", action: "alignUndo", description: "shortcuts.action.alignUndo", defaultKey: "Ctrl+Z", category: "alignment" },
+  { id: "align-save", action: "alignSave", description: "shortcuts.action.alignSave", defaultKey: "Ctrl+S", category: "alignment" },
+  { id: "align-cycle-per-page", action: "alignCyclePerPage", description: "shortcuts.action.alignCyclePerPage", defaultKey: "Ctrl+Shift+P", category: "alignment" },
 ];
 
 // Funzione per ottenere le shortcut (con override utente)
@@ -996,7 +1004,7 @@ export const defaultCardTemplates: CardTemplateConfig = {
   margin: 10px auto;
   border: 1px solid #eee;
 }`,
-  noteTypeName: "Vesta Default",
+  noteTypeName: "Vesta_Default",
 };
 
 export function loadCardTemplates(): CardTemplateConfig {

@@ -25,6 +25,7 @@ pub struct TranslateConfig {
     pub api_keys: Vec<String>,
     pub api_type: String, // "local" or "openrouter"
     pub batch_size: usize,
+    pub resume_overlap: Option<usize>,
     pub title_context: Option<String>,
     pub api_url: Option<String>,
     pub model: Option<String>,
@@ -202,8 +203,8 @@ async fn perform_translation(
         translators.push(Translator::new(translator_config));
         
         // Crea rate limiter per ogni chiave (15 RPM per Gemini free tier, 1000 per pay-as-you-go)
-        // Usiamo 15 RPM come default conservativo
-        let rate_limit_config = RateLimitConfig::new(15);
+        // Usiamo 15 RPM come default conservativo, con burst=3 per evitare freeze iniziale
+        let rate_limit_config = RateLimitConfig::with_burst(15, 3);
         rate_limiters.push(rate_limit_config.create_limiter());
     }
 
@@ -247,6 +248,7 @@ async fn perform_translation(
         subtitles,
         &config.target_lang,
         config.batch_size,
+        config.resume_overlap.unwrap_or(2),
         config.title_context.as_deref(),
         &output_path,
         on_progress,

@@ -346,6 +346,7 @@ fn main() {
             get_latest_translated_subtitles,
             // Comandi sincronizzazione
             sync_load_srt,
+            sync_suggest_media_for_srt,
             sync_set_video,
             sync_get_status,
             sync_get_subtitles,

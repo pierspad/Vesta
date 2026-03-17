@@ -5,8 +5,8 @@
   import { locale } from "./i18n";
 
   interface Props {
-    activeTab: "translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts";
-    onTabChange: (tab: "translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts") => void;
+    activeTab: "translate" | "sync" | "transcribe" | "align" | "flashcards" | "settings" | "shortcuts";
+    onTabChange: (tab: "translate" | "sync" | "transcribe" | "align" | "flashcards" | "settings" | "shortcuts") => void;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
   }
@@ -157,6 +157,27 @@
 
     <button
       class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
+      'align'
+        ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/30'
+        : 'text-gray-400 hover:bg-white/5 hover:text-white'}"
+      onclick={() => onTabChange("align")}
+      title={collapsed ? "Alignment" : undefined}
+    >
+      <div class="w-8 h-8 rounded-lg {activeTab === 'align' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+        </svg>
+      </div>
+      {#if !collapsed}
+        <div class="text-left flex-1">
+          <span class="block font-medium">Alignment</span>
+          <span class="text-xs {activeTab === 'align' ? 'text-white/70' : 'text-gray-500'}">Side-by-side editing</span>
+        </div>
+      {/if}
+    </button>
+
+    <button
+      class="w-full flex items-center gap-3 {collapsed ? 'px-2 justify-center' : 'px-4'} py-3 rounded-xl transition-all duration-300 {activeTab ===
       'transcribe'
         ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
         : 'text-gray-400 hover:bg-white/5 hover:text-white'}"
@@ -263,14 +284,14 @@
     <div class="glass-card p-3 {collapsed ? 'flex items-center justify-center' : ''}">
       {#if collapsed}
         <span class="text-[10px] text-gray-500">
-          <a href="https://github.com/pierspad/vesta.git" target="_blank" class="hover:text-gray-400 transition-colors">
+          <a href="https://github.com/pierspad/VESTA.git" target="_blank" class="hover:text-gray-400 transition-colors">
             {appVersionNum || "v0.1"}
           </a>
         </span>
       {:else}
         <div class="w-fit">
           <p class="text-xs text-gray-500">
-            <a href="https://github.com/pierspad/vesta.git" target="_blank" class="hover:text-indigo-400 transition-colors">
+            <a href="https://github.com/pierspad/VESTA.git" target="_blank" class="hover:text-indigo-400 transition-colors">
               {appVersionNum || "v0.1.0"}
             </a>
             <span class="mx-1">•</span>
@@ -282,7 +303,7 @@
           </p>
           <p class="text-[10px] text-gray-600 mt-1 flex justify-between items-center">
             <a href="https://pierspad.com" target="_blank" class="hover:text-gray-400 transition-colors">Pierpaolo Spadafora</a>
-            <a href="https://github.com/pierspad/vesta.git" target="_blank" class="hover:text-gray-400 transition-colors flex items-center gap-1">
+            <a href="https://github.com/pierspad/VESTA.git" target="_blank" class="hover:text-gray-400 transition-colors flex items-center gap-1">
               <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" /></svg>
               GitHub Repo
             </a>

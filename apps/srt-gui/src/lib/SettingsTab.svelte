@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import CodeEditor from "./CodeEditor.svelte";
   import {
     availableUILanguages,
@@ -167,8 +169,144 @@
       window.removeEventListener("keydown", handleKeydown);
       window.removeEventListener(CARD_TEMPLATES_UPDATED_EVENT, syncTemplateStateFromStorage);
       window.removeEventListener(FIELD_NAMES_UPDATED_EVENT, syncFieldStateFromStorage);
+      unlistenProgress?.();
     };
   });
+
+  // Whisper Model Management
+  let whisperModels = $state<{
+    id: string;
+    name: string;
+    size: string;
+    speed: string;
+    downloaded: boolean;
+  }[]>([
+    { id: "tiny", name: "Tiny", size: "~75MB", speed: "~32x", downloaded: false },
+    { id: "base", name: "Base", size: "~150MB", speed: "~16x", downloaded: false },
+    { id: "small", name: "Small", size: "~500MB", speed: "~6x", downloaded: false },
+    { id: "medium", name: "Medium", size: "~1.5GB", speed: "~2x", downloaded: false },
+    { id: "large", name: "Large", size: "~3GB", speed: "~1x", downloaded: false },
+  ]);
+
+  let isDownloading = $state(false);
+  let downloadingModelId = $state<string | null>(null);
+  let pendingDefaultModelId = $state<string | null>(null);
+  let progress = $state(0);
+  let progressMessage = $state("");
+  let progressStage = $state("");
+  let unlistenProgress: (() => void) | null = null;
+  let defaultWhisperModel = $state("base");
+
+  onMount(async () => {
+    defaultWhisperModel = localStorage.getItem("srt-default-whisper-model") || "base";
+    await refreshModels();
+
+    unlistenProgress = await listen<{
+      stage: string;
+      message: string;
+      percentage: number;
+    }>("transcribe-progress", (event) => {
+      const p = event.payload;
+      progress = Math.round(p.percentage);
+      progressMessage = p.message;
+      progressStage = p.stage;
+    });
+  });
+
+  function setDefaultWhisperModel(modelId: string, notify = true) {
+    defaultWhisperModel = modelId;
+    localStorage.setItem("srt-default-whisper-model", modelId);
+    if (notify) {
+      showSnackbar(`Default Whisper model set to ${modelId}`);
+    }
+    // Dispatch event so other tabs can pick up the change if needed
+    window.dispatchEvent(new CustomEvent("whisper-model-updated", { detail: modelId }));
+  }
+
+  function handleWhisperModelClick(model: { id: string; downloaded: boolean }) {
+    if (model.downloaded) {
+      setDefaultWhisperModel(model.id);
+      return;
+    }
+    void downloadModel(model.id, true);
+  }
+
+  async function refreshModels() {
+    try {
+      const models = await invoke<typeof whisperModels>("transcribe_list_models");
+      whisperModels = models;
+    } catch (e) {
+      console.error("Could not list models:", e);
+    }
+  }
+
+  async function downloadModel(modelId: string, setAsDefaultAfterDownload = false) {
+    if (isDownloading) return;
+    isDownloading = true;
+    downloadingModelId = modelId;
+    pendingDefaultModelId = setAsDefaultAfterDownload ? modelId : null;
+    try {
+      await invoke<boolean>("transcribe_download_model", { modelId });
+      await refreshModels();
+
+      const downloaded = whisperModels.find((m) => m.id === modelId)?.downloaded;
+      if (downloaded && pendingDefaultModelId === modelId) {
+        setDefaultWhisperModel(modelId, false);
+        showSnackbar(`Model ${modelId} downloaded and set as default`);
+      } else if (downloaded) {
+        showSnackbar(`Model ${modelId} downloaded successfully`);
+      }
+    } catch (e) {
+      showSnackbar(`Failed to download model ${modelId}: ${e}`, "error");
+    } finally {
+      isDownloading = false;
+      downloadingModelId = null;
+      pendingDefaultModelId = null;
+      progress = 0;
+      progressMessage = "";
+      progressStage = "";
+    }
+  }
+
+  async function uninstallModel(modelId: string) {
+    if (isDownloading) return;
+    try {
+      await invoke<boolean>("transcribe_uninstall_model", { modelId });
+      showSnackbar(`Model ${modelId} uninstalled`);
+      await refreshModels();
+    } catch (e) {
+      showSnackbar(`Failed to uninstall model ${modelId}: ${e}`, "error");
+    }
+  }
+
+  let contextMenu = $state<{
+    x: number;
+    y: number;
+    modelId: string;
+    downloaded: boolean;
+  } | null>(null);
+
+  function openContextMenu(e: MouseEvent, model: { id: string; downloaded: boolean }) {
+    e.preventDefault();
+    contextMenu = {
+      x: e.clientX,
+      y: e.clientY,
+      modelId: model.id,
+      downloaded: model.downloaded,
+    };
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
+
+  function handleModelDblClick(model: { id: string; downloaded: boolean }) {
+    if (!model.downloaded && !isDownloading) {
+      void downloadModel(model.id, true);
+    } else if (model.downloaded) {
+      setDefaultWhisperModel(model.id);
+    }
+  }
 
   function syncTemplateStateFromStorage() {
     const templates = loadCardTemplates();
@@ -909,6 +1047,113 @@
       </div>
     </div>
   </div>
+
+  <!-- Whisper Models -->
+  <div class="mt-6 glass-card p-4">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <div class="flex-1">
+        <h3 class="text-sm font-bold text-white">{t("transcribe.whisperModel")}</h3>
+        <p class="text-xs text-gray-500">{t("transcribe.whisperModelDesc") || "Download models for local transcription and auto-sync. Double click to download or set default. Right click to uninstall."}</p>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-5 gap-2 relative">
+      {#each whisperModels as model}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          onclick={() => handleWhisperModelClick(model)}
+          ondblclick={() => handleModelDblClick(model)}
+          oncontextmenu={(e) => openContextMenu(e, model)}
+          onkeydown={(e) => {
+            if (e.key === "Enter" || e.key === " ") handleWhisperModelClick(model);
+          }}
+          role="radio"
+          aria-checked={defaultWhisperModel === model.id}
+          tabindex="0"
+          class="p-3 rounded-lg text-center transition-all duration-200 border cursor-pointer
+            {defaultWhisperModel === model.id && model.downloaded
+            ? 'bg-cyan-500/20 border-cyan-500/50 text-white shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+            : model.downloaded
+              ? 'bg-white/10 hover:bg-white/20 border-white/20 text-gray-200'
+              : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-500 opacity-60'}"
+          title={model.downloaded ? "Click to set as default. Right-click to uninstall." : "Click to download and set as default"}
+        >
+          <div class="absolute top-1 right-1 pointer-events-none">
+            {#if !model.downloaded}
+              <button
+                onclick={(e) => { e.stopPropagation(); void downloadModel(model.id, true); }}
+                class="text-amber-400 hover:text-cyan-400 transition-colors animate-pulse pointer-events-auto"
+                title={t("transcribe.clickToDownload")}
+                disabled={isDownloading}
+              >
+                {#if downloadingModelId === model.id}
+                  <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                {:else}
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                {/if}
+              </button>
+            {/if}
+          </div>
+          <div class="font-bold text-sm">
+            {t(`transcribe.model${model.id.charAt(0).toUpperCase()}${model.id.slice(1)}`) || model.name}
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1">{model.size}</div>
+          {#if !model.downloaded}
+            <div class="text-[9px] text-amber-400/70 mt-0.5">
+              {#if downloadingModelId === model.id}
+                Downloading... {progress > 0 ? `${progress}%` : ""}
+              {:else}
+                Not downloaded
+              {/if}
+            </div>
+          {:else if defaultWhisperModel === model.id}
+            <div class="text-[9px] text-cyan-400 mt-0.5 font-bold">Default</div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  {#if contextMenu}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="fixed inset-0 z-50"
+      onmousedown={closeContextMenu}
+      oncontextmenu={(e) => { e.preventDefault(); closeContextMenu(); }}
+    >
+      <div
+        class="absolute bg-gray-900 border border-white/10 rounded-lg shadow-2xl py-1 min-w-[160px] animate-fade-in"
+        style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
+        onmousedown={(e) => e.stopPropagation()}
+      >
+        <div class="px-3 py-1.5 border-b border-white/5 bg-white/5 mb-1">
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Model: {contextMenu.modelId}</span>
+        </div>
+        {#if contextMenu.downloaded}
+          <button
+            class="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+            onclick={() => {
+              uninstallModel(contextMenu!.modelId);
+              closeContextMenu();
+            }}
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            Uninstall
+          </button>
+        {:else}
+          <div class="px-4 py-2 text-sm text-gray-500 italic">Not downloaded</div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <!-- Card Template Editor -->
   <div class="mt-6">

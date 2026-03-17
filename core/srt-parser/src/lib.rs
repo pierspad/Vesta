@@ -95,7 +95,9 @@ impl SrtParser {
     /// Parse una stringa SRT
     pub fn parse_string(content: &str) -> Result<HashMap<u32, Subtitle>> {
         let mut subtitles = HashMap::new();
-        let blocks: Vec<&str> = content.split("\n\n").collect();
+        // Normalize line endings before splitting
+        let normalized = content.replace("\r\n", "\n");
+        let blocks: Vec<&str> = normalized.split("\n\n").collect();
 
         for block in blocks {
             let block = block.trim();
@@ -225,5 +227,14 @@ Come stai?"#;
         let subs = SrtParser::parse_string(content).unwrap();
         assert_eq!(subs.len(), 2);
         assert_eq!(subs.get(&1).unwrap().text, "Ciao mondo!");
+    }
+
+    #[test]
+    fn test_crlf_subtitle_parsing() {
+        let content = "1\r\n00:00:20,000 --> 00:00:24,400\r\nCiao mondo!\r\n\r\n2\r\n00:00:24,600 --> 00:00:27,800\r\nCome stai?";
+        let subs = SrtParser::parse_string(content).unwrap();
+        assert_eq!(subs.len(), 2);
+        assert_eq!(subs.get(&1).unwrap().text, "Ciao mondo!");
+        assert_eq!(subs.get(&2).unwrap().text, "Come stai?");
     }
 }

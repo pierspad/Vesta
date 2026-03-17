@@ -70,6 +70,7 @@ pub async fn translate_subtitles_async<F>(
     subtitles: HashMap<u32, Subtitle>,
     target_lang: &str,
     batch_size: usize,
+    resume_overlap: usize,
     title_context: Option<&str>,
     output_path: &std::path::Path,
     on_progress: F,
@@ -84,6 +85,7 @@ where
         subtitles,
         target_lang,
         batch_size,
+        resume_overlap,
         title_context,
         output_path,
         on_progress,
@@ -111,6 +113,7 @@ pub async fn translate_subtitles_with_rate_limit<F>(
     subtitles: HashMap<u32, Subtitle>,
     target_lang: &str,
     batch_size: usize,
+    resume_overlap: usize,
     title_context: Option<&str>,
     output_path: &std::path::Path,
     on_progress: F,
@@ -139,7 +142,7 @@ where
     let subtitles_map: HashMap<u32, Subtitle> = sorted.iter().cloned().collect();
 
     // Controlla se esiste un file di output e determina da dove riprendere
-    let skip_batches = if output_path.exists() {
+    let (skip_batches, start_idx) = if output_path.exists() {
         {
             let mut callback = progress_callback.lock().await;
             callback(TranslationProgress {
@@ -190,28 +193,29 @@ where
                             });
                         }
                         // Salta TUTTI i batch - andremo direttamente al repair
-                        total_batches
+                        (total_batches, 0)
                     } else {
-                        // Tutti i sottotitoli sono presenti, calcola da dove riprendere normalmente
-                        let completed_batches_count = (existing_count / batch_size) * batch_size;
+                        // Tutti i sottotitoli sono presenti, calcola da dove riprendere con overlap
+                        let calc_start_idx = existing_count.saturating_sub(resume_overlap);
+                        let skip_b = calc_start_idx / batch_size;
                         {
                             let mut callback = progress_callback.lock().await;
                             callback(TranslationProgress {
                                 message: format!(
-                                    "Translation appears complete, resuming from subtitle {}",
-                                    completed_batches_count + 1
+                                    "Translation appears complete, resuming from subtitle {} (overlap: {})",
+                                    calc_start_idx + 1, resume_overlap
                                 ),
                                 eta_seconds: None,
                                 current_batch: 0,
                                 total_batches: 0,
-                                batch_start: completed_batches_count + 1,
+                                batch_start: calc_start_idx + 1,
                                 batch_end: existing_count,
                             });
                         }
-                        completed_batches_count / batch_size
+                        (skip_b, calc_start_idx)
                     }
                 } else {
-                    0
+                    (0, 0)
                 }
             }
             Err(_) => {
@@ -226,19 +230,19 @@ where
                         batch_end: 0,
                     });
                 }
-                0
+                (0, 0)
             }
         }
     } else {
-        0
+        (0, 0)
     };
 
     // Prepara i batch da processare
-    let batches_to_process: Vec<_> = sorted
+    let remaining = if start_idx < sorted.len() { &sorted[start_idx..] } else { &[] };
+    let batches_to_process: Vec<_> = remaining
         .chunks(batch_size)
         .enumerate()
-        .skip(skip_batches)
-        .map(|(idx, chunk)| (idx, chunk.to_vec()))
+        .map(|(idx, chunk)| (idx + skip_batches, chunk.to_vec()))
         .collect();
 
     // Calcola il numero totale di worker (uno per translator)
@@ -293,26 +297,24 @@ where
                 let (total_duration, completed) = *stats;
                 if completed > skip_batches {
                     let avg_duration = total_duration / (completed - skip_batches) as f64;
-                    let remaining = total_batches - batch_idx;
+                    let remaining = total_batches.saturating_sub(completed);
                     Some(avg_duration * remaining as f64)
                 } else {
                     None
                 }
             };
 
-            // Notifica inizio batch
-            {
+                let completed = timing_stats.lock().await.1;
                 let mut callback = progress_callback.lock().await;
                 callback(TranslationProgress {
                     message: format!("Starting batch [{}-{}]/{} (worker {})...", 
                         batch_start, batch_end, total, translator_idx + 1),
                     eta_seconds: eta,
-                    current_batch: batch_idx + 1,
+                    current_batch: completed,
                     total_batches,
                     batch_start,
                     batch_end,
                 });
-            }
 
             // Prepara i testi da tradurre
             let texts_with_ids: Vec<(u32, String)> = batch_data
@@ -327,12 +329,13 @@ where
 
             match result {
                 Ok(translations) => {
+                    let completed_after_this = timing_stats.lock().await.1 + 1;
                     {
                         let mut callback = progress_callback.lock().await;
                         callback(TranslationProgress {
                             message: format!("Batch [{}-{}] completed ✓", batch_start, batch_end),
                             eta_seconds: eta,
-                            current_batch: batch_idx + 1,
+                            current_batch: completed_after_this,
                             total_batches,
                             batch_start,
                             batch_end,
@@ -365,11 +368,12 @@ where
                     {
                         let trans_map = translated.lock().await;
                         if let Err(e) = save_translated_subtitles(&trans_map, &output_path) {
+                            let completed_current = timing_stats.lock().await.1;
                             let mut callback = progress_callback.lock().await;
                             callback(TranslationProgress {
                                 message: format!("Warning: could not save progress: {}", e),
                                 eta_seconds: None,
-                                current_batch: batch_idx + 1,
+                                current_batch: completed_current,
                                 total_batches,
                                 batch_start,
                                 batch_end,
@@ -381,11 +385,12 @@ where
                     // Non serve un sleep aggiuntivo qui
                 }
                 Err(e) => {
+                    let completed_current = timing_stats.lock().await.1;
                     let mut callback = progress_callback.lock().await;
                     callback(TranslationProgress {
                         message: format!("Batch [{}-{}] error: {} ✗", batch_start, batch_end, e),
                         eta_seconds: None,
-                        current_batch: batch_idx + 1,
+                        current_batch: completed_current,
                         total_batches,
                         batch_start,
                         batch_end,
@@ -637,13 +642,12 @@ where
                 
                 let task_start = Instant::now();
 
-                // Calcola ETA
                 let eta = {
                     let stats = timing_stats.lock().await;
                     let (total_duration, completed) = *stats;
                     if completed > 0 {
                         let avg_duration = total_duration / completed as f64;
-                        let remaining = total - idx;
+                        let remaining = total.saturating_sub(completed);
                         Some(avg_duration * remaining as f64)
                     } else {
                         None
@@ -652,11 +656,12 @@ where
 
                 // Notifica inizio
                 {
+                    let completed = timing_stats.lock().await.1;
                     let mut callback = progress_callback.lock().await;
                     callback(TranslationProgress {
                         message: format!("Repairing subtitle {} ({}/{}) [worker {}]", id, idx + 1, total, translator_idx + 1),
                         eta_seconds: eta,
-                        current_batch: idx + 1,
+                        current_batch: completed,
                         total_batches: total,
                         batch_start: idx + 1,
                         batch_end: total,
@@ -682,11 +687,12 @@ where
                         stats.1 += 1;
                     }
                     Err(e) => {
+                        let completed = timing_stats.lock().await.1;
                         let mut callback = progress_callback.lock().await;
                         callback(TranslationProgress {
                             message: format!("Failed to repair subtitle {}: {}", id, e),
                             eta_seconds: None,
-                            current_batch: idx + 1,
+                            current_batch: completed,
                             total_batches: total,
                             batch_start: idx + 1,
                             batch_end: total,
@@ -788,6 +794,7 @@ pub async fn translate_subtitles_with_rate_limit_cancellable<F>(
     subtitles: HashMap<u32, Subtitle>,
     target_lang: &str,
     batch_size: usize,
+    resume_overlap: usize,
     title_context: Option<&str>,
     output_path: &std::path::Path,
     on_progress: F,
@@ -817,7 +824,7 @@ where
     let subtitles_map: HashMap<u32, Subtitle> = sorted.iter().cloned().collect();
 
     // Controlla se esiste un file di output e determina da dove riprendere
-    let skip_batches = if output_path.exists() {
+    let (skip_batches, start_idx) = if output_path.exists() {
         match SrtParser::parse_file(output_path) {
             Ok(existing_translations) => {
                 let existing_count = existing_translations.len();
@@ -825,22 +832,24 @@ where
                     *translated.lock().await = existing_translations.clone();
                     let missing_count = get_missing_or_incorrect_subtitle_ids(&subtitles_map, &existing_translations).len();
                     if missing_count > 0 {
-                        total_batches
+                        (total_batches, 0)
                     } else {
-                        (existing_count / batch_size) * batch_size / batch_size
+                        let calc_start_idx = existing_count.saturating_sub(resume_overlap);
+                        let skip_b = calc_start_idx / batch_size;
+                        (skip_b, calc_start_idx)
                     }
-                } else { 0 }
+                } else { (0, 0) }
             }
-            Err(_) => 0
+            Err(_) => (0, 0)
         }
-    } else { 0 };
+    } else { (0, 0) };
 
     // Prepara i batch da processare
-    let batches_to_process: Vec<_> = sorted
+    let remaining = if start_idx < sorted.len() { &sorted[start_idx..] } else { &[] };
+    let batches_to_process: Vec<_> = remaining
         .chunks(batch_size)
         .enumerate()
-        .skip(skip_batches)
-        .map(|(idx, chunk)| (idx, chunk.to_vec()))
+        .map(|(idx, chunk)| (idx + skip_batches, chunk.to_vec()))
         .collect();
 
     let total_workers = translators.len();
@@ -904,18 +913,19 @@ where
                 let (total_duration, completed) = *stats;
                 if completed > 0 {
                     let avg_duration = total_duration / completed as f64;
-                    let remaining = total_batches - batch_idx;
+                    let remaining = total_batches.saturating_sub(completed);
                     Some(avg_duration * remaining as f64)
                 } else { None }
             };
 
             {
+                let completed = timing_stats.lock().await.1;
                 let mut callback = progress_callback.lock().await;
                 callback(TranslationProgress {
                     message: format!("Starting batch [{}-{}]/{} (worker {})...", 
                         batch_start, batch_end, total, translator_idx + 1),
                     eta_seconds: eta,
-                    current_batch: batch_idx + 1,
+                    current_batch: completed,
                     total_batches,
                     batch_start,
                     batch_end,
@@ -938,12 +948,13 @@ where
 
             match result {
                 Ok(translations) => {
+                    let completed_after = timing_stats.lock().await.1 + 1;
                     {
                         let mut callback = progress_callback.lock().await;
                         callback(TranslationProgress {
                             message: format!("Batch [{}-{}] completed ✓", batch_start, batch_end),
                             eta_seconds: eta,
-                            current_batch: batch_idx + 1,
+                            current_batch: completed_after,
                             total_batches,
                             batch_start,
                             batch_end,
@@ -976,11 +987,12 @@ where
                     }
                 }
                 Err(e) => {
+                    let completed = timing_stats.lock().await.1;
                     let mut callback = progress_callback.lock().await;
                     callback(TranslationProgress {
                         message: format!("Batch [{}-{}] error: {} ✗", batch_start, batch_end, e),
                         eta_seconds: None,
-                        current_batch: batch_idx + 1,
+                        current_batch: completed,
                         total_batches,
                         batch_start,
                         batch_end,

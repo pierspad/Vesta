@@ -1,5 +1,10 @@
 # Vesta Application
 
+
+https://archive.org/details/detour1945HD
+
+link per scaricare il film Detour (1945) direttamente dall'archive.org
+
 ## Standard Naming Convention for Series Mode
 When processing a series in the Flashcards tab or using multiple media files, it is highly recommended to follow the standard naming convention so that the application can accurately detect the season and episode numbers and auto-pair the files.
 

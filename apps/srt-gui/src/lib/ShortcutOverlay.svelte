@@ -17,6 +17,7 @@
     flashcards: "flashcards",
     translate: "translate",
     sync: "sync",
+    align: "alignment",
     settings: "global",
     shortcuts: "global",
     transcribe: "global",

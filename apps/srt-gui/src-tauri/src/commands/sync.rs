@@ -2,6 +2,8 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 use srt_sync::{SamplerStrategy, SyncEngine};
@@ -406,6 +408,192 @@ pub fn sync_reset(
         average_offset_ms: 0.0,
         suggested_next_id: None,
     })
+}
+
+/// Suggerisce in modo best-effort un file media nella stessa cartella del file SRT.
+/// Restituisce `None` quando il matching non e' sufficientemente affidabile.
+#[tauri::command]
+pub fn sync_suggest_media_for_srt(srt_path: String) -> Result<Option<String>, String> {
+    let srt = Path::new(&srt_path);
+    let parent = match srt.parent() {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    let srt_stem = match srt.file_stem().and_then(|s| s.to_str()) {
+        Some(s) if !s.is_empty() => s,
+        _ => return Ok(None),
+    };
+
+    let mut candidates: Vec<(PathBuf, i32)> = Vec::new();
+    let srt_tokens = normalized_tokens(srt_stem);
+    let srt_ep = extract_episode_number(srt_stem);
+
+    let entries = fs::read_dir(parent).map_err(|e| e.to_string())?;
+    for entry in entries {
+        let entry = match entry {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() || !is_media_path(&path) {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let media_tokens = normalized_tokens(stem);
+        if media_tokens.is_empty() {
+            continue;
+        }
+
+        let mut score: i32 = 0;
+        if stem.eq_ignore_ascii_case(srt_stem) {
+            score += 100;
+        }
+
+        let srt_joined = srt_tokens.join(" ");
+        let media_joined = media_tokens.join(" ");
+        if !srt_joined.is_empty() && !media_joined.is_empty() {
+            if media_joined.contains(&srt_joined) || srt_joined.contains(&media_joined) {
+                score += 40;
+            }
+        }
+
+        let overlap = token_overlap_score(&srt_tokens, &media_tokens);
+        score += overlap;
+
+        let media_ep = extract_episode_number(stem);
+        match (srt_ep, media_ep) {
+            (Some(a), Some(b)) if a == b => score += 35,
+            (Some(_), Some(_)) => score -= 20,
+            _ => {}
+        }
+
+        candidates.push((path, score));
+    }
+
+    if candidates.is_empty() {
+        return Ok(None);
+    }
+
+    candidates.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let (best_path, best_score) = &candidates[0];
+    let confident = if let Some((_, second_score)) = candidates.get(1) {
+        *best_score >= 45
+            && (*best_score >= second_score.saturating_add(12) || *second_score < 40)
+    } else {
+        *best_score >= 45
+    };
+
+    if confident {
+        Ok(Some(best_path.to_string_lossy().to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
+fn is_media_path(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    matches!(
+        ext.as_str(),
+        "mp4"
+            | "mkv"
+            | "avi"
+            | "webm"
+            | "mov"
+            | "m4v"
+            | "m2ts"
+            | "mpeg"
+            | "mpg"
+            | "mp3"
+            | "wav"
+            | "ogg"
+            | "flac"
+            | "m4a"
+            | "aac"
+            | "wma"
+            | "opus"
+            | "m4b"
+    )
+}
+
+fn normalized_tokens(name: &str) -> Vec<String> {
+    const STOPWORDS: &[&str] = &[
+        "srt", "sub", "subs", "subtitle", "subtitles", "eng", "en", "ita", "it", "jpn", "ja",
+        "spa", "es", "fra", "fr", "ger", "de", "rus", "ru", "v2", "v3", "x264", "x265", "h264",
+        "h265", "hevc", "1080p", "720p", "2160p", "480p", "webrip", "bluray", "brrip", "dvdrip", "aac",
+    ];
+
+    let mut token = String::new();
+    let mut tokens = Vec::new();
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() {
+            token.push(ch.to_ascii_lowercase());
+        } else if !token.is_empty() {
+            tokens.push(std::mem::take(&mut token));
+        }
+    }
+    if !token.is_empty() {
+        tokens.push(token);
+    }
+
+    tokens
+        .into_iter()
+        .filter(|t| !STOPWORDS.contains(&t.as_str()))
+        .collect()
+}
+
+fn token_overlap_score(a: &[String], b: &[String]) -> i32 {
+    if a.is_empty() || b.is_empty() {
+        return 0;
+    }
+    let common = a.iter().filter(|t| b.contains(t)).count() as i32;
+    let denom = a.len().max(b.len()) as i32;
+    (common * 50) / denom
+}
+
+fn extract_episode_number(name: &str) -> Option<u32> {
+    let lower = name.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+
+    // Pattern SxxEyy
+    for i in 0..bytes.len() {
+        if bytes[i] == b's' {
+            let mut j = i + 1;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j < bytes.len() && bytes[j] == b'e' {
+                let start = j + 1;
+                let mut end = start;
+                while end < bytes.len() && bytes[end].is_ascii_digit() {
+                    end += 1;
+                }
+                if end > start {
+                    if let Ok(v) = lower[start..end].parse::<u32>() {
+                        return Some(v);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: first isolated 1-3 digit token
+    for part in lower.split(|c: char| !c.is_ascii_alphanumeric()) {
+        if (1..=3).contains(&part.len()) && part.chars().all(|c| c.is_ascii_digit()) {
+            if let Ok(v) = part.parse::<u32>() {
+                return Some(v);
+            }
+        }
+    }
+
+    None
 }
 
 /// Helper per estrarre lo stato dall'engine

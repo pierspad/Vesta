@@ -223,7 +223,9 @@ fn detect_format(path: &str) -> &'static str {
 /// Parse SRT file into SubEntry vec
 fn parse_srt(content: &str) -> Result<Vec<SubEntry>> {
     let mut entries = Vec::new();
-    let blocks: Vec<&str> = content.split("\n\n").collect();
+    // Normalize CRLF → LF so that block splitting works for Windows-encoded files
+    let normalized = content.replace("\r\n", "\n");
+    let blocks: Vec<&str> = normalized.split("\n\n").collect();
 
     for block in blocks {
         let block = block.trim();

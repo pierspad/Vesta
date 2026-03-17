@@ -60,6 +60,22 @@
 
   let wizardSubtitle = $state<SubtitleInfo | null>(null);
   let offsetAdjustment = $state(0);
+  let targetOffset = 0;
+  let offsetUpdateFrame = 0;
+
+  function updateOffset(delta: number) {
+    targetOffset += delta;
+    if (offsetUpdateFrame) cancelAnimationFrame(offsetUpdateFrame);
+    offsetUpdateFrame = requestAnimationFrame(() => {
+      offsetAdjustment = targetOffset;
+    });
+  }
+
+  function resetOffset() {
+    targetOffset = 0;
+    offsetAdjustment = 0;
+  }
+
   let wizardHistory = $state<number[]>([]);
   let showSaveSuggestion = $state(false);
   let manualGoToId = $state("");
@@ -81,121 +97,83 @@
   } | null>(null);
 
   let isNavigating = $state(false);
+  let isStartingPlayback = $state(false);
+  let isConfirmingCheckpoint = $state(false);
 
   let helpSection = $state<string | null>(null);
+  let expandedPathField = $state<"srt" | "media" | null>(null);
 
-  // Panel layout (drag & drop)
-  const SYNC_PANEL_IDS = [
-    "toolbar",
-    "wizard",
-    "status",
-    "subtitleList",
-  ] as const;
+  type SyncPanelId = "toolbar" | "wizard" | "status" | "subtitleList";
 
-  type SyncPanelId = (typeof SYNC_PANEL_IDS)[number];
-
-  interface SyncColumnLayout {
-    col1: SyncPanelId[];
-    col2: SyncPanelId[];
-  }
-
-  const SYNC_DEFAULT_LAYOUT: SyncColumnLayout = {
-    col1: ["toolbar", "wizard"],
-    col2: ["status", "subtitleList"],
-  };
-
-  function loadSyncLayout(): SyncColumnLayout {
-    try {
-      const saved = localStorage.getItem("srt-sync-layout-v1");
-      if (saved) {
-        const parsed = JSON.parse(saved) as SyncColumnLayout;
-        const all = [...parsed.col1, ...parsed.col2];
-        const valid =
-          SYNC_PANEL_IDS.every((id) => all.includes(id)) &&
-          all.length === SYNC_PANEL_IDS.length;
-        if (valid) return parsed;
-      }
-    } catch {}
-    return { ...SYNC_DEFAULT_LAYOUT };
-  }
-
-  function saveSyncLayout(layout: SyncColumnLayout) {
-    localStorage.setItem("srt-sync-layout-v1", JSON.stringify(layout));
-  }
-
-  let syncPanelLayout = $state<SyncColumnLayout>(loadSyncLayout());
-
-  let sDraggedPanel = $state<SyncPanelId | null>(null);
-  let sDragOverCol = $state<"col1" | "col2" | null>(null);
-  let sDragOverIdx = $state<number | null>(null);
-
-  function sOnDragStart(e: DragEvent, panelId: SyncPanelId) {
-    const target = e.target as HTMLElement;
-    if (
-      target?.tagName === "INPUT" &&
-      (target as HTMLInputElement).type === "range"
-    ) {
-      e.preventDefault();
+  function syncDebug(message: string, payload?: Record<string, unknown>) {
+    if (payload) {
+      console.info(`[SyncTab] ${message}`, payload);
       return;
     }
-    sDraggedPanel = panelId;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", panelId);
+    console.info(`[SyncTab] ${message}`);
+  }
+
+  function getFileName(path: string): string {
+    return path.split("/").pop() || path;
+  }
+
+  async function tryAutoSelectMediaForSrt(srtPath: string) {
+    try {
+      const suggestedPath = await invoke<string | null>("sync_suggest_media_for_srt", {
+        srtPath,
+      });
+      if (!suggestedPath) return;
+
+      audioError = null;
+      cleanupAudioSrc();
+      audioSrc = await loadMediaFile(suggestedPath);
+      status = await invoke<SyncStatus>("sync_set_video", { path: suggestedPath });
+      showSnackbar(`Auto-selected media: ${getFileName(suggestedPath)}`);
+    } catch (e) {
+      syncDebug("auto-media-suggestion-failed", { error: String(e) });
     }
   }
 
-  function sOnDragOver(e: DragEvent, col: "col1" | "col2", idx: number) {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    sDragOverCol = col;
-    sDragOverIdx = idx;
-  }
+  async function safePlayAudio(source: string): Promise<boolean> {
+    if (!audioElement || !hasAudio) {
+      syncDebug(`${source}: play skipped`, {
+        hasAudio,
+        hasElement: !!audioElement,
+        audioError,
+      });
+      return false;
+    }
+    if (isStartingPlayback) {
+      syncDebug(`${source}: play ignored (already starting)`);
+      return false;
+    }
 
-  function sOnDragOverColumn(e: DragEvent, col: "col1" | "col2") {
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-    sDragOverCol = col;
-    if (sDragOverIdx === null) sDragOverIdx = syncPanelLayout[col].length;
-  }
-
-  function sOnDrop(col: "col1" | "col2", idx: number) {
-    if (!sDraggedPanel) return;
-    const newLayout = { ...syncPanelLayout };
-    for (const c of ["col1", "col2"] as const) {
-      const i = newLayout[c].indexOf(sDraggedPanel);
-      if (i !== -1) {
-        newLayout[c] = [...newLayout[c]];
-        newLayout[c].splice(i, 1);
-        if (c === col && i < idx) idx--;
-        break;
+    isStartingPlayback = true;
+    try {
+      syncDebug(`${source}: play requested`, {
+        currentTime: audioElement.currentTime,
+        paused: audioElement.paused,
+        readyState: audioElement.readyState,
+      });
+      await audioElement.play();
+      syncDebug(`${source}: play started`, {
+        currentTime: audioElement.currentTime,
+        paused: audioElement.paused,
+      });
+      return true;
+    } catch (e) {
+      const err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      const isBenignAbort =
+        err.includes("AbortError") ||
+        err.toLowerCase().includes("operation was aborted");
+      syncDebug(`${source}: play failed`, { error: err });
+      if (!isBenignAbort) {
+        showSnackbar(`Play error: ${err}`);
       }
+      return false;
+    } finally {
+      isStartingPlayback = false;
     }
-    newLayout[col] = [...newLayout[col]];
-    newLayout[col].splice(idx, 0, sDraggedPanel);
-    syncPanelLayout = newLayout;
-    saveSyncLayout(syncPanelLayout);
-    sDraggedPanel = null;
-    sDragOverCol = null;
-    sDragOverIdx = null;
-  }
-
-  function sOnDropColumn(col: "col1" | "col2") {
-    sOnDrop(col, syncPanelLayout[col].length);
-  }
-
-  function sOnDragEnd() {
-    sDraggedPanel = null;
-    sDragOverCol = null;
-    sDragOverIdx = null;
-  }
-
-  function resetSyncLayout() {
-    syncPanelLayout = {
-      col1: [...SYNC_DEFAULT_LAYOUT.col1],
-      col2: [...SYNC_DEFAULT_LAYOUT.col2],
-    };
-    saveSyncLayout(syncPanelLayout);
   }
 
   function openSubtitleContextMenu(e: MouseEvent, sub: SubtitleInfo) {
@@ -211,19 +189,16 @@
     if (isNavigating) return;
     isNavigating = true;
     try {
+      syncDebug("playSubtitleFromList", { subtitleId: sub.id });
       wizardSubtitle = sub;
-      offsetAdjustment = 0;
+      resetOffset();
       showSaveSuggestion = false;
       if (!wizardHistory.includes(sub.id)) {
         wizardHistory = [...wizardHistory, sub.id];
       }
       seekToSubtitleStart(sub);
       scrollToSubtitle(sub.id);
-      if (hasAudio && audioElement) {
-        try {
-          await audioElement.play();
-        } catch {}
-      }
+      await safePlayAudio("playSubtitleFromList");
     } finally {
       isNavigating = false;
     }
@@ -338,6 +313,7 @@
   }
 
   async function advanceWizard() {
+    console.debug("[SyncTab] advanceWizard called");
     const nextId = computeNextCheckpoint();
     if (nextId === null) {
       showSaveSuggestion = true;
@@ -349,12 +325,13 @@
   }
 
   async function goToCheckpoint(id: number) {
+    console.debug(`[SyncTab] goToCheckpoint(${id}) called, isNavigating=${isNavigating}`);
     if (isNavigating) return;
     isNavigating = true;
     try {
       const sub = await invoke<SubtitleInfo>("sync_get_subtitle", { id });
       wizardSubtitle = sub;
-      offsetAdjustment = 0;
+      resetOffset();
       if (!wizardHistory.includes(id)) {
         wizardHistory = [...wizardHistory, id];
       }
@@ -377,7 +354,7 @@
   function replayCurrentSubtitle() {
     if (!wizardSubtitle || !audioElement) return;
     seekToSubtitleStart(wizardSubtitle);
-    audioElement.play();
+    void safePlayAudio("replayCurrentSubtitle");
   }
 
   async function selectSrtFile() {
@@ -387,14 +364,16 @@
         filters: [{ name: "SRT Files", extensions: ["srt"] }],
       });
       if (selected) {
+        const selectedPath = selected as string;
         status = await invoke<SyncStatus>("sync_load_srt", {
-          path: selected as string,
+          path: selectedPath,
         });
         await loadSubtitles();
         await loadAnchors();
         wizardHistory = [];
         showSaveSuggestion = false;
         await advanceWizard();
+        await tryAutoSelectMediaForSrt(selectedPath);
       }
     } catch (e) {
       error = `${t("sync.errorLoadingSrt")} ${e}`;
@@ -444,6 +423,7 @@
   }
 
   async function loadSubtitles() {
+    console.debug("[SyncTab] loadSubtitles");
     try {
       subtitles = await invoke<SubtitleInfo[]>("sync_get_subtitles_range", {
         startId: 1,
@@ -462,6 +442,7 @@
   }
 
   async function loadSubtitlesAround(targetId: number) {
+    console.debug(`[SyncTab] loadSubtitlesAround(${targetId})`);
     try {
       isLoadingMore = true;
       const halfPage = Math.floor(PAGE_SIZE / 2);
@@ -552,6 +533,7 @@
   }
 
   async function loadAnchors() {
+    console.debug("[SyncTab] loadAnchors");
     try {
       anchors = await invoke<AnchorInfo[]>("sync_get_anchors");
     } catch (e) {
@@ -560,6 +542,7 @@
   }
 
   async function refreshCurrentSubtitles() {
+    console.debug(`[SyncTab] refreshCurrentSubtitles (range ${loadedRangeStart}-${loadedRangeEnd})`);
     if (loadedRangeStart > 0 && loadedRangeEnd > 0) {
       try {
         const count = loadedRangeEnd - loadedRangeStart + 1;
@@ -580,6 +563,11 @@
   }
 
   async function confirmCurrentCheckpoint() {
+    console.debug("[SyncTab] confirmCurrentCheckpoint called");
+    if (isConfirmingCheckpoint) {
+      syncDebug("confirmCurrentCheckpoint ignored (already running)");
+      return;
+    }
     if (!wizardSubtitle) return;
     if (!audioSrc || audioError) {
       showSnackbar(t("sync.needAudioForAnchor"));
@@ -587,8 +575,14 @@
     }
 
     const correctedTime = wizardSubtitle.start_ms + offsetAdjustment;
+    isConfirmingCheckpoint = true;
 
     try {
+      syncDebug("confirmCurrentCheckpoint start", {
+        subtitleId: wizardSubtitle.id,
+        correctedTime: Math.round(correctedTime),
+        offsetAdjustment,
+      });
       status = await invoke<SyncStatus>("sync_add_anchor", {
         subtitleId: wizardSubtitle.id,
         correctedTimeMs: Math.round(correctedTime),
@@ -601,14 +595,21 @@
       });
       wizardSubtitle = updated;
 
-      offsetAdjustment = 0;
+      resetOffset();
       await advanceWizard();
+      syncDebug("confirmCurrentCheckpoint completed", {
+        subtitleId: updated.id,
+      });
     } catch (e) {
       error = `${t("sync.errorAddingAnchor")} ${e}`;
+      syncDebug("confirmCurrentCheckpoint failed", { error: String(e) });
+    } finally {
+      isConfirmingCheckpoint = false;
     }
   }
 
   async function removeAnchor(subtitleId: number) {
+    console.debug(`[SyncTab] removeAnchor(${subtitleId})`);
     try {
       status = await invoke<SyncStatus>("sync_remove_anchor", { subtitleId });
       await refreshCurrentSubtitles();
@@ -623,7 +624,7 @@
     isNavigating = true;
     try {
       wizardSubtitle = sub;
-      offsetAdjustment = 0;
+      resetOffset();
       showSaveSuggestion = false;
       if (!wizardHistory.includes(sub.id)) {
         wizardHistory = [...wizardHistory, sub.id];
@@ -650,6 +651,7 @@
   }
 
   async function saveFile() {
+    console.debug("[SyncTab] saveFile");
     try {
       const selected = await save({
         filters: [{ name: "SRT Files", extensions: ["srt"] }],
@@ -665,6 +667,7 @@
   }
 
   async function saveSession() {
+    console.debug("[SyncTab] saveSession");
     try {
       const selected = await save({
         filters: [{ name: "Session Files", extensions: ["json"] }],
@@ -679,6 +682,7 @@
   }
 
   async function loadSession() {
+    console.debug("[SyncTab] loadSession");
     try {
       const selected = await open({
         filters: [{ name: "Session Files", extensions: ["json"] }],
@@ -699,6 +703,7 @@
 
   async function confirmReset() {
     showResetModal = false;
+    console.debug("[SyncTab] confirmReset");
     try {
       status = await invoke<SyncStatus>("sync_reset");
       cleanupAudioSrc();
@@ -710,7 +715,7 @@
       showSaveSuggestion = false;
       currentVideoTime = 0;
       isPlaying = false;
-      offsetAdjustment = 0;
+      resetOffset();
       loadedRangeStart = 1;
       loadedRangeEnd = 0;
       manualGoToId = "";
@@ -763,7 +768,7 @@
     });
 
     for (const filePath of sortedPaths) {
-      const fileName = filePath.split("/").pop() || filePath;
+      const fileName = getFileName(filePath);
       if (isSrtFile(fileName)) {
         try {
           status = await invoke<SyncStatus>("sync_load_srt", {
@@ -774,6 +779,7 @@
           wizardHistory = [];
           showSaveSuggestion = false;
           await advanceWizard();
+          await tryAutoSelectMediaForSrt(filePath);
         } catch (e: any) {
           error = `${t("sync.errorLoadingSrt")} ${e}`;
         }
@@ -807,7 +813,11 @@
       case " ":
         e.preventDefault();
         if (hasAudio && audioElement) {
-          isPlaying ? audioElement.pause() : audioElement.play();
+          if (isPlaying) {
+            audioElement.pause();
+          } else {
+            void safePlayAudio("keyboard-space");
+          }
         }
         break;
       case "ArrowLeft":
@@ -821,17 +831,17 @@
           audioElement.currentTime += e.shiftKey ? 1 : 0.1;
         break;
       case "ArrowUp":
-        e.preventDefault();
-        if (hasAudio) {
-          offsetAdjustment += e.shiftKey ? 500 : 100;
-          replayCurrentSubtitle();
+        if (wizardSubtitle) {
+          e.preventDefault();
+          updateOffset(e.altKey ? 5000 : e.shiftKey ? 500 : 100);
+          seekToSubtitleStart(wizardSubtitle);
         }
         break;
       case "ArrowDown":
-        e.preventDefault();
-        if (hasAudio) {
-          offsetAdjustment -= e.shiftKey ? 500 : 100;
-          replayCurrentSubtitle();
+        if (wizardSubtitle) {
+          e.preventDefault();
+          updateOffset(-(e.altKey ? 5000 : e.shiftKey ? 500 : 100));
+          seekToSubtitleStart(wizardSubtitle);
         }
         break;
       case "Enter":
@@ -868,14 +878,18 @@
   }
 
   onMount(() => {
+    syncDebug("mount", { active });
     window.addEventListener("keydown", handleKeydown);
     let unlistenDragDrop: (() => void) | null = null;
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (!active) return;
-        if (event.payload.type === "over") isDraggingOver = true;
+        if (event.payload.type === "over") {
+          isDraggingOver = true;
+        }
         else if (event.payload.type === "drop") {
           isDraggingOver = false;
+          syncDebug("file-drop", { count: event.payload.paths.length });
           handleDroppedPaths(event.payload.paths);
         } else if (event.payload.type === "leave") isDraggingOver = false;
       })
@@ -883,6 +897,7 @@
         unlistenDragDrop = fn;
       });
     return () => {
+      syncDebug("unmount");
       window.removeEventListener("keydown", handleKeydown);
       if (unlistenDragDrop) unlistenDragDrop();
       if (singleClickTimer) clearTimeout(singleClickTimer);
@@ -895,13 +910,13 @@
   role="application"
   ondrop={(e) => {
     e.preventDefault();
-    if (!sDraggedPanel && e.dataTransfer?.types.includes("Files")) {
+    if (e.dataTransfer?.types.includes("Files")) {
       isDraggingOver = false;
     }
   }}
   ondragover={(e) => {
     e.preventDefault();
-    if (!sDraggedPanel && e.dataTransfer?.types.includes("Files")) {
+    if (e.dataTransfer?.types.includes("Files")) {
       isDraggingOver = true;
     }
   }}
@@ -914,7 +929,7 @@
     }
   }}
 >
-  {#if isDraggingOver && !sDraggedPanel}
+  {#if isDraggingOver}
     <div
       class="absolute inset-0 z-50 bg-indigo-500/10 border-2 border-dashed border-indigo-400 rounded-2xl flex items-center justify-center pointer-events-none"
     >
@@ -958,11 +973,26 @@
         }
       }
     }}
-    onplay={() => (isPlaying = true)}
-    onpause={() => (isPlaying = false)}
+    onplay={() => {
+      isPlaying = true;
+      syncDebug("audio:onplay", {
+        currentTime: audioElement?.currentTime,
+        duration: audioElement?.duration,
+      });
+    }}
+    onpause={() => {
+      isPlaying = false;
+      syncDebug("audio:onpause", {
+        currentTime: audioElement?.currentTime,
+      });
+    }}
     onloadedmetadata={() => {
       if (audioElement) audioDuration = audioElement.duration;
       audioError = null;
+      syncDebug("audio:onloadedmetadata", {
+        duration: audioElement?.duration,
+        src: audioSrc,
+      });
     }}
     onerror={(e) => {
       const el = e.currentTarget as HTMLMediaElement;
@@ -984,62 +1014,74 @@
       } else {
         audioError = `${codeStr}. ${msg}`;
       }
+      syncDebug("audio:onerror", {
+        code,
+        codeStr,
+        message: msg,
+      });
     }}
     oncanplay={() => {
       audioError = null;
+      syncDebug("audio:oncanplay", {
+        currentTime: audioElement?.currentTime,
+        readyState: audioElement?.readyState,
+      });
+    }}
+    onseeking={() => {
+      syncDebug("audio:onseeking", { currentTime: audioElement?.currentTime });
+    }}
+    onseeked={() => {
+      syncDebug("audio:onseeked", { currentTime: audioElement?.currentTime });
     }}
   ></audio>
 
-  <!-- Reset Layout Button -->
-  <div class="flex justify-end">
-    <button
-      onclick={resetSyncLayout}
-      class="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
-    >
-      <svg
-        class="w-3 h-3"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-        />
-      </svg>
-      {t("flashcards.resetLayout")}
-    </button>
-  </div>
-
   {#snippet panelContent(panelId: SyncPanelId)}
     {#if panelId === "toolbar"}
-      <!-- Toolbar Panel (draggable) -->
       <div class="glass-card flex items-center gap-4 p-4 flex-shrink-0">
-        <div class="flex items-center gap-2 flex-1 max-w-lg">
-          <button
-            onclick={selectSrtFile}
-            class="flex-1 btn-primary py-2 px-4 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
-            title={t("sync.tooltip.loadSrt")}
-          >
-            <svg
-              class="w-8 h-8"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              /></svg
-            >
-            {t("sync.loadSrt")}
-          </button>
-          <div
-            class="text-gray-500 {status?.is_loaded ? 'text-indigo-400' : ''}"
-          >
+        <div class="flex items-center gap-2 flex-1 max-w-2xl">
+          <div class="flex-1 min-w-[180px]">
+            <div class="flex gap-2">
+              <button
+                type="button"
+                onclick={() => {
+                  if (status?.srt_path) expandedPathField = "srt";
+                }}
+                class="input-modern flex-1 text-sm text-left transition-colors truncate {status?.srt_path
+                  ? 'cursor-pointer hover:bg-white/10'
+                  : 'cursor-default hover:bg-transparent'}"
+                style="direction: rtl; text-align: left;"
+                title={status?.srt_path || t("sync.noSrt")}
+              >
+                <span
+                  class={status?.srt_path ? "text-white" : "text-gray-500"}
+                  style="unicode-bidi: plaintext;"
+                >
+                  {status?.srt_path || t("sync.loadSrt")}
+                </span>
+              </button>
+              <button
+                onclick={selectSrtFile}
+                class="btn-primary py-2 px-3 flex items-center justify-center"
+                title={t("sync.tooltip.loadSrt")}
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="text-gray-500 {status?.is_loaded ? 'text-indigo-400' : ''}">
             <svg
               class="w-5 h-5"
               fill="none"
@@ -1053,35 +1095,71 @@
               /></svg
             >
           </div>
-          <button
-            onclick={selectAudioFile}
-            disabled={!status?.is_loaded}
-            class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-30 disabled:cursor-not-allowed py-2 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/30"
-            title={t("sync.tooltip.loadVideo")}
-          >
-            <svg
-              class="w-8 h-8"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              ><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-              /><path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              /></svg
-            >
-            {t("sync.loadAudio")}
-          </button>
+
+          <div class="flex-1 min-w-[180px]">
+            <div class="flex gap-2">
+              <button
+                type="button"
+                onclick={() => {
+                  if (status?.video_path) expandedPathField = "media";
+                }}
+                class="input-modern flex-1 text-sm text-left transition-colors truncate {status?.video_path
+                  ? 'cursor-pointer hover:bg-white/10'
+                  : 'cursor-default hover:bg-transparent'} {!status?.is_loaded ? 'opacity-60' : ''}"
+                style="direction: rtl; text-align: left;"
+                title={status?.video_path || t("sync.noVideo")}
+              >
+                <span
+                  class={status?.video_path ? "text-white" : "text-gray-500"}
+                  style="unicode-bidi: plaintext;"
+                >
+                  {status?.video_path || t("sync.loadAudio")}
+                </span>
+              </button>
+              <button
+                onclick={selectAudioFile}
+                disabled={!status?.is_loaded}
+                class="btn-secondary py-2 px-3 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={t("sync.tooltip.loadVideo")}
+              >
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                  />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="flex-1"></div>
-
+        <div class="relative group">
+          <button
+            type="button"
+            disabled
+            class="hidden lg:flex py-1.5 px-4 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-medium items-center gap-2 opacity-60 cursor-not-allowed transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+            Auto-Sync
+          </button>
+          <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-indigo-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+            Coming soon — requires Whisper model
+          </div>
+        </div>
         {#if status?.is_loaded || audioSrc}
           <button
             onclick={() => (showResetModal = true)}
@@ -1371,7 +1449,9 @@
                   onclick={() =>
                     hasAudio &&
                     audioElement &&
-                    (isPlaying ? audioElement.pause() : audioElement.play())}
+                    (isPlaying
+                      ? audioElement.pause()
+                      : void safePlayAudio("wizard-play-button"))}
                   disabled={!hasAudio}
                   class="w-14 h-14 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   title={isPlaying ? "Pause" : "Play"}
@@ -1419,22 +1499,37 @@
                 >
                   <button
                     onclick={() => {
-                      offsetAdjustment -= 500;
+                      updateOffset(-5000);
                       replayCurrentSubtitle();
                     }}
                     disabled={!hasAudio}
-                    class="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="-500ms">−5</button
+                    class="w-12 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="-5s"
                   >
+                    −5s
+                  </button>
                   <button
                     onclick={() => {
-                      offsetAdjustment -= 100;
+                      updateOffset(-500);
+                      replayCurrentSubtitle();
+                    }}
+                    disabled={!hasAudio}
+                    class="w-12 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="-0.5s"
+                  >
+                    −0.5s
+                  </button>
+                  <button
+                    onclick={() => {
+                      updateOffset(-100);
                       replayCurrentSubtitle();
                     }}
                     disabled={!hasAudio}
                     class="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="-100ms">−</button
+                    title="-100ms"
                   >
+                    −
+                  </button>
                   <div class="flex flex-col items-center min-w-[80px]">
                     <span class="text-xs text-gray-500 uppercase tracking-wide"
                       >{t("sync.offset")}</span
@@ -1451,22 +1546,37 @@
                   </div>
                   <button
                     onclick={() => {
-                      offsetAdjustment += 100;
+                      updateOffset(100);
                       replayCurrentSubtitle();
                     }}
                     disabled={!hasAudio}
                     class="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="+100ms">+</button
+                    title="+100ms"
                   >
+                    +
+                  </button>
                   <button
                     onclick={() => {
-                      offsetAdjustment += 500;
+                      updateOffset(500);
                       replayCurrentSubtitle();
                     }}
                     disabled={!hasAudio}
-                    class="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="+500ms">+5</button
+                    class="w-12 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="+0.5s"
                   >
+                    +0.5s
+                  </button>
+                  <button
+                    onclick={() => {
+                      updateOffset(5000);
+                      replayCurrentSubtitle();
+                    }}
+                    disabled={!hasAudio}
+                    class="w-12 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="+5s"
+                  >
+                    +5s
+                  </button>
                 </div>
 
                 <button
@@ -1815,91 +1925,24 @@
     {/if}
   {/snippet}
 
-  <!-- Toolbar Panel (full-width, above the grid) -->
-  {#each [...syncPanelLayout.col1, ...syncPanelLayout.col2] as sPanelId}
-    {#if sPanelId === "toolbar"}
-      <div class="mb-3">
-        {@render panelContent("toolbar")}
-      </div>
-    {/if}
-  {/each}
+  <div class="mb-3">
+    {@render panelContent("toolbar")}
+  </div>
 
-  <!-- Main Grid: 2 Columns (Drag-and-Drop Reorderable) -->
   <div class="flex-1 grid grid-cols-2 gap-6 min-h-0 overflow-hidden">
-    <div
-      class="flex flex-col gap-3 overflow-y-auto min-h-[100px]"
-      ondragover={(e) => sOnDragOverColumn(e, "col1")}
-      ondrop={() => sOnDropColumn("col1")}
-      role="list"
-    >
-      {#each syncPanelLayout.col1 as sPanelId, idx (sPanelId)}
-        {#if sPanelId !== "toolbar"}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            draggable="true"
-            ondragstart={(e) => sOnDragStart(e, sPanelId)}
-            ondragover={(e) => sOnDragOver(e, "col1", idx)}
-            ondrop={(e) => {
-              e.stopPropagation();
-              sOnDrop("col1", idx);
-            }}
-            ondragend={sOnDragEnd}
-            class="cursor-grab active:cursor-grabbing transition-all duration-150 flex-1 flex flex-col {sDraggedPanel ===
-            sPanelId
-              ? 'opacity-40 scale-[0.98]'
-              : ''} {sDragOverCol === 'col1' &&
-            sDragOverIdx === idx &&
-            sDraggedPanel !== sPanelId
-              ? 'border-t-2 border-cyan-400 pt-1'
-              : ''}"
-            role="listitem"
-          >
-            {@render panelContent(sPanelId)}
-          </div>
-        {/if}
-      {/each}
-      {#if sDraggedPanel && sDragOverCol === "col1" && sDragOverIdx === syncPanelLayout.col1.length}
-        <div class="h-1 bg-cyan-400 rounded-full mx-4 transition-all"></div>
-      {/if}
+    <div class="flex flex-col gap-3 overflow-y-auto min-h-[100px]" role="list">
+      <div class="flex-1 flex flex-col" role="listitem">
+        {@render panelContent("wizard")}
+      </div>
     </div>
 
-    <div
-      class="flex flex-col gap-3 overflow-y-auto min-h-[100px]"
-      ondragover={(e) => sOnDragOverColumn(e, "col2")}
-      ondrop={() => sOnDropColumn("col2")}
-      role="list"
-    >
-      {#each syncPanelLayout.col2 as sPanelId, idx (sPanelId)}
-        {#if sPanelId !== "toolbar"}
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            draggable="true"
-            ondragstart={(e) => sOnDragStart(e, sPanelId)}
-            ondragover={(e) => sOnDragOver(e, "col2", idx)}
-            ondrop={(e) => {
-              e.stopPropagation();
-              sOnDrop("col2", idx);
-            }}
-            ondragend={sOnDragEnd}
-            class="cursor-grab active:cursor-grabbing transition-all duration-150 {sPanelId ===
-            'subtitleList'
-              ? 'flex-1 flex flex-col'
-              : ''} {sDraggedPanel === sPanelId
-              ? 'opacity-40 scale-[0.98]'
-              : ''} {sDragOverCol === 'col2' &&
-            sDragOverIdx === idx &&
-            sDraggedPanel !== sPanelId
-              ? 'border-t-2 border-cyan-400 pt-1'
-              : ''}"
-            role="listitem"
-          >
-            {@render panelContent(sPanelId)}
-          </div>
-        {/if}
-      {/each}
-      {#if sDraggedPanel && sDragOverCol === "col2" && sDragOverIdx === syncPanelLayout.col2.length}
-        <div class="h-1 bg-cyan-400 rounded-full mx-4 transition-all"></div>
-      {/if}
+    <div class="flex flex-col gap-3 overflow-y-auto min-h-[100px]" role="list">
+      <div role="listitem">
+        {@render panelContent("status")}
+      </div>
+      <div class="flex-1 flex flex-col" role="listitem">
+        {@render panelContent("subtitleList")}
+      </div>
     </div>
   </div>
 
@@ -2056,6 +2099,48 @@
           <button onclick={confirmReset} class="btn-danger py-2 px-5 text-sm"
             >OK</button
           >
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if expandedPathField}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={() => (expandedPathField = null)}
+      onkeydown={(e) => {
+        if (e.key === "Escape") expandedPathField = null;
+      }}
+    >
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl p-5 animate-fade-in"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+      >
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-300">
+            {#if expandedPathField === "srt"}SRT Path
+            {:else}Media Path
+            {/if}
+          </h3>
+          <button
+            onclick={() => (expandedPathField = null)}
+            class="text-gray-400 hover:text-white text-lg leading-none">✕</button
+          >
+        </div>
+        <div class="bg-gray-800/80 rounded-lg p-3 border border-gray-700/50">
+          <p class="text-sm text-white font-mono break-all select-all leading-relaxed">
+            {#if expandedPathField === "srt"}
+              {status?.srt_path || ""}
+            {:else}
+              {status?.video_path || ""}
+            {/if}
+          </p>
         </div>
       </div>
     </div>

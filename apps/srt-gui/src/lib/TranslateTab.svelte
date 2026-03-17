@@ -14,6 +14,42 @@
   } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
 
+  // Set of known language codes for smart output filename detection
+  const knownLangCodes = new Set(languages.map((l) => l.code));
+  // Also add common 3-letter ISO 639-2 codes
+  const extraLangCodes = [
+    "eng", "ita", "spa", "fra", "deu", "por", "rus", "jpn", "kor", "zho",
+    "ara", "tur", "pol", "nld", "swe", "nor", "dan", "fin", "ces", "hun",
+    "ron", "ukr", "ell", "heb", "hin", "ind", "msa", "tha", "vie", "isl", "cat",
+  ];
+  for (const c of extraLangCodes) knownLangCodes.add(c);
+
+  /**
+   * Generates a smart output path by detecting and replacing language codes
+   * in the filename. If the last segment before .srt (delimited by - . or _)
+   * is a known language code, it replaces it keeping the same separator.
+   * Otherwise, appends .{targetLang} before .srt.
+   *
+   * Examples:
+   *   Detour-en.srt      → Detour-it.srt
+   *   movie.eng.srt       → movie.it.srt
+   *   sub_fr_720p.srt     → sub_fr_720p.it.srt  (fr is not the LAST segment)
+   *   Movie.srt           → Movie.it.srt
+   */
+  function generateOutputPath(input: string, lang: string): string {
+    // Match: (everything)(separator)(segment).srt
+    // where separator is one of - . _
+    const match = input.match(/^(.+)([\-._])([^\-._]+)\.srt$/i);
+    if (match) {
+      const [, prefix, separator, lastSegment] = match;
+      if (knownLangCodes.has(lastSegment.toLowerCase())) {
+        return `${prefix}${separator}${lang}.srt`;
+      }
+    }
+    // Fallback: append .lang.srt
+    return input.replace(/\.srt$/i, `.${lang}.srt`);
+  }
+
   interface Props {
     onGoToSettings?: () => void;
     active?: boolean;
@@ -37,6 +73,7 @@
     api_keys: string[];
     api_type: string;
     batch_size: number;
+    resume_overlap: number;
     title_context: string | null;
     api_url: string | null;
     model: string | null;
@@ -74,6 +111,7 @@
   let tempSnackbarTimer: ReturnType<typeof setTimeout> | null = null;
   let localCustomModel = $state("");
   let batchSize = $state(15);
+  let resumeOverlap = $state(2);
   let titleContext = $state("");
   let selectedModel = $state("");
 
@@ -157,7 +195,31 @@
     return url.endsWith("/v1") ? `${url}/models` : `${url}/v1/models`;
   }
 
-  async function fetchModelsFromServer(baseUrl: string) {
+  async function fetchModelsFromServer(baseUrl: string, force = false) {
+    // Only cache if it's for the selected custom provider, to avoid mixing URLs.
+    // For local, we don't cache since it runs locally and is fast, but we could. Let's just cache custom.
+    const cacheKey = selectedProviderFamily === "custom" && selectedCustomProviderId
+        ? `vesta-dynamic-models-custom-${selectedCustomProviderId}`
+        : null;
+
+    if (!force && cacheKey) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            fetchedModels = parsed;
+            isFetchingModels = false;
+            fetchModelsError = "";
+            if (!selectedModel || !parsed.find((m) => m.id === selectedModel)) {
+              selectedModel = parsed[0].id;
+            }
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+
     isFetchingModels = true;
     fetchModelsError = "";
     fetchedModels = [];
@@ -184,6 +246,10 @@
 
       if (models.length === 0) throw new Error("No models found");
       fetchedModels = models;
+      if (cacheKey) {
+        localStorage.setItem(cacheKey, JSON.stringify(models));
+      }
+      
       // Auto-select first model if none selected
       if (!selectedModel || !models.find((m) => m.id === selectedModel)) {
         selectedModel = models[0].id;
@@ -242,7 +308,7 @@
       inputPath = srtFile;
       await loadFileInfo();
       if (!outputPath) {
-        outputPath = inputPath.replace(/\.srt$/i, `.${targetLang}.srt`);
+        outputPath = generateOutputPath(inputPath, targetLang);
       }
     }
   }
@@ -283,14 +349,21 @@
     const currentLang = targetLang;
     if (currentLang !== previousTargetLang) {
       if (inputPath && outputPath) {
-        if (outputPath.endsWith(`.${previousTargetLang}.srt`)) {
+        // Try to replace the previous lang code using separator-aware pattern
+        const prevLangPattern = new RegExp(
+          `([\\-._])${previousTargetLang.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.srt$`,
+          "i"
+        );
+        if (prevLangPattern.test(outputPath)) {
+          outputPath = outputPath.replace(prevLangPattern, `$1${currentLang}.srt`);
+        } else if (outputPath.endsWith(`.${previousTargetLang}.srt`)) {
           outputPath = outputPath.replace(
             new RegExp(`\\.${previousTargetLang}\\.srt$`, "i"),
             `.${currentLang}.srt`,
           );
         }
       } else if (inputPath && !outputPath) {
-        outputPath = inputPath.replace(/\.srt$/i, `.${currentLang}.srt`);
+        outputPath = generateOutputPath(inputPath, currentLang);
       }
       previousTargetLang = currentLang;
     }
@@ -311,13 +384,34 @@
 
 
   // Fetch models dynamically for managed providers (Google, Groq)
-  async function fetchProviderModels(family: string) {
+  async function fetchProviderModels(family: string, force = false) {
     if (family !== "google" && family !== "groq") return;
     
     // Find the right API key
     const currentKeys = apiKeys.filter((k) => k.apiType === family && k.apiKey && k.apiKey.trim());
     if (currentKeys.length === 0) return;
     const apiKey = currentKeys[0].apiKey.trim();
+
+    // Cache key based on family and a short hash/prefix of the API key to detect changes
+    const cacheKey = `vesta-dynamic-models-${family}-${apiKey.substring(0, 8)}`;
+
+    if (!force) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            fetchedModels = parsed;
+            isFetchingModels = false;
+            fetchModelsError = "";
+            if (!selectedModel || !parsed.find((m) => m.id === selectedModel)) {
+              selectedModel = parsed[0].id;
+            }
+            return;
+          }
+        } catch (e) {}
+      }
+    }
 
     isFetchingModels = true;
     fetchModelsError = "";
@@ -345,14 +439,21 @@
       let models = extractModelsFromPayload(data);
       if (models.length === 0) throw new Error("No models found dynamically");
 
-      // For Google, strip 'models/' prefix from the ID, use displayName if available
+      // For Google, strip 'models/' prefix from the ID, use displayName if available,
+      // and filter to only show models that support text generation (generateContent)
       if (family === "google") {
         if (data && typeof data === "object" && Array.isArray((data as any).models)) {
-          models = (data as any).models.map((m: any) => {
-             const id = m.name?.replace("models/", "") || m.id;
-             const name = m.displayName || id;
-             return { id, name };
-          });
+          models = (data as any).models
+            .filter((m: any) => {
+              // Only show models that support generateContent (text generation)
+              const methods: string[] = m.supportedGenerationMethods || [];
+              return methods.includes("generateContent");
+            })
+            .map((m: any) => {
+               const id = m.name?.replace("models/", "") || m.id;
+               const name = m.displayName || id;
+               return { id, name };
+            });
         } else {
              models = models.map(m => {
                  const id = m.id.replace("models/", "");
@@ -361,7 +462,39 @@
         }
       }
 
+      if (models.length === 0) throw new Error("No usable text generation models found");
+
+      // For Google, probe each model with generateContent to check actual accessibility.
+      if (family === "google") {
+        const probeResults = await Promise.allSettled(
+          models.map(async (m) => {
+            const probeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m.id}:generateContent?key=${apiKey}`;
+            const probeResp = await tauriFetch(probeUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: "hi" }] }],
+                generationConfig: { maxOutputTokens: 1 },
+              }),
+              signal: AbortSignal.timeout(8000),
+            });
+            if (!probeResp.ok) {
+              throw new Error(`HTTP ${probeResp.status}`);
+            }
+            return m;
+          })
+        );
+        const accessibleModels = probeResults
+          .filter((r): r is PromiseFulfilledResult<{ id: string; name: string }> => r.status === "fulfilled")
+          .map((r) => r.value);
+        if (accessibleModels.length > 0) {
+          models = accessibleModels;
+        }
+        // If all probes fail, keep original list as fallback
+      }
+
       fetchedModels = models;
+      localStorage.setItem(cacheKey, JSON.stringify(models));
 
       // Auto-select first model if current one is not in the list
       if (!selectedModel || !models.find((m) => m.id === selectedModel)) {
@@ -536,7 +669,7 @@
         await loadFileInfo();
 
         if (!outputPath) {
-          outputPath = inputPath.replace(/\.srt$/i, `.${targetLang}.srt`);
+          outputPath = generateOutputPath(inputPath, targetLang);
         }
       }
     } catch (e) {
@@ -649,6 +782,7 @@
       api_keys: keysToSend,
       api_type: selectedProviderFamily,
       batch_size: batchSize,
+      resume_overlap: resumeOverlap,
       title_context: titleContext || null,
       api_url: apiUrl,
       model: effectiveModel || null,
@@ -698,6 +832,17 @@
     } catch (e) {
       error = `${t("translate.errorCancelling")} ${e}`;
     }
+  }
+
+  function resetTranslation() {
+    result = null;
+    error = null;
+    progress = null;
+    logs = [];
+    translatedPairs = [];
+    inputPath = "";
+    outputPath = "";
+    fileInfo = null;
   }
 
   function formatEta(seconds: number | null): string {
@@ -965,12 +1110,11 @@
                 </button>
 
                 <!-- Provider Personalizzato -->
-                <div class="relative group">
+                <div class="relative group/provider">
                 <button
                   type="button"
-                  disabled={!hasCustomKey}
                   onclick={() => {
-                    if (!hasCustomKey) return;
+                    if (!hasCustomKey) { handleGoToSettings(); return; }
                     selectedProviderFamily = "custom";
                     providerConfirmed = true;
                   }}
@@ -978,7 +1122,7 @@
                     {selectedProviderFamily === 'custom'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
-                    {!hasCustomKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
+                    {!hasCustomKey ? 'opacity-50 cursor-pointer hover:bg-white/5' : ''}"
                 >
                   <div
                     class="w-7 h-7 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasCustomKey ? 'grayscale' : ''}"
@@ -997,19 +1141,18 @@
                   </div>
                 </button>
                 {#if !hasCustomKey}
-                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                     {t("translate.noKeyTooltip")}
                   </div>
                 {/if}
                 </div>
 
                 <!-- Google Gemini -->
-                <div class="relative group">
+                <div class="relative group/provider">
                 <button
                   type="button"
-                  disabled={!hasGoogleKey}
                   onclick={() => {
-                    if (!hasGoogleKey) return;
+                    if (!hasGoogleKey) { handleGoToSettings(); return; }
                     selectedProviderFamily = "google";
                     providerConfirmed = true;
                   }}
@@ -1017,7 +1160,7 @@
                     {selectedProviderFamily === 'google'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
-                    {!hasGoogleKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
+                    {!hasGoogleKey ? 'opacity-50 cursor-pointer hover:bg-white/5' : ''}"
                 >
                   <div
                     class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasGoogleKey ? 'grayscale' : ''}"
@@ -1036,19 +1179,18 @@
                   </div>
                 </button>
                 {#if !hasGoogleKey}
-                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                     {t("translate.noKeyTooltip")}
                   </div>
                 {/if}
                 </div>
 
                 <!-- Groq API -->
-                <div class="relative group">
+                <div class="relative group/provider">
                 <button
                   type="button"
-                  disabled={!hasGroqKey}
                   onclick={() => {
-                    if (!hasGroqKey) return;
+                    if (!hasGroqKey) { handleGoToSettings(); return; }
                     selectedProviderFamily = "groq";
                     providerConfirmed = true;
                   }}
@@ -1056,7 +1198,7 @@
                     {selectedProviderFamily === 'groq'
                     ? 'bg-indigo-500/20 border-indigo-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}
-                    {!hasGroqKey ? 'opacity-50 cursor-not-allowed hover:bg-white/5' : ''}"
+                    {!hasGroqKey ? 'opacity-50 cursor-pointer hover:bg-white/5' : ''}"
                 >
                   <div
                     class="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white shadow-lg flex-shrink-0 {!hasGroqKey ? 'grayscale' : ''}"
@@ -1073,7 +1215,7 @@
                   </div>
                 </button>
                 {#if !hasGroqKey}
-                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 border border-white/10 text-xs text-amber-300 rounded-lg shadow-xl opacity-0 group-hover/provider:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                     {t("translate.noKeyTooltip")}
                   </div>
                 {/if}
@@ -1215,9 +1357,32 @@
           <!-- Model selector (shown for all confirmed providers) -->
           {#if providerConfirmed && (selectedProviderFamily !== "custom" || (selectedCustomProviderId && availableModels.length > 0))}
             <div>
-              <label for="model-select" class="block text-sm text-gray-400 mb-1"
-                >{t("translate.model")}</label
-              >
+              <div class="flex items-center justify-between mb-1">
+                <label for="model-select" class="block text-sm text-gray-400"
+                  >{t("translate.model")}</label
+                >
+                {#if selectedProviderFamily === "google" || selectedProviderFamily === "groq" || selectedProviderFamily === "local" || selectedProviderFamily === "custom"}
+                  <button
+                    type="button"
+                    onclick={() => {
+                        if (selectedProviderFamily === "local" || selectedProviderFamily === "custom") {
+                            const url = selectedProviderFamily === "local" ? localServerUrl : apiKeys.find((k) => k.id === selectedCustomProviderId)?.apiUrl;
+                            if (url) fetchModelsFromServer(url, true);
+                        } else {
+                            fetchProviderModels(selectedProviderFamily, true);
+                        }
+                    }}
+                    disabled={isFetchingModels}
+                    class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                    title={t("translate.refetchModelsTooltip")}
+                  >
+                    <svg class="w-3 h-3 {isFetchingModels ? 'animate-spin' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh
+                  </button>
+                {/if}
+              </div>
               {#if availableModels.length === 0 && (selectedProviderFamily === "local" || selectedProviderFamily === "custom")}
                 <p class="text-xs text-gray-500 italic py-2">{t("translate.fetchModelsHint")}</p>
               {/if}
@@ -1327,10 +1492,6 @@
                     </svg>
                   </button>
                 </span>
-                <span
-                  class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-xs"
-                  >{batchSize} {t("translate.subPerBatch")}</span
-                >
               </div>
               <div class="grid grid-cols-4 gap-2">
                 <button
@@ -1340,11 +1501,13 @@
                     ? 'bg-green-500/20 border-green-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                 >
-                  <span class="text-base block mb-0.5">🎯</span>
-                  <span class="font-semibold block"
-                    >{t("translate.batchPrecise")}</span
-                  >
-                  <span class="text-[10px] text-gray-500 block">5 sub</span>
+                  <span class="block mb-1 text-white">
+                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="8" stroke-width="1.8" />
+                      <circle cx="12" cy="12" r="2" stroke-width="1.8" />
+                    </svg>
+                  </span>
+                  <span class="font-semibold block">{t("translate.batchPrecise")}</span>
                 </button>
                 <button
                   onclick={() => setBatchPreset("balanced")}
@@ -1353,11 +1516,15 @@
                     ? 'bg-green-500/20 border-green-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                 >
-                  <span class="text-base block mb-0.5">⚖️</span>
-                  <span class="font-semibold block"
-                    >{t("translate.batchBalanced")}</span
-                  >
-                  <span class="text-[10px] text-gray-500 block">15 sub</span>
+                  <span class="block mb-1 text-white">
+                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 8h12" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 8l-2.5 4h5L8 8z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 8l-2.5 4h5L16 8z" />
+                    </svg>
+                  </span>
+                  <span class="font-semibold block">{t("translate.batchBalanced")}</span>
                 </button>
                 <button
                   onclick={() => setBatchPreset("fast")}
@@ -1366,11 +1533,13 @@
                     ? 'bg-green-500/20 border-green-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                 >
-                  <span class="text-base block mb-0.5">🚀</span>
-                  <span class="font-semibold block"
-                    >{t("translate.batchFast")}</span
-                  >
-                  <span class="text-[10px] text-gray-500 block">30 sub</span>
+                  <span class="block mb-1 text-white">
+                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 15l5-5 3 3 6-6" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M14 7h5v5" />
+                    </svg>
+                  </span>
+                  <span class="font-semibold block">{t("translate.batchFast")}</span>
                 </button>
                 <button
                   onclick={() => setBatchPreset("turbo")}
@@ -1379,15 +1548,44 @@
                     ? 'bg-green-500/20 border-green-500/50 text-white'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                 >
-                  <span class="text-base block mb-0.5">⚡</span>
-                  <span class="font-semibold block"
-                    >{t("translate.batchTurbo")}</span
-                  >
-                  <span class="text-[10px] text-gray-500 block">50 sub</span>
+                  <span class="block mb-1 text-white">
+                    <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 3L6 13h5l-1 8 8-12h-5l2-6h-4z" />
+                    </svg>
+                  </span>
+                  <span class="font-semibold block">{t("translate.batchTurbo")}</span>
                 </button>
               </div>
+              <div class="mt-2 flex items-center justify-between text-xs">
+                <span class="text-gray-500">batch size</span>
+                <span
+                  class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-sm"
+                  >{batchSize} {t("translate.subPerBatch")}</span
+                >
+              </div>
             </div>
-            <div>
+            <div class="mt-4">
+              <div class="flex items-center justify-between mb-2">
+                <label for="overlap-input" class="text-sm text-gray-400">
+                  Resume Overlap Offset
+                </label>
+                <div class="flex items-center gap-2">
+                  <span class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-xs">{resumeOverlap} sub</span>
+                </div>
+              </div>
+              <input
+                id="overlap-input"
+                type="range"
+                min="0"
+                max="10"
+                step="1"
+                bind:value={resumeOverlap}
+                class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-green-500"
+              />
+              <p class="text-[10px] text-gray-500 mt-1">Number of previously translated subtitles to re-send to the LLM for context when resuming.</p>
+            </div>
+            
+            <div class="mt-4">
               <label
                 for="context-input"
                 class="block text-sm text-gray-400 mb-1"
@@ -1574,6 +1772,16 @@
               />
             </svg>
             {t("translate.cancel")}
+          </button>
+        {:else if result || error}
+          <button
+            onclick={resetTranslation}
+            class="btn-secondary flex-1 py-4 text-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-all font-semibold"
+          >
+            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            New Translation
           </button>
         {:else}
           <button
@@ -1895,24 +2103,37 @@
       {#each translatePanelLayout.col1 as trPanelId, idx (trPanelId)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          draggable="true"
-          ondragstart={(e) => trOnDragStart(e, trPanelId)}
           ondragover={(e) => trOnDragOver(e, "col1", idx)}
           ondrop={(e) => {
             e.stopPropagation();
             trOnDrop("col1", idx);
           }}
-          ondragend={trOnDragEnd}
-          class="cursor-grab active:cursor-grabbing transition-all duration-150 {trDraggedPanel ===
+          class="relative group transition-all duration-150 flex-1 flex flex-col {trDraggedPanel ===
           trPanelId
             ? 'opacity-40 scale-[0.98]'
             : ''} {trDragOverCol === 'col1' &&
           trDragOverIdx === idx &&
           trDraggedPanel !== trPanelId
-            ? 'border-t-2 border-green-400 pt-1'
+            ? 'border-t-2 border-indigo-400 pt-1'
             : ''}"
           role="listitem"
         >
+          <!-- Drag Handle -->
+          <div
+            draggable="true"
+            ondragstart={(e) => {
+              const parent = (e.currentTarget as HTMLElement).parentElement;
+              if (e.dataTransfer && parent) {
+                e.dataTransfer.setDragImage(parent, 20, 20);
+              }
+              trOnDragStart(e, trPanelId);
+            }}
+            ondragend={trOnDragEnd}
+            class="absolute top-2 right-2 p-1.5 bg-gray-800/80 backdrop-blur border border-white/10 rounded-md cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-gray-700/80 hover:text-indigo-400 text-gray-400"
+            title="Drag to reposition panel"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" /></svg>
+          </div>
           {@render panelContent(trPanelId)}
         </div>
       {/each}

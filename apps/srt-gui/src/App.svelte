@@ -10,8 +10,9 @@
   import SyncTab from "./lib/SyncTab.svelte";
   import TranscribeTab from "./lib/TranscribeTab.svelte";
   import TranslateTab from "./lib/TranslateTab.svelte";
+  import AlignTab from "./lib/AlignTab.svelte";
 
-  let activeTab = $state<"translate" | "sync" | "transcribe" | "flashcards" | "settings" | "shortcuts">("flashcards");
+  let activeTab = $state<"translate" | "sync" | "transcribe" | "align" | "flashcards" | "settings" | "shortcuts">("translate");
   let sidebarCollapsed = $state(false);
 
   const MIN_WIDTH = 1440;
@@ -74,7 +75,10 @@
       <SyncTab active={activeTab === "sync"} />
     </div>
     <div class="absolute inset-0" class:hidden={activeTab !== "transcribe"}>
-      <TranscribeTab />
+      <TranscribeTab onGoToSettings={() => (activeTab = "settings")} />
+    </div>
+    <div class="absolute inset-0" class:hidden={activeTab !== "align"}>
+      <AlignTab />
     </div>
     <div class="absolute inset-0" class:hidden={activeTab !== "flashcards"}>
       <FlashcardsTab active={activeTab === "flashcards"} />

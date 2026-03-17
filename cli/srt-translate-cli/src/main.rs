@@ -50,6 +50,8 @@ struct ProviderConfig {
 #[derive(Debug, Deserialize)]
 struct TranslationConfig {
     batch_size: usize,
+    #[serde(default)]
+    resume_overlap: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -323,9 +325,10 @@ async fn main() -> Result<()> {
         let api_type = match provider.provider.as_str() {
             "local" => ApiType::Local,
             "google" | "gemini" => ApiType::Google,
+            "groq" => ApiType::Groq,
             // OpenRouter e altri sono disabilitati
             _ => {
-                eprintln!("⚠️ Provider '{}' non supportato. Usa 'local' o 'google'.", provider.provider);
+                eprintln!("⚠️ Provider '{}' non supportato. Usa 'local', 'groq' o 'google'.", provider.provider);
                 continue;
             }
         };
@@ -335,6 +338,7 @@ async fn main() -> Result<()> {
             ApiType::Local => "http://localhost:1234/v1",
             ApiType::Google => "https://generativelanguage.googleapis.com/v1beta",
             ApiType::OpenRouter => "https://openrouter.ai/api/v1", // Non usato
+            ApiType::Groq => "https://api.groq.com/openai/v1",
         };
 
         let workers = provider.workers_per_key.unwrap_or(1);
@@ -356,13 +360,13 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Esegui la traduzione con rate limiting (clona per poterli riusare nel repair)
     let mut translated = translate_subtitles_with_rate_limit(
         translators.clone(),
         Some(rate_limiters.clone()),
         original_subtitles.clone(),
         language,
         config.translation.batch_size,
+        config.translation.resume_overlap.unwrap_or(2),
         title_context.as_deref(),
         &output_path,
         cli_progress_handler,

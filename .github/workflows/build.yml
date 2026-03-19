@@ -8,10 +8,11 @@ on:
 
 env:
   TAURI_APP_DIR: apps/srt-gui
+  WHISPER_DONT_GENERATE_BINDINGS: "1"
 
 jobs:
   # ===========================================================
-  # Build Linux (.deb .rpm .AppImage)
+  # Build Linux (.deb .rpm)
   # ===========================================================
   build-linux:
     name: Build (linux)
@@ -63,6 +64,17 @@ jobs:
         working-directory: ${{ env.TAURI_APP_DIR }}
         run: npm ci
 
+      - name: Normalize line endings for bash validation
+        shell: bash
+        run: |
+          sed -i 's/\r$//' build-scripts/check_internal_crate_versions.sh
+          sed -i 's/\r$//' build-scripts/PKGBUILD
+          sed -i 's/\r$//' Cargo.toml
+
+      - name: Validate internal crate versions
+        shell: bash
+        run: bash build-scripts/check_internal_crate_versions.sh
+
       - name: Generate platform icons
         working-directory: ${{ env.TAURI_APP_DIR }}
         run: npx tauri icon src-tauri/icons/icon.png -o src-tauri/icons
@@ -74,7 +86,7 @@ jobs:
           NO_STRIP: true
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-        run: npx tauri build --bundles deb,rpm,appimage
+        run: npx tauri build --bundles deb,rpm
 
       - name: Upload DEB
         uses: actions/upload-artifact@v4
@@ -87,12 +99,6 @@ jobs:
         with:
           name: vesta-linux-rpm
           path: target/release/bundle/rpm/*.rpm
-
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: vesta-linux-appimage
-          path: target/release/bundle/appimage/*.AppImage
 
   # ===========================================================
   # Arch Linux Package (depends on core linux build)
@@ -162,11 +168,11 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download AppImage artifact
+      - name: Download DEB artifact
         uses: actions/download-artifact@v4
         with:
-          name: vesta-linux-appimage
-          path: appimage-artifact
+          name: vesta-linux-deb
+          path: deb-artifact
 
       - name: Flatpak Build
         run: |
@@ -175,14 +181,14 @@ jobs:
           sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           sudo flatpak install -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
 
-          APPIMAGE=$(find appimage-artifact -name "*.AppImage" | head -n 1)
-          chmod +x "$APPIMAGE"
-          "$APPIMAGE" --appimage-extract
+          DEB_FILE=$(find deb-artifact -name "*.deb" | head -n 1)
+          mkdir -p extracted-deb
+          dpkg-deb -x "$DEB_FILE" extracted-deb
 
           mkdir -p build-scripts/flatpak-files
-          BINARY=$(find squashfs-root -name "vesta" -type f -executable | head -1)
+          BINARY=$(find extracted-deb/usr/bin -name "vesta" -type f -executable | head -1)
           if [ -z "$BINARY" ]; then
-            BINARY=$(find squashfs-root/usr/bin -type f -executable | head -1)
+            BINARY=$(find extracted-deb -name "vesta" -type f -executable | head -1)
           fi
           cp "$BINARY" build-scripts/flatpak-files/vesta
 
@@ -243,6 +249,17 @@ jobs:
         working-directory: ${{ env.TAURI_APP_DIR }}
         run: npm ci
 
+      - name: Normalize line endings for bash validation (windows)
+        shell: bash
+        run: |
+          sed -i 's/\r$//' build-scripts/check_internal_crate_versions.sh
+          sed -i 's/\r$//' build-scripts/PKGBUILD
+          sed -i 's/\r$//' Cargo.toml
+
+      - name: Validate internal crate versions
+        shell: bash
+        run: bash build-scripts/check_internal_crate_versions.sh
+
       - name: Generate platform icons
         working-directory: ${{ env.TAURI_APP_DIR }}
         run: npx tauri icon src-tauri/icons/icon.png -o src-tauri/icons
@@ -296,7 +313,7 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -type f \( \
-            -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \
+            -name "*.deb" -o -name "*.rpm" \
             -o -name "*.exe" -o -name "*.msi" \
             -o -name "*.pkg.tar.zst" -o -name "*.flatpak" \
           \) -exec cp {} release/ \;

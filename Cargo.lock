@@ -4270,7 +4270,7 @@ dependencies = [
 
 [[package]]
 name = "srt-extract"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4290,7 +4290,7 @@ dependencies = [
 
 [[package]]
 name = "srt-parser"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4298,7 +4298,7 @@ dependencies = [
 
 [[package]]
 name = "srt-sync"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4308,7 +4308,7 @@ dependencies = [
 
 [[package]]
 name = "srt-translate"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "governor",
@@ -5407,7 +5407,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vesta"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5737,8 +5737,6 @@ dependencies = [
 [[package]]
 name = "whisper-rs-sys"
 version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e2a6e06e7ac7b8f53c53a5f50bb0bc823ba69b63ecd887339f807a5598bbd2"
 dependencies = [
  "bindgen",
  "cfg-if",

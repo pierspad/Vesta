@@ -30,12 +30,17 @@ echo "=================================="
 # ── Allinea prima tutti i file ───────────────────────────────
 echo -e "${YELLOW}🔄 Allineamento informazioni progetto...${NC}"
 bash "$SCRIPT_DIR/update_project_info.sh"
+echo -e "${YELLOW}🔎 Verifica coerenza versioni interne...${NC}"
+bash "$SCRIPT_DIR/check_internal_crate_versions.sh"
 echo ""
 
 # ── Build del .deb con Tauri ─────────────────────────────────
 TAURI_DIR="$PROJECT_ROOT/apps/srt-gui"
 echo -e "${YELLOW}📦 Build Tauri (.deb)...${NC}"
 cd "$TAURI_DIR"
+
+# Usa i binding vendorizzati di whisper-rs-sys per evitare mismatch bindgen host-dependent.
+export WHISPER_DONT_GENERATE_BINDINGS=1
 
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}   Installazione dipendenze frontend...${NC}"

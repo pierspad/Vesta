@@ -37,6 +37,10 @@ echo -e "${YELLOW}🔄 Esecuzione update_project_info.sh...${NC}"
 bash "$SCRIPT_DIR/update_project_info.sh"
 echo ""
 
+echo -e "${YELLOW}🔎 Verifica finale coerenza versioni interne...${NC}"
+bash "$SCRIPT_DIR/check_internal_crate_versions.sh"
+echo ""
+
 # ── Verifica e modifica release-notes ─────────────────────────
 RELEASE_NOTES="$PROJECT_ROOT/docs/release-notes.md"
 if [ ! -f "$RELEASE_NOTES" ]; then

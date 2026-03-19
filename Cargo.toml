@@ -24,3 +24,6 @@ srt-sync = { path = "./lib/srt-sync", version = "0.3.0" }
 [profile.release]
 lto = "thin"
 codegen-units = 16
+
+[patch.crates-io]
+whisper-rs-sys = { path = "vendor/whisper-rs-sys-0.14.1" }

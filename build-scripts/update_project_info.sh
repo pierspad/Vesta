@@ -164,6 +164,22 @@ if [ -f "$WORKSPACE_CARGO" ]; then
     update_file "$WORKSPACE_CARGO" "internal crate versions"
 fi
 
+# ===========================================================
+# 7. Internal crate Cargo.toml package versions (core/lib)
+# ===========================================================
+while IFS= read -r crate_toml; do
+    # Aggiorna la prima occorrenza di version nel file (sezione [package])
+    sed -i "0,/^version = \".*\"/s//version = \"${VERSION}\"/" "$crate_toml"
+    update_file "$crate_toml" "package version"
+done < <(find "$PROJECT_ROOT/core" "$PROJECT_ROOT/lib" -mindepth 2 -maxdepth 2 -name Cargo.toml | sort)
+
+# ===========================================================
+# 8. Verifica coerenza versioni interne
+# ===========================================================
+echo ""
+echo -e "${YELLOW}🔎 Verifica coerenza versioni crate interni...${NC}"
+bash "$SCRIPT_DIR/check_internal_crate_versions.sh"
+
 echo ""
 if [ $ERRORS -gt 0 ]; then
     echo -e "${RED}⚠ Completato con $ERRORS errori${NC}"

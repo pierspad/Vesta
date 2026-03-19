@@ -1,6 +1,7 @@
 # Maintainer: Pierpaolo Spadafora <pierpaolospadafora@proton.me>
 pkgname=vesta-bin
 _pkgname=vesta
+_srcname=VESTA 
 _appid=com.vesta.desktop
 pkgver=0.3.0
 pkgrel=1
@@ -26,15 +27,15 @@ depends=(
     'gst-libav'
 )
 
-provides=("${_pkgname}")
-conflicts=("${_pkgname}")
+provides=("${_pkgname}" "VESTA" "Vesta" "vesta")
+conflicts=("${_pkgname}" "VESTA" "Vesta" "vesta")
 options=('!debug')
 
-source=("${_pkgname}-${pkgver}.deb::${url}/releases/download/v${pkgver}/${_pkgname}_${pkgver}_amd64.deb"
+source=("${_pkgname}-${pkgver}.deb::${url}/releases/download/v${pkgver}/${_srcname}_${pkgver}_amd64.deb"
         "LICENSE::https://raw.githubusercontent.com/pierspad/VESTA/main/LICENSE")
 
-sha256sums=('0000000000000000000000000000000000000000000000000000000000000000'
-            'SKIP')
+sha256sums=('83bdb810ff7f1fa3c8acc5588094b24396ceb81364826b51c71e26fa8769919e'
+            '144ee8f9fbaee3025c001b0b0e854eb6a80c1025a6548ead97ab5fb90df7aca6')
 
 package() {
     bsdtar -O -xf "${srcdir}/${_pkgname}-${pkgver}.deb" data.tar* | bsdtar -C "${pkgdir}" -xvf -

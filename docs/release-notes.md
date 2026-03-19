@@ -1,1 +1,1 @@
-##### small fixes, polishing and windows build fixed
+##### ui and core logic corrections, added new tab for subs completion

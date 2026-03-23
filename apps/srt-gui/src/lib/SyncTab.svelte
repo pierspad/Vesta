@@ -1300,9 +1300,7 @@
       </div>
     {:else if panelId === "wizard"}
       <div class="glass-card relative flex flex-col h-full overflow-hidden">
-        <div
-          class="p-3 border-b border-white/10 flex items-center gap-2 flex-shrink-0"
-        >
+        <div class="p-3 flex items-center gap-2 flex-shrink-0">
           <svg
             class="w-5 h-5 text-indigo-400"
             fill="none"
@@ -1888,9 +1886,7 @@
         class="glass-card flex-1 overflow-hidden flex flex-col"
         style="min-height: 200px;"
       >
-        <div
-          class="p-4 border-b border-white/10 flex-shrink-0 flex items-center gap-2"
-        >
+        <div class="p-4 flex-shrink-0 flex items-center gap-2">
           <svg
             class="w-4 h-4 text-purple-400"
             fill="none"
@@ -2200,7 +2196,7 @@
           >
         </div>
         <div
-          class="text-gray-300 text-sm leading-relaxed max-h-[60vh] overflow-y-auto"
+          class="text-gray-300 text-sm leading-relaxed max-h-[60vh] overflow-y-auto help-content"
         >
           {#if helpSection === "wizard"}
             {@html t("sync.wizardHelp")}

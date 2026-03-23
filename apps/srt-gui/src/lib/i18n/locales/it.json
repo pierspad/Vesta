@@ -525,7 +525,7 @@
   "shortcuts.resetDefault": "Ripristina predefinito",
   "settings.googleProviderTip": "Per usare la traduzione, hai bisogno di una chiave API Google Cloud con l'API Cloud Translation attivata.",
   "settings.localProviderTip": "Con un provider locale, Ollama + un modello come gemma3 eseguono la traduzione in locale, senza costi e senza invio di dati esterni.",
-  "settings.groqProviderTip": "Inferenza ultra-veloce con Groq LPU. Richiede una chiave API gsk_ da console.groq.com.",
+  "settings.groqProviderTip": "Inferenza ultra-veloce tramite Groq LPU. Richiede una chiave API gsk_ da console.groq.com.",
   "settings.customProviderTip": "Connetti qualsiasi endpoint compatibile OpenAI (OpenRouter, Together, ecc.). Configura URL e chiave API opzionale.",
   "flashcards.newGeneration": "Nuova Generazione",
   "flashcards.newGenerationDesc": "Reimposta tutti i campi per avviare una nuova generazione",
@@ -677,10 +677,10 @@
   "shortcuts.category.alignment.desc": "Scorciatoie per la revisione sottotitoli",
   "shortcuts.action.alignNextPage": "Pagina sottotitoli successiva",
   "shortcuts.action.alignPrevPage": "Pagina sottotitoli precedente",
-  "shortcuts.action.alignSwapFiles": "Scambia file target e sorgente",
+  "shortcuts.action.alignSwapFiles": "Scambia ordine file",
   "shortcuts.action.alignUndo": "Annulla ultima modifica",
   "shortcuts.action.alignSave": "Salva risultato",
   "shortcuts.action.alignCyclePerPage": "Cicla sottotitoli visibili (5/10/15)",
   "align.helpTitle": "Assistente Revisione",
-  "align.helpContent": "<p>Questa tab serve a <b>completare e correggere la traduzione dei sottotitoli</b> in modo rapido, con un flusso affiancato.</p><ul class='list-disc pl-4 mt-2 space-y-1'><li><b>Target SRT (Riferimento)</b> — Carica la traccia più affidabile (di solito originale o versione migliore).</li><li><b>Source SRT (Da Correggere)</b> — Carica il file tradotto da rifinire e completare.</li><li><b>Caricamento intelligente</b> — Dopo la selezione di un file, VESTA prova a trovare automaticamente il file compagno nella stessa cartella.</li><li><b>Accoppiamento per ID</b> — Le righe vengono allineate per numero sottotitolo; le voci mancanti vengono aggiunte automaticamente per mantenere le due colonne sincronizzate.</li><li><b>Scambia file</b> — Inverti target/source al volo per confrontare da prospettiva opposta.</li><li><b>Navigazione rapida</b> — Vai pagina per pagina, salta a inizio/fine o passa direttamente ai sottotitoli vuoti per completare i mancanti.</li><li><b>Colonna destra modificabile</b> — Correggi il testo lato source mantenendo il contesto temporale di entrambe le tracce.</li><li><b>Annulla e salvataggio sicuro</b> — Usa Ctrl+Z per annullare modifiche recenti ed esporta un nuovo file con suffisso dedicato.</li></ul><p class='mt-2 text-gray-400 text-xs'>Suggerimento: usa questa tab dopo la traduzione AI per rifinire tono, correggere omissioni e fare il controllo qualità finale prima dell'export.</p>"
+  "align.helpContent": "<p>Questa tab serve a <b>controllare e correggere i sottotitoli</b> in modo rapido, con un flusso di lavoro affiancato.</p><ul class='list-disc pl-4 mt-2 space-y-1'><li><b>1st SRT</b> — Carica il file di sottotitoli di base.</li><li><b>2nd SRT</b> — Carica il secondo file.</li><li><b>Caricamento intelligente</b> — Dopo la selezione di un file, VESTA prova a trovare automaticamente il compagno nella stessa cartella.</li><li><b>Accoppiamento per ID</b> — Le righe vengono allineate per numero di sottotitolo; le voci mancanti vengono aggiunte automaticamente per mantenere le due colonne sincronizzate.</li><li><b>Scambia file</b> — Inverti istantaneamente l'ordine dei file per confrontare dalla prospettiva opposta.</li><li><b>Navigazione rapida</b> — Scorri pagina per pagina, salta alla prima/ultima pagina o vai direttamente ai sottotitoli vuoti per completare le traduzioni mancanti.</li><li><b>Colonna destra modificabile</b> — Correggi il testo nella colonna di destra, conservando il riferimento temporale di entrambe le tracce.</li><li><b>Annulla e salva sicura</b> — Usa Ctrl+Z per annullare modifiche recenti ed esporta un nuovo file con un suffisso dedicato.</li></ul>"
 }

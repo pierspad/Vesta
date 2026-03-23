@@ -13,6 +13,7 @@
     type ApiKeyConfig,
   } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
+import LogPanel, { type LogEntry } from "./LogPanel.svelte";
 
   // Set of known language codes for smart output filename detection
   const knownLangCodes = new Set(languages.map((l) => l.code));
@@ -279,7 +280,8 @@
   let fileInfo = $state<SrtFileInfo | null>(null);
   let isTranslating = $state(false);
   let progress = $state<TranslateProgressEvent | null>(null);
-  let logs = $state<string[]>([]);
+  let logs = $state<LogEntry[]>([]);
+  let logIdCounter = 0;
   let error = $state<string | null>(null);
   let result = $state<TranslateResult | null>(null);
   let expandedPathField = $state<string | null>(null);
@@ -655,9 +657,9 @@
     }
   }
 
-  function addLog(message: string) {
+  function addLog(message: string, type: LogEntry["type"] = "info") {
     const timestamp = new Date().toLocaleTimeString();
-    logs = [...logs, `[${timestamp}] ${message}`];
+    logs = [...logs, { id: logIdCounter++, timestamp, message, type }];
   }
 
   async function selectInputFile() {
@@ -2015,45 +2017,15 @@
         </div>
       </div>
     {:else if panelId === "logs"}
-      <div class="glass-card p-4 shrink-0" style="min-height: 190px;">
-        <div class="flex items-center justify-between mb-3">
-          <h4 class="text-sm font-medium text-gray-400 flex items-center gap-2">
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16m-7 6h7"
-              />
-            </svg>
-            {t("translate.logs")}
-          </h4>
-          {#if logs.length > 0}
-            <button
-              onclick={clearLogs}
-              class="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-            >
-              {t("translate.clearLog")}
-            </button>
-          {/if}
-        </div>
-        <div class="max-h-64 overflow-y-auto bg-black/20 rounded-lg p-3">
-          {#if logs.length > 0}
-            <div class="space-y-1">
-              {#each logs as log}
-                <p class="text-gray-500 text-xs font-mono">{log}</p>
-              {/each}
-            </div>
-          {:else}
-            <p class="text-gray-600 text-xs">{t("translate.noLog")}</p>
-          {/if}
-        </div>
-      </div>
+      <LogPanel
+        title={t("translate.logs")}
+        clearLogText={t("translate.clearLog")}
+        noLogText={t("translate.noLog")}
+        {logs}
+        onclear={clearLogs}
+        minHeight="190px"
+        maxHeightContent="16rem"
+      />
     {/if}
   {/snippet}
 

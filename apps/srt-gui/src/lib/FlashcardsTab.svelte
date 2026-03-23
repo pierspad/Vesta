@@ -11,6 +11,7 @@
     loadCardTemplates,
   } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
+import LogPanel, { type LogEntry } from "./LogPanel.svelte";
 
   const SUBTITLE_EXTENSIONS = ["srt", "ass", "ssa", "vtt"];
 
@@ -779,22 +780,6 @@
   let progressMessage = $state("");
   let progressStage = $state("");
 
-  interface LogEntry {
-    id: number;
-    timestamp: string;
-    message: string;
-    type:
-      | "info"
-      | "success"
-      | "warning"
-      | "error"
-      | "target-subs"
-      | "native-subs"
-      | "media"
-      | "output"
-      | "progress";
-    details?: string;
-  }
   let logIdCounter = 0;
   let logs = $state<LogEntry[]>([]);
   let error = $state<string | null>(null);
@@ -1784,79 +1769,6 @@
     mediaPath = "";
     mediaType = "none";
     episodes = [];
-  }
-
-  function logStyle(type: LogEntry["type"]): {
-    bg: string;
-    border: string;
-    text: string;
-    icon: string;
-  } {
-    switch (type) {
-      case "target-subs":
-        return {
-          bg: "bg-emerald-500/10",
-          border: "border-emerald-500/30",
-          text: "text-emerald-300",
-          icon: "📄",
-        };
-      case "native-subs":
-        return {
-          bg: "bg-blue-500/10",
-          border: "border-blue-500/30",
-          text: "text-blue-300",
-          icon: "📄",
-        };
-      case "media":
-        return {
-          bg: "bg-purple-500/10",
-          border: "border-purple-500/30",
-          text: "text-purple-300",
-          icon: "🎬",
-        };
-      case "output":
-        return {
-          bg: "bg-amber-500/10",
-          border: "border-amber-500/30",
-          text: "text-amber-300",
-          icon: "📁",
-        };
-      case "success":
-        return {
-          bg: "bg-green-500/10",
-          border: "border-green-500/30",
-          text: "text-green-300",
-          icon: "✅",
-        };
-      case "warning":
-        return {
-          bg: "bg-amber-500/10",
-          border: "border-amber-500/30",
-          text: "text-amber-300",
-          icon: "⚠️",
-        };
-      case "error":
-        return {
-          bg: "bg-red-500/10",
-          border: "border-red-500/30",
-          text: "text-red-300",
-          icon: "❌",
-        };
-      case "progress":
-        return {
-          bg: "bg-gray-500/5",
-          border: "border-gray-700/30",
-          text: "text-gray-400",
-          icon: "⚙️",
-        };
-      default:
-        return {
-          bg: "bg-gray-500/5",
-          border: "border-gray-700/30",
-          text: "text-gray-400",
-          icon: "ℹ️",
-        };
-    }
   }
 </script>
 
@@ -4220,68 +4132,15 @@
         {/if}
       </div>
     {:else if panelId === "logs"}
-      <div class="glass-card p-4 flex flex-col min-h-[180px]">
-        <div class="flex items-center justify-between mb-2">
-          <h4
-            class="text-xs font-semibold text-gray-400 flex items-center gap-2"
-          >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16m-7 6h7"
-              />
-            </svg>
-            {t("flashcards.logs")}
-          </h4>
-          {#if logs.length > 0}
-            <button
-              onclick={clearLogs}
-              class="text-xs text-gray-500 hover:text-gray-400"
-            >
-              {t("flashcards.clearLog")}
-            </button>
-          {/if}
-        </div>
-        <div class="overflow-y-auto space-y-1.5 max-h-64">
-          {#if logs.length > 0}
-            {#each logs as log (log.id)}
-              {@const style = logStyle(log.type)}
-              <div
-                class="p-2 rounded-lg border {style.bg} {style.border} flex items-start gap-2 animate-fade-in"
-              >
-                <span class="text-xs flex-shrink-0">{style.icon}</span>
-                <div class="flex-1 min-w-0">
-                  <p
-                    class="text-xs {style.text} leading-tight break-words whitespace-pre-wrap"
-                  >
-                    {log.message}
-                  </p>
-                  {#if log.details}
-                    <p
-                      class="text-[10px] text-gray-500 break-words whitespace-pre-wrap mt-0.5"
-                      title={log.details}
-                    >
-                      {log.details}
-                    </p>
-                  {/if}
-                </div>
-                <span class="text-[10px] text-gray-600 flex-shrink-0"
-                  >{log.timestamp}</span
-                >
-              </div>
-            {/each}
-          {:else}
-            <p class="text-gray-600 text-xs p-2">{t("flashcards.noLog")}</p>
-          {/if}
-        </div>
-      </div>
+      <LogPanel
+        title={t("flashcards.logs")}
+        clearLogText={t("flashcards.clearLog")}
+        noLogText={t("translate.noLog")}
+        {logs}
+        onclear={clearLogs}
+        minHeight="180px"
+        maxHeightContent="16rem"
+      />
     {/if}
   {/snippet}
 

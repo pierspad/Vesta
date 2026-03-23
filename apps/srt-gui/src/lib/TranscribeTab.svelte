@@ -1,11 +1,14 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import LogPanel, { type LogEntry } from "./LogPanel.svelte";
   import { listen } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { onDestroy, onMount } from "svelte";
   import { locale } from "./i18n";
   import { languages as allLanguages } from "./models";
   import SearchableSelect from "./SearchableSelect.svelte";
+
+
 
   let { onGoToSettings } = $props<{ onGoToSettings?: () => void }>();
 
@@ -58,19 +61,6 @@
     }, 3500);
   }
 
-  interface LogEntry {
-    id: number;
-    timestamp: string;
-    message: string;
-    type:
-      | "info"
-      | "success"
-      | "warning"
-      | "error"
-      | "progress"
-      | "file"
-      | "download";
-  }
   let logIdCounter = 0;
   let logs = $state<LogEntry[]>([]);
 
@@ -248,64 +238,6 @@
     logIdCounter = 0;
   }
 
-  function logStyle(type: LogEntry["type"]): {
-    bg: string;
-    border: string;
-    text: string;
-    icon: string;
-  } {
-    switch (type) {
-      case "success":
-        return {
-          bg: "bg-green-500/10",
-          border: "border-green-500/30",
-          text: "text-green-300",
-          icon: "✅",
-        };
-      case "warning":
-        return {
-          bg: "bg-amber-500/10",
-          border: "border-amber-500/30",
-          text: "text-amber-300",
-          icon: "⚠️",
-        };
-      case "error":
-        return {
-          bg: "bg-red-500/10",
-          border: "border-red-500/30",
-          text: "text-red-300",
-          icon: "❌",
-        };
-      case "progress":
-        return {
-          bg: "bg-gray-500/5",
-          border: "border-gray-700/30",
-          text: "text-gray-400",
-          icon: "⚙️",
-        };
-      case "file":
-        return {
-          bg: "bg-cyan-500/10",
-          border: "border-cyan-500/30",
-          text: "text-cyan-300",
-          icon: "📁",
-        };
-      case "download":
-        return {
-          bg: "bg-indigo-500/10",
-          border: "border-indigo-500/30",
-          text: "text-indigo-300",
-          icon: "⬇️",
-        };
-      default:
-        return {
-          bg: "bg-gray-500/5",
-          border: "border-gray-700/30",
-          text: "text-gray-400",
-          icon: "ℹ️",
-        };
-    }
-  }
 
   async function selectInputFile() {
     try {
@@ -1241,45 +1173,15 @@
         {/if}
       </div>
     {:else if panelId === "logs"}
-      <div
-        class="glass-card p-4 flex flex-col"
-        style="min-height: 170px; max-height: 360px;"
-      >
-        <div class="flex items-center justify-between mb-2 shrink-0">
-          <h4 class="text-xs font-semibold text-gray-400">
-            {t("transcribe.log")}
-          </h4>
-          {#if logs.length > 0}
-            <button
-              onclick={clearLogs}
-              class="text-xs text-gray-500 hover:text-gray-400"
-              >{t("transcribe.clearLog")}</button
-            >
-          {/if}
-        </div>
-        <div class="flex-1 min-h-0 overflow-y-auto space-y-1.5">
-          {#if logs.length > 0}
-            {#each logs as log (log.id)}
-              {@const style = logStyle(log.type)}
-              <div
-                class="p-2 rounded-lg border {style.bg} {style.border} flex items-start gap-2 animate-fade-in"
-              >
-                <span class="text-xs flex-shrink-0">{style.icon}</span>
-                <p
-                  class="text-xs {style.text} leading-tight break-words whitespace-pre-wrap flex-1 min-w-0"
-                >
-                  {log.message}
-                </p>
-                <span class="text-[10px] text-gray-600 flex-shrink-0"
-                  >{log.timestamp}</span
-                >
-              </div>
-            {/each}
-          {:else}
-            <p class="text-gray-600 text-xs p-2">{t("transcribe.noLog")}</p>
-          {/if}
-        </div>
-      </div>
+      <LogPanel
+        title={t("transcribe.log")}
+        clearLogText={t("transcribe.clearLog")}
+        noLogText={t("translate.noLog")}
+        {logs}
+        onclear={clearLogs}
+        minHeight="170px"
+        maxHeightContent="100%"
+      />
     {/if}
   {/snippet}
 

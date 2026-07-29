@@ -30,44 +30,84 @@ name: Warm Release Cache
 # compile at release time.
 #
 # Deliberately produces no artifacts and no GitHub Release: its only job
-# is to leave a warm cache behind. Gated on `paths` so pure
-# frontend-only commits (the majority of commits in this repo) don't pay
-# full native-compile time for nothing.
+# is to leave a warm cache behind. The `changes` job below re-checks the
+# same path list `paths:` used to enforce here, so pure frontend-only
+# commits (the majority of commits in this repo) still don't pay full
+# native-compile time for nothing.
 #
 # Caveat: bundling tools (tauri-cli) may bake in a handful of env-derived
 # values that plain `cargo build` doesn't reproduce bit-for-bit, so a
 # 100% hit rate on the next tag build isn't guaranteed -- but the bulk of
 # the graph (every third-party dependency, unchanged between commits)
 # should now hit.
-
+#
+# TRIGGER: dispatched by release.yml, not by push
+# -------------------------------------------------
+# This used to be `push: branches: [main], paths: [...]`. Problem: that
+# push trigger fires on the *same* commit that release.yml turns into a
+# new tag, and build.yml (the real release builder) starts from that tag
+# at the same time. Both would then run the identical compile (same
+# sccache shared-key) in parallel on separate runners -- not slower per
+# job, but double the CI minutes spent on that commit for zero benefit,
+# since the cache this workflow produces can't be saved in time to help
+# the release build already in flight (it only helps the *next* tag).
+# release.yml now calls `gh workflow run warm-release-cache.yml` itself,
+# and only when its own semantic-release step did NOT publish a new tag
+# on that push -- see the comment there. workflow_dispatch stays as the
+# only entrypoint here so that call (and manual re-runs) both work.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "core/**"
-      - "lib/**"
-      - "cli/**"
-      - "apps/srt-gui/src-tauri/**"
-      - "vendor/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/warm-release-cache.yml"
   workflow_dispatch: {}
 
 env:
   TAURI_APP_DIR: apps/srt-gui
   WHISPER_DONT_GENERATE_BINDINGS: "1"
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  CC: "sccache"
+  CXX: "sccache"
+  CMAKE_C_COMPILER_LAUNCHER: "sccache"
+  CMAKE_CXX_COMPILER_LAUNCHER: "sccache"
 
 concurrency:
   group: warm-release-cache
   cancel-in-progress: true
 
 jobs:
+  # Replaces the old `on.push.paths` filter (lost when the trigger moved
+  # from push to workflow_dispatch, see TRIGGER comment above). Diffs the
+  # single commit that landed on main against its parent -- valid as long
+  # as main only ever advances by one commit at a time (squash-merge /
+  # semantic-release's own commits), which holds for this repo.
+  changes:
+    name: Check for native changes
+    runs-on: ubuntu-22.04
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Diff last commit against the same path list as before
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only HEAD^ HEAD | grep -qE \
+            '^(core/|lib/|cli/|apps/srt-gui/src-tauri/|vendor/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/warm-release-cache\.yml$)'; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "native=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # Mirrors build-linux's compile step in build.yml (same profile, same
   # --features vulkan, same shared-key) so the cache it leaves on `main`
   # is byte-for-byte reusable by the tag-triggered release build.
   warm-linux:
     name: Warm cache (linux)
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
@@ -76,6 +116,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -143,6 +185,8 @@ jobs:
   # -- keep this in sync if that ever changes.
   warm-windows:
     name: Warm cache (windows)
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -151,6 +195,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable

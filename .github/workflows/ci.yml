@@ -12,6 +12,13 @@ on:
 env:
   TAURI_APP_DIR: apps/srt-gui
   WHISPER_DONT_GENERATE_BINDINGS: "1"
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  CC: "sccache"
+  CXX: "sccache"
+  CMAKE_C_COMPILER_LAUNCHER: "sccache"
+  CMAKE_CXX_COMPILER_LAUNCHER: "sccache"
 
 jobs:
   # ===========================================================
@@ -29,6 +36,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -93,6 +102,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -166,6 +177,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: i18n consistency (parity, placeholders, hygiene)
         run: node apps/srt-gui/scripts/check-i18n.mjs
@@ -192,6 +205,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/srt-gui/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: ${{ env.TAURI_APP_DIR }}

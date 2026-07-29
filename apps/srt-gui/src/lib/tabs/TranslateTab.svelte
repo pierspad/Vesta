@@ -1007,12 +1007,12 @@
 
   {#snippet panelContent(panelId: TranslatePanelId)}
     {#if panelId === "options"}
-      <div class="glass-card p-5">
+      <div class="glass-card p-5 shrink-0">
         <h3
-          class="text-lg font-semibold mb-4 flex items-center gap-2 text-green-400"
+          class="text-lg font-semibold mb-4 flex items-center gap-2 text-cyan-400"
         >
           <svg
-            class="w-5 h-5"
+            class="w-5 h-5 shrink-0"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1026,15 +1026,10 @@
           </svg>
           {t("translate.options")}
         </h3>
-        <div class="space-y-4">
-
-
-          <div
-            class="{!inputPath
-              ? 'opacity-40 pointer-events-none'
-              : ''} transition-opacity space-y-4"
-          >
-            <div>
+        <div class="{!inputPath ? 'opacity-40 pointer-events-none' : ''} transition-opacity space-y-4">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <!-- Target Language (Anchored on the left) -->
+            <div class="lg:col-span-4">
               <label for="target-lang" class="block text-sm text-gray-400 mb-1"
                 >{t("translate.targetLang")}</label
               >
@@ -1054,93 +1049,43 @@
                 placeholder={t("translate.targetLang")}
               />
             </div>
-            {#if uiMode.expertMode}
-              <!-- Expert/Advanced Translation Options -->
-              <div>
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-sm font-semibold text-white">{t("translate.batchSizeExpert")}</span>
-                  <span class="text-white font-mono bg-white/10 px-2.5 py-1 rounded-lg text-xs shrink-0">
-                    {batchSize} {t("translate.subPerBatch")}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  bind:value={batchSize}
-                  class="slider-resource w-full cursor-pointer"
-                />
-                <!-- Tick marks for batch size -->
-                <div class="relative mt-1.5 mb-5" style="height: 22px;">
-                  {#each [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as v}
-                    {@const pct = ((v - 1) / 99) * 100}
-                    <div
-                      class="absolute flex flex-col items-center gap-0.5"
-                      style="left: {pct}%; transform: translateX(-50%);"
-                    >
-                      <div class="w-px h-1.5 {batchSize === v ? 'bg-white/60' : 'bg-white/20'}"></div>
-                      <span class="text-[9px] {batchSize === v ? 'text-white/70' : 'text-white/25'}">{v}</span>
-                    </div>
-                  {/each}
-                </div>
 
-                <div class="pt-4 border-t border-white/5 mb-4">
-                  <div class="flex items-center justify-between mb-3">
-                    <span class="text-sm font-semibold text-white">{t("translate.resumeOverlapExpert")}</span>
-                    <span class="text-white font-mono bg-white/10 px-2.5 py-1 rounded-lg text-xs shrink-0">
-                      {resumeOverlap} sub
+            <!-- Batch Size / Speed options -->
+            <div class="lg:col-span-4">
+              {#if uiMode.expertMode}
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-semibold text-white">{t("translate.batchSizeExpert")}</span>
+                    <span class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-xs shrink-0">
+                      {batchSize} {t("translate.subPerBatch")}
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="0"
-                    max="15"
-                    bind:value={resumeOverlap}
+                    min="1"
+                    max="100"
+                    bind:value={batchSize}
                     class="slider-resource w-full cursor-pointer"
                   />
-                  <!-- Tick marks for overlap -->
-                  <div class="relative mt-1.5" style="height: 22px;">
-                    {#each Array(16) as _, i}
-                      {@const pct = (i / 15) * 100}
+                  <div class="relative mt-1" style="height: 18px;">
+                    {#each [1, 20, 40, 60, 80, 100] as v}
+                      {@const pct = ((v - 1) / 99) * 100}
                       <div
                         class="absolute flex flex-col items-center gap-0.5"
                         style="left: {pct}%; transform: translateX(-50%);"
                       >
-                        <div class="w-px h-1.5 {resumeOverlap === i ? 'bg-white/60' : 'bg-white/20'}"></div>
-                        {#if i === 0 || i === 5 || i === 10 || i === 15}
-                          <span class="text-[9px] {resumeOverlap === i ? 'text-white/70' : 'text-white/25'}">{i}</span>
-                        {/if}
+                        <div class="w-px h-1 {batchSize === v ? 'bg-white/60' : 'bg-white/20'}"></div>
+                        <span class="text-[9px] {batchSize === v ? 'text-white/70' : 'text-white/25'}">{v}</span>
                       </div>
                     {/each}
                   </div>
                 </div>
-                
-                <div class="pt-4 border-t border-white/5">
-                  <label
-                    for="context-input"
-                    class="block text-sm font-semibold text-white mb-1"
-                  >
-                    {t("translate.context")}
-                    <span class="text-gray-500 font-normal">({t("translate.contextOptional")})</span>
-                  </label>
-                  <textarea
-                    id="context-input"
-                    bind:value={titleContext}
-                    rows="3"
-                    placeholder={t("translate.contextPlaceholder")}
-                    class="input-modern w-full text-xs min-h-[5rem] resize-y"
-                  ></textarea>
-                </div>
-              </div>
-            {:else}
-              <!-- Easy/Simplified Translation Options -->
-              <div>
-                <!-- Accuracy and speed preset block -->
-                <div class="mb-5">
-                  <span class="block text-sm font-semibold text-white mb-3">
+              {:else}
+                <div>
+                  <span class="block text-sm font-semibold text-white mb-2">
                     {t("translate.accuracySpeedTitle")}
                   </span>
-                  <div class="grid grid-cols-4 gap-2">
+                  <div class="grid grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       onclick={() => setBatchPreset("precise")}
@@ -1150,12 +1095,12 @@
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                     >
                       <span class="block mb-1 text-white">
-                        <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <circle cx="12" cy="12" r="8" stroke-width="1.8" />
                           <circle cx="12" cy="12" r="2" stroke-width="1.8" />
                         </svg>
                       </span>
-                      <span class="block">{t("translate.batchPrecise")}</span>
+                      <span class="block text-[11px] truncate">{t("translate.batchPrecise")}</span>
                     </button>
                     <button
                       type="button"
@@ -1166,14 +1111,14 @@
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                     >
                       <span class="block mb-1 text-white">
-                        <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 4v16" />
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 8h12" />
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 8l-2.5 4h5L8 8z" />
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16 8l-2.5 4h5L16 8z" />
                         </svg>
                       </span>
-                      <span class="block">{t("translate.batchBalanced")}</span>
+                      <span class="block text-[11px] truncate">{t("translate.batchBalanced")}</span>
                     </button>
                     <button
                       type="button"
@@ -1184,12 +1129,12 @@
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                     >
                       <span class="block mb-1 text-white">
-                        <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 15l5-5 3 3 6-6" />
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M14 7h5v5" />
                         </svg>
                       </span>
-                      <span class="block">{t("translate.batchFast")}</span>
+                      <span class="block text-[11px] truncate">{t("translate.batchFast")}</span>
                     </button>
                     <button
                       type="button"
@@ -1200,18 +1145,50 @@
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
                     >
                       <span class="block mb-1 text-white">
-                        <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 3L6 13h5l-1 8 8-12h-5l2-6h-4z" />
                         </svg>
                       </span>
-                      <span class="block">{t("translate.batchTurbo")}</span>
+                      <span class="block text-[11px] truncate">{t("translate.batchTurbo")}</span>
                     </button>
                   </div>
                 </div>
+              {/if}
+            </div>
 
-                <!-- Text continuity preset block -->
-                <div class="pt-4 border-t border-white/5">
-                  <div class="flex items-center gap-2 mb-3">
+            <!-- Overlap Offset options -->
+            <div class="lg:col-span-4">
+              {#if uiMode.expertMode}
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-semibold text-white">{t("translate.resumeOverlapExpert")}</span>
+                    <span class="text-white font-mono bg-white/10 px-2 py-0.5 rounded text-xs shrink-0">
+                      {resumeOverlap} sub
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="15"
+                    bind:value={resumeOverlap}
+                    class="slider-resource w-full cursor-pointer"
+                  />
+                  <div class="relative mt-1" style="height: 18px;">
+                    {#each [0, 3, 6, 9, 12, 15] as v}
+                      {@const pct = (v / 15) * 100}
+                      <div
+                        class="absolute flex flex-col items-center gap-0.5"
+                        style="left: {pct}%; transform: translateX(-50%);"
+                      >
+                        <div class="w-px h-1 {resumeOverlap === v ? 'bg-white/60' : 'bg-white/20'}"></div>
+                        <span class="text-[9px] {resumeOverlap === v ? 'text-white/70' : 'text-white/25'}">{v}</span>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {:else}
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
                     <span class="block text-sm font-semibold text-white">
                       {t("translate.resumeOverlap")}
                     </span>
@@ -1219,11 +1196,11 @@
                       {t("translate.contextCostHint")}
                     </span>
                   </div>
-                  <div class="grid grid-cols-4 gap-2">
+                  <div class="grid grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       onclick={() => setOverlapPreset('none')}
-                      class="p-2.5 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
+                      class="p-2 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
                         {activeOverlapPreset === 'none'
                           ? 'bg-green-500/20 border-green-500/50 text-white font-semibold shadow-sm'
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
@@ -1234,7 +1211,7 @@
                     <button
                       type="button"
                       onclick={() => setOverlapPreset('minimal')}
-                      class="p-2.5 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
+                      class="p-2 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
                         {activeOverlapPreset === 'minimal'
                           ? 'bg-green-500/20 border-green-500/50 text-white font-semibold shadow-sm'
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
@@ -1245,7 +1222,7 @@
                     <button
                       type="button"
                       onclick={() => setOverlapPreset('balanced')}
-                      class="p-2.5 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
+                      class="p-2 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
                         {activeOverlapPreset === 'balanced'
                           ? 'bg-green-500/20 border-green-500/50 text-white font-semibold shadow-sm'
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
@@ -1256,7 +1233,7 @@
                     <button
                       type="button"
                       onclick={() => setOverlapPreset('high')}
-                      class="p-2.5 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
+                      class="p-2 rounded-lg text-center transition-all duration-200 border text-[11px] cursor-pointer truncate
                         {activeOverlapPreset === 'high'
                           ? 'bg-green-500/20 border-green-500/50 text-white font-semibold shadow-sm'
                           : 'bg-white/5 hover:bg-white/10 border-transparent text-gray-400 hover:text-white'}"
@@ -1266,22 +1243,42 @@
                     </button>
                   </div>
                 </div>
-              </div>
-            {/if}
+              {/if}
+            </div>
           </div>
+
+          {#if uiMode.expertMode}
+            <!-- Expert Context Textarea -->
+            <div class="pt-3 border-t border-white/5">
+              <label
+                for="context-input"
+                class="block text-sm font-semibold text-white mb-1"
+              >
+                {t("translate.context")}
+                <span class="text-gray-500 font-normal">({t("translate.contextOptional")})</span>
+              </label>
+              <textarea
+                id="context-input"
+                bind:value={titleContext}
+                rows="2"
+                placeholder={t("translate.contextPlaceholder")}
+                class="input-modern w-full text-xs min-h-[4rem] resize-y"
+              ></textarea>
+            </div>
+          {/if}
         </div>
       </div>
     {:else if panelId === "files"}
       <div
         inert={!canUseFilePanel}
         title={!canUseFilePanel ? t("translate.selectProviderFirst") : undefined}
-        class="glass-card p-5 {!canUseFilePanel ? 'opacity-40' : ''}"
+        class="glass-card p-5 shrink-0 {!canUseFilePanel ? 'opacity-40' : ''}"
       >
         <h3
           class="text-lg font-semibold mb-4 flex items-center gap-2 panel-title-files-output"
         >
           <svg
-            class="w-5 h-5"
+            class="w-5 h-5 shrink-0"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1295,45 +1292,45 @@
           </svg>
           {t("common.filesAndOutput")}
         </h3>
-        <div class="space-y-3">
-          <PathPickerField
-            label={t("translate.inputFile")}
-            value={inputPath}
-            placeholder={t("translate.selectFile")}
-            browseTitle={t("translate.tooltip.upload")}
-            onexpand={() => (expandedPathField = "input")}
-            onbrowse={selectInputFile}
-            required={true}
-          />
 
-          <PathPickerField
-            label={t("translate.outputFile")}
-            value={outputPath}
-            placeholder={t("translate.selectDestination")}
-            browseTitle={t("translate.tooltip.save")}
-            onexpand={() => (expandedPathField = "output")}
-            onbrowse={selectOutputFile}
-            required={true}
-          />
-          {#if fileInfo}
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+          <div class="lg:col-span-5">
+            <PathPickerField
+              label={t("translate.inputFile")}
+              value={inputPath}
+              placeholder={t("translate.selectFile")}
+              browseTitle={t("translate.tooltip.upload")}
+              onexpand={() => (expandedPathField = "input")}
+              onbrowse={selectInputFile}
+              required={true}
+            />
+          </div>
+
+          <div class="lg:col-span-5">
+            <PathPickerField
+              label={t("translate.outputFile")}
+              value={outputPath}
+              placeholder={t("translate.selectDestination")}
+              browseTitle={t("translate.tooltip.save")}
+              onexpand={() => (expandedPathField = "output")}
+              onbrowse={selectOutputFile}
+              required={true}
+            />
+          </div>
+
+          <div class="lg:col-span-2">
             <div
-              class="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg"
+              class="p-2.5 border rounded-lg transition-all h-[42px] flex items-center justify-center {fileInfo ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/10 opacity-70'}"
             >
-              <div class="flex items-center gap-3">
-                <div
-                  class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center"
-                >
-                  <span class="text-xl">📄</span>
-                </div>
-                <div>
-                  <p class="font-medium text-white">
-                    {fileInfo.subtitle_count}
-                    {t("translate.subtitles")}
-                  </p>
-                </div>
+              <div class="flex items-center gap-2">
+                <span class="text-base">📄</span>
+                <span class="font-medium text-xs text-white whitespace-nowrap">
+                  {fileInfo ? fileInfo.subtitle_count : 0}
+                  {t("translate.subtitles")}
+                </span>
               </div>
             </div>
-          {/if}
+          </div>
         </div>
       </div>
 
@@ -1563,18 +1560,11 @@
     {/if}
   {/snippet}
 
-  <div class="flex-1 overflow-hidden p-6 min-h-0">
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 transition-opacity h-full min-h-0">
-      <div class="space-y-3 overflow-x-hidden min-h-0 overflow-y-auto scrollbar-thin">
-        {@render panelContent("files")}
-        {@render panelContent("livePreview")}
-      </div>
-
-      <div class="space-y-3 overflow-x-hidden min-h-0 overflow-y-auto scrollbar-thin">
-        {@render panelContent("options")}
-        <!-- {@render panelContent("logs")} -->
-      </div>
-    </div>
+  <div class="flex-1 overflow-y-auto scrollbar-thin p-6 min-h-0 space-y-6">
+    {@render panelContent("files")}
+    {@render panelContent("options")}
+    {@render panelContent("progress")}
+    {@render panelContent("livePreview")}
   </div>
 
   <!-- Fixed Bottom Band with Action Buttons -->

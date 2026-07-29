@@ -47,7 +47,7 @@
   let t = $derived($locale);
 </script>
 
-<div class="glass-card flex flex-col flex-1 min-h-0">
+<div class="glass-card flex flex-col flex-1 min-h-0 overflow-hidden">
   <!-- Header -->
   <div class="px-5 pt-5 pb-2 flex-shrink-0">
     <h3 class="text-lg font-semibold flex items-center gap-2 text-purple-400">
@@ -97,7 +97,7 @@
 
   <!-- Subtitle list -->
   <div
-    class="grid auto-rows-min grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2 flex-1 p-2 min-h-0"
+    class="grid auto-rows-min grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2 flex-1 p-2 min-h-0 overflow-y-auto scrollbar-thin"
     bind:this={listElement}
   >
     {#each subtitles as sub (sub.id)}

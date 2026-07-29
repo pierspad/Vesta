@@ -15,10 +15,11 @@
     id = "",
     class: classProp = "",
     textareaClass = "",
-    wrap = false,
-    lineNumbers = !wrap,
+    wrap = true,
+    lineNumbers = true,
   } = $props();
 
+  let lineHeights = $state<number[]>([]);
   let history = $state<string[]>([value || ""]);
   let historyIndex = $state(0);
   let isUndoRedo = false;
@@ -381,7 +382,12 @@
   >
     <div style="transform: translateY(-{scrollTop}px)">
       {#each lines as _, i}
-        <div class="leading-relaxed whitespace-pre">{i + 1}</div>
+        <div
+          style="height: {lineHeights[i] ? lineHeights[i] + 'px' : '1.625em'}"
+          class="leading-relaxed whitespace-pre flex justify-end items-start"
+        >
+          {i + 1}
+        </div>
       {/each}
     </div>
   </div>
@@ -389,8 +395,22 @@
 
   <div class="relative flex-1 overflow-hidden h-full">
     <!-- Highlighted Code -->
-    <pre class="absolute w-full pt-3 pb-3 pl-3 pr-9 m-0 font-mono text-sm leading-relaxed text-gray-300 pointer-events-none {wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre break-normal'}" aria-hidden="true" style="transform: translate(-{wrap ? 0 : scrollLeft}px, -{scrollTop}px);">{@html highlight(value, language)}<br/></pre>
-    
+    <pre
+      class="absolute inset-0 w-full h-full p-3 pr-9 m-0 font-mono text-sm leading-relaxed text-gray-300 pointer-events-none overflow-hidden"
+      aria-hidden="true"
+    >
+      <div style="transform: translate(-{wrap ? 0 : scrollLeft}px, -{scrollTop}px)">
+        {#each lines as line, i}
+          <div
+            bind:clientHeight={lineHeights[i]}
+            class="min-h-[1.625em] {wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}"
+          >
+            {@html highlight(line, language) || '<br/>'}
+          </div>
+        {/each}
+      </div>
+    </pre>
+
     <!-- Transparent Textarea -->
     <textarea
       bind:this={textareaElement}
@@ -406,7 +426,7 @@
         if (!wrap) scrollLeft = e.currentTarget.scrollLeft;
       }}
       wrap={wrap ? "soft" : "off"}
-      class="absolute inset-0 w-full h-full p-3 m-0 font-mono text-sm leading-relaxed text-transparent bg-transparent border-none resize-none outline-none caret-white pr-9 custom-scrollbar {wrap ? 'whitespace-pre-wrap break-words overflow-x-hidden' : 'whitespace-pre break-normal'} {textareaClass}"
+      class="absolute inset-0 w-full h-full p-3 pr-9 m-0 font-mono text-sm leading-relaxed text-transparent bg-transparent border-none resize-none outline-none caret-white custom-scrollbar {wrap ? 'whitespace-pre-wrap break-words overflow-x-hidden' : 'whitespace-pre break-normal'} {textareaClass}"
       spellcheck="false"
     ></textarea>
 

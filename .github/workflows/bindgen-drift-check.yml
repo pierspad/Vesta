@@ -15,6 +15,15 @@ on:
   schedule:
     - cron: '0 6 * * 1' # ogni lunedì mattina
 
+env:
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  CC: "sccache"
+  CXX: "sccache"
+  CMAKE_C_COMPILER_LAUNCHER: "sccache"
+  CMAKE_CXX_COMPILER_LAUNCHER: "sccache"
+
 jobs:
   bindgen-diff:
     name: Rigenera bindings.rs e confronta

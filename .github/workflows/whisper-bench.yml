@@ -52,6 +52,13 @@ on:
 
 env:
   WHISPER_DONT_GENERATE_BINDINGS: "1"
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+  CC: "sccache"
+  CXX: "sccache"
+  CMAKE_C_COMPILER_LAUNCHER: "sccache"
+  CMAKE_CXX_COMPILER_LAUNCHER: "sccache"
 
 permissions:
   contents: write
@@ -336,7 +343,7 @@ jobs:
           merge-multiple: true
 
       - name: Attach to whisper-bench-latest prerelease
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: whisper-bench-latest
           name: "whisper-bench (rolling build)"

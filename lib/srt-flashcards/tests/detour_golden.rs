@@ -12,8 +12,8 @@
 //! export behaviour changed — the assertion messages point at the exact line.
 
 use srt_flashcards::{
-    ContextConfig, FieldNamesConfig, FlashcardConfig, MediaTools, OutputFields, SubtitleFilters,
-    generate, preview,
+    AudioFormat, ContextConfig, FieldNamesConfig, FlashcardConfig, MediaTools, OutputFields,
+    SnapshotFormat, SubtitleFilters, generate, preview,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -307,4 +307,181 @@ async fn clip_apkg_full_media_pipeline() {
         with_img, 26,
         "every note should embed an <img> snapshot, only {with_img}/26 do"
     );
+}
+
+// ─── 4. Media references must resolve to files that were actually written ───
+
+/// Pull filenames out of `[sound:NAME]` and `<img src="NAME">` references.
+fn extract_media_refs(haystack: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for chunk in haystack.split("[sound:").skip(1) {
+        if let Some(name) = chunk.split(']').next() {
+            out.push(name.to_string());
+        }
+    }
+    for chunk in haystack.split("<img src=\"").skip(1) {
+        if let Some(name) = chunk.split('"').next() {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+fn assert_format_extensions(names: &[String], what: &str) {
+    assert!(
+        names.iter().any(|f| f.ends_with(".webp")),
+        "{what}: no .webp snapshot present; got {names:?}"
+    );
+    assert!(
+        names.iter().any(|f| f.ends_with(".opus")),
+        "{what}: no .opus clip present; got {names:?}"
+    );
+    assert!(
+        !names
+            .iter()
+            .any(|f| f.ends_with(".jpg") || f.ends_with(".mp3")),
+        "{what}: a hardcoded jpg/mp3 path survived the format switch: {names:?}"
+    );
+}
+
+fn webp_opus_config(out: &std::path::Path, deck: &str, export_format: &str) -> FlashcardConfig {
+    let mut config = cli_like_config(
+        fixture("detour_clip_90s_en.srt"),
+        Some(fixture("detour_clip_90s_it.srt")),
+        Some(fixture("detour_clip_90s.mp4")),
+        out.to_string_lossy().into_owned(),
+        deck,
+        export_format,
+        true,
+    );
+    config.snapshot_format = SnapshotFormat::Webp;
+    config.audio_format = AudioFormat::Opus;
+    config.audio_bitrate = 64;
+    config
+}
+
+/// The generator and the TSV exporter each build the per-card media filename.
+/// If they disagree, generation still "succeeds" — the TSV just points at files
+/// that do not exist. Runs the non-default formats, because a hardcoded `.jpg`
+/// or `.mp3` left behind anywhere is what would slip through otherwise.
+#[tokio::test]
+async fn tsv_media_references_resolve_for_non_default_formats() {
+    if !ffmpeg_available() {
+        eprintln!("[skip] tsv_media_references_resolve_for_non_default_formats: no ffmpeg");
+        return;
+    }
+
+    let out = tempfile::tempdir().expect("create tempdir");
+    let deck = "DetourFmtTsv";
+    let result = run_generate(webp_opus_config(out.path(), deck, "tsv")).await;
+    assert!(
+        result.success,
+        "TSV generation with WebP+Opus failed: {:?}",
+        result.message
+    );
+    assert!(
+        result.output_size_bytes > 0,
+        "TSV run reported output_size_bytes = 0 despite writing media"
+    );
+
+    let media_dir = out.path().join(format!("{deck}.media"));
+    let written: Vec<String> = std::fs::read_dir(&media_dir)
+        .unwrap_or_else(|e| panic!("media dir {} unreadable: {e}", media_dir.display()))
+        .filter_map(Result::ok)
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_format_extensions(&written, "TSV media dir");
+
+    let tsv = std::fs::read_to_string(out.path().join(format!("{deck}.tsv")))
+        .expect("generated TSV missing");
+    let refs = extract_media_refs(&tsv);
+    assert!(!refs.is_empty(), "TSV contains no media references at all");
+    for r in &refs {
+        assert!(
+            written.iter().any(|w| w == r),
+            "TSV references media `{r}` that was never written. Present: {written:?}"
+        );
+    }
+}
+
+/// Same guarantee for apkg, where the chain is longer: a note's `[sound:]` /
+/// `<img>` reference must appear in the `media` manifest, and that manifest
+/// entry must correspond to real bytes inside the archive. A break anywhere
+/// along that chain imports into Anki cleanly and plays nothing.
+#[tokio::test]
+async fn apkg_media_references_resolve_for_non_default_formats() {
+    if !ffmpeg_available() {
+        eprintln!("[skip] apkg_media_references_resolve_for_non_default_formats: no ffmpeg");
+        return;
+    }
+
+    let out = tempfile::tempdir().expect("create tempdir");
+    let deck = "DetourFmtApkg";
+    let result = run_generate(webp_opus_config(out.path(), deck, "apkg")).await;
+    assert!(
+        result.success,
+        "APKG generation with WebP+Opus failed: {:?}",
+        result.message
+    );
+
+    let apkg_path = out.path().join(format!("{deck}.apkg"));
+    assert_eq!(
+        result.output_size_bytes,
+        std::fs::metadata(&apkg_path).expect("stat apkg").len(),
+        "output_size_bytes should be the size of the apkg actually written"
+    );
+
+    let file = std::fs::File::open(&apkg_path).expect("generated apkg missing");
+    let mut zip = zip::ZipArchive::new(file).expect("apkg is not a valid zip");
+
+    let entry_names: Vec<String> = (0..zip.len())
+        .map(|i| zip.by_index(i).expect("zip entry").name().to_string())
+        .collect();
+
+    let manifest: serde_json::Value = {
+        let entry = zip.by_name("media").expect("apkg has no media manifest");
+        serde_json::from_reader(entry).expect("media manifest is not JSON")
+    };
+    let manifest = manifest.as_object().expect("manifest is a JSON object");
+
+    let manifest_names: Vec<String> = manifest
+        .values()
+        .map(|v| v.as_str().expect("manifest values are strings").to_string())
+        .collect();
+    assert_format_extensions(&manifest_names, "apkg manifest");
+
+    // Each manifest key is the name of the archive entry holding those bytes.
+    for key in manifest.keys() {
+        assert!(
+            entry_names.iter().any(|n| n == key),
+            "manifest lists slot `{key}` but the archive has no such entry"
+        );
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir for db");
+    let db_path = tmp.path().join("collection.anki2");
+    {
+        let mut entry = zip
+            .by_name("collection.anki2")
+            .expect("no collection.anki2");
+        let mut outf = std::fs::File::create(&db_path).expect("create db file");
+        std::io::copy(&mut entry, &mut outf).expect("extract db");
+    }
+    let conn = rusqlite::Connection::open(&db_path).expect("open db");
+    let mut stmt = conn.prepare("SELECT flds FROM notes").expect("prepare");
+    let mut refs = Vec::new();
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .expect("query");
+    for flds in rows {
+        refs.extend(extract_media_refs(&flds.expect("read fields")));
+    }
+
+    assert!(!refs.is_empty(), "apkg notes contain no media references");
+    for r in &refs {
+        assert!(
+            manifest_names.iter().any(|m| m == r),
+            "a note references media `{r}` that is not in the apkg manifest"
+        );
+    }
 }

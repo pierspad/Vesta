@@ -1,0 +1,144 @@
+import { describe, expect, it } from "vitest";
+import {
+  defaultMediaSettings,
+  readLegacyDimensions,
+  sanitizeMediaSettings,
+} from "./mediaSettings";
+import {
+  bitratesFor,
+  equivalentBitrate,
+  formatBytes,
+  matchQualityStep,
+  matchResolutionPreset,
+} from "$lib/types/flashcardMediaTypes";
+
+describe("sanitizeMediaSettings", () => {
+  it("returns the defaults for an empty or non-object blob", () => {
+    expect(sanitizeMediaSettings(undefined)).toEqual(defaultMediaSettings);
+    expect(sanitizeMediaSettings(null)).toEqual(defaultMediaSettings);
+    expect(sanitizeMediaSettings("nonsense")).toEqual(defaultMediaSettings);
+    expect(sanitizeMediaSettings({})).toEqual(defaultMediaSettings);
+  });
+
+  it("keeps valid values untouched", () => {
+    const s = sanitizeMediaSettings({
+      ...defaultMediaSettings,
+      snapshotFormat: "avif",
+      snapshotQuality: 42,
+      audioFormat: "opus",
+      audioBitrate: 64,
+    });
+    expect(s.snapshotFormat).toBe("avif");
+    expect(s.snapshotQuality).toBe(42);
+    expect(s.audioFormat).toBe("opus");
+    expect(s.audioBitrate).toBe(64);
+  });
+
+  it("clamps out-of-range numbers instead of accepting them", () => {
+    const s = sanitizeMediaSettings({
+      snapshotQuality: 900,
+      snapshotWidth: -5,
+      cropBottom: 99999,
+      audioPadStart: -100,
+    });
+    expect(s.snapshotQuality).toBe(100);
+    expect(s.snapshotWidth).toBe(16);
+    expect(s.cropBottom).toBe(4320);
+    expect(s.audioPadStart).toBe(0);
+  });
+
+  it("falls back per field, so one bad value does not discard the rest", () => {
+    const s = sanitizeMediaSettings({
+      snapshotFormat: "tiff",
+      snapshotQuality: 55,
+      audioFormat: "flac",
+      audioBitrate: 96,
+    });
+    expect(s.snapshotFormat).toBe(defaultMediaSettings.snapshotFormat);
+    expect(s.audioFormat).toBe(defaultMediaSettings.audioFormat);
+    expect(s.snapshotQuality).toBe(55);
+    expect(s.audioBitrate).toBe(96);
+  });
+
+  it("drops unknown keys rather than passing them to the backend", () => {
+    const s = sanitizeMediaSettings({ somethingNew: true, snapshotQuality: 70 });
+    expect(s).not.toHaveProperty("somethingNew");
+    expect(Object.keys(s).sort()).toEqual(Object.keys(defaultMediaSettings).sort());
+  });
+
+  it("treats a null audio track as 'auto' and never as index 0", () => {
+    expect(sanitizeMediaSettings({ audioTrackIndex: null }).audioTrackIndex).toBeNull();
+    expect(sanitizeMediaSettings({}).audioTrackIndex).toBeNull();
+    expect(sanitizeMediaSettings({ audioTrackIndex: 2 }).audioTrackIndex).toBe(2);
+  });
+
+  it("recovers numbers stored as strings", () => {
+    expect(sanitizeMediaSettings({ snapshotWidth: "640" }).snapshotWidth).toBe(640);
+  });
+});
+
+describe("readLegacyDimensions", () => {
+  it("carries the pre-blob snapshot size across the upgrade", () => {
+    const store: Record<string, string> = {
+      "vesta-flashcards-media-width": "240",
+      "vesta-flashcards-media-height": "160",
+    };
+    expect(readLegacyDimensions((k) => store[k] ?? null)).toEqual({
+      snapshotWidth: 240,
+      snapshotHeight: 160,
+    });
+  });
+
+  it("ignores missing or malformed legacy keys", () => {
+    expect(readLegacyDimensions(() => null)).toEqual({});
+    expect(readLegacyDimensions(() => "abc")).toEqual({});
+    expect(readLegacyDimensions(() => "0")).toEqual({});
+  });
+});
+
+describe("resolution and quality presets", () => {
+  it("recognises a preset by its dimensions", () => {
+    expect(matchResolutionPreset(426, 240)?.id).toBe("240p");
+    expect(matchResolutionPreset(854, 480)?.id).toBe("480p");
+  });
+
+  it("reports null for custom dimensions, which is what shows 'Custom'", () => {
+    expect(matchResolutionPreset(240, 160)).toBeNull();
+    expect(matchResolutionPreset(427, 240)).toBeNull();
+  });
+
+  it("maps a quality number back to its step", () => {
+    expect(matchQualityStep(80)?.id).toBe("balanced");
+    expect(matchQualityStep(60)?.id).toBe("light");
+    expect(matchQualityStep(81)).toBeNull();
+  });
+});
+
+describe("audio bitrate ladders", () => {
+  it("offers speech-appropriate rates for Opus, not the MP3 ladder", () => {
+    expect(bitratesFor("opus")).toContain(48);
+    expect(bitratesFor("opus")).not.toContain(256);
+    expect(bitratesFor("mp3")).toContain(128);
+  });
+
+  it("carries the quality intent across a format switch, not the number", () => {
+    // 128k MP3 is the middle of its ladder; the Opus equivalent is 64k.
+    expect(equivalentBitrate("mp3", "opus", 128)).toBe(64);
+    expect(equivalentBitrate("opus", "mp3", 64)).toBe(128);
+    expect(equivalentBitrate("mp3", "mp3", 192)).toBe(192);
+  });
+
+  it("falls back to a sane rate for a value outside either ladder", () => {
+    expect(equivalentBitrate("mp3", "opus", 111)).toBe(64);
+    expect(equivalentBitrate("opus", "mp3", 111)).toBe(128);
+  });
+});
+
+describe("formatBytes", () => {
+  it("scales to the right unit", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1024)).toBe("1.0 KB");
+    expect(formatBytes(8.4 * 1024 * 1024)).toBe("8.4 MB");
+  });
+});

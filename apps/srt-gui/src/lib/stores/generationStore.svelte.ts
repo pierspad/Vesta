@@ -17,6 +17,9 @@ export interface GenerationResult {
   videoClips: number;
   tsvPath: string | null;
   apkgPath: string | null;
+  /** Bytes actually written (apkg file, or the media dir for TSV). Exact --
+   *  measured after the fact rather than estimated before. */
+  outputSizeBytes: number;
 }
 
 function loadInitialSeriesOutputMode(): "single" | "separate" {

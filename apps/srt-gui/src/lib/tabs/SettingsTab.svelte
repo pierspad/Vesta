@@ -1280,7 +1280,7 @@
   {#snippet defaultLanguagesCard()}
     <div class="glass-card p-6">
       <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-5">
-        <div class="rounded-xl border border-transparent bg-white/5 p-5">
+        <div class="relative z-40 rounded-xl border border-transparent bg-white/5 p-5">
           <div class="flex items-center justify-between gap-3 mb-4">
             <span class="block text-sm font-semibold text-white">{s("studyingLanguage")}</span>
             <span class="text-4xl">{languages.find((lang) => lang.code === defaultFlashcardsLanguage)?.flag || "🌐"}</span>
@@ -1299,7 +1299,7 @@
           />
           <p class="mt-3 text-xs leading-relaxed text-gray-500">{s("studyingLanguageHint")}</p>
         </div>
-        <div class="rounded-xl border border-transparent bg-white/5 p-5">
+        <div class="relative z-30 rounded-xl border border-transparent bg-white/5 p-5">
           <div class="flex items-center justify-between gap-3 mb-4">
             <span class="block text-sm font-semibold text-white">{s("nativeLanguage")}</span>
             <span class="text-4xl">{languages.find((lang) => lang.code === defaultNativeLanguage)?.flag || "🌐"}</span>
@@ -1317,7 +1317,7 @@
           />
           <p class="mt-3 text-xs leading-relaxed text-gray-500">{s("nativeLanguageHint")}</p>
         </div>
-        <div class="rounded-xl border border-transparent bg-white/5 p-5">
+        <div class="relative z-20 rounded-xl border border-transparent bg-white/5 p-5">
           <div class="flex items-center justify-between gap-3 mb-4">
             <span class="block text-sm font-semibold text-white">{s("translationLanguage")}</span>
             <span class="text-4xl">{languages.find((lang) => lang.code === defaultTargetLanguage)?.flag || "🌐"}</span>
@@ -1335,7 +1335,7 @@
           />
           <p class="mt-3 text-xs leading-relaxed text-gray-500">{s("translationLanguageHint")}</p>
         </div>
-        <div class="rounded-xl border border-transparent bg-white/5 p-5">
+        <div class="relative z-10 rounded-xl border border-transparent bg-white/5 p-5">
           <div class="flex items-center justify-between gap-3 mb-4">
             <span class="block text-sm font-semibold text-white">{s("transcription")}</span>
             <span class="text-4xl">{defaultTranscribeLanguage === "auto" ? "🌐" : languages.find((lang) => lang.code === defaultTranscribeLanguage)?.flag || "🌐"}</span>

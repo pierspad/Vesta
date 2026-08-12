@@ -1,4 +1,4 @@
-use super::media::ms_to_ffmpeg_ts;
+use super::media::{MediaKind, media_filename, ms_to_ffmpeg_ts, video_clip_extension};
 use super::types::*;
 
 pub(crate) fn render_text_with_context<'a, F>(
@@ -51,11 +51,7 @@ pub(crate) fn generate_tsv(
 
     let sanitized_deck = sanitize_filename(&config.deck_name);
     let ep = config.episode_number;
-    let video_ext = if config.video_codec == "h264" {
-        "mp4"
-    } else {
-        "avi"
-    };
+    let video_ext = video_clip_extension(&config.video_codec);
 
     let of = &config.output_fields;
 
@@ -92,7 +88,15 @@ pub(crate) fn generate_tsv(
 
         if of.include_audio {
             fields.push(if config.generate_audio {
-                format!("[sound:{}_{:03}_{:04}.mp3]", sanitized_deck, ep, seq_num)
+                format!(
+                    "[sound:{}]",
+                    media_filename(
+                        MediaKind::Audio(config.audio_format),
+                        &sanitized_deck,
+                        ep,
+                        seq_num
+                    )
+                )
             } else {
                 String::new()
             });
@@ -101,8 +105,13 @@ pub(crate) fn generate_tsv(
         if of.include_snapshot {
             fields.push(if config.generate_snapshots {
                 format!(
-                    "<img src=\"{}_{:03}_{:04}.jpg\">",
-                    sanitized_deck, ep, seq_num
+                    "<img src=\"{}\">",
+                    media_filename(
+                        MediaKind::Snapshot(config.snapshot_format),
+                        &sanitized_deck,
+                        ep,
+                        seq_num
+                    )
                 )
             } else {
                 String::new()
@@ -112,8 +121,8 @@ pub(crate) fn generate_tsv(
         if of.include_video {
             fields.push(if config.generate_video_clips {
                 format!(
-                    "[sound:{}_{:03}_{:04}.{}]",
-                    sanitized_deck, ep, seq_num, video_ext
+                    "[sound:{}]",
+                    media_filename(MediaKind::Video(video_ext), &sanitized_deck, ep, seq_num)
                 )
             } else {
                 String::new()

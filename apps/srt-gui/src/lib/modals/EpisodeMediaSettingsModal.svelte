@@ -53,7 +53,7 @@
       <div class="flex-1 overflow-y-auto p-5">
         <div class="media-settings-panels">
           <!-- AUDIO PANEL -->
-          <div class="space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner">
+          <div class="relative z-30 space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner">
             <div class="flex items-center justify-between rounded-lg border border-cyan-500/20 bg-cyan-500/10 p-3">
               <span class="text-sm font-semibold text-cyan-200">
                 {t("flashcards.generateAudioClips")}
@@ -158,7 +158,7 @@
             {/if}
           </div>
           <!-- SNAPSHOT PANEL -->
-          <div class="space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner {editor.episode.mediaType !== 'video' ? 'opacity-45' : ''}">
+          <div class="relative z-20 space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner {editor.episode.mediaType !== 'video' ? 'opacity-45' : ''}">
             <div class="flex items-center justify-between rounded-lg border border-purple-500/20 bg-purple-500/10 p-3">
               <span class="text-sm font-semibold text-purple-200">
                 {t("flashcards.generateSnapshots")}
@@ -197,11 +197,18 @@
                     <span class="text-xs text-gray-500">px</span>
                   </div>
                 </div>
+                <div>
+                  <span class="mb-1 block text-xs text-gray-500">{t("flashcards.qualityValue")}</span>
+                  <div class="flex items-center gap-1">
+                    <input type="number" min="0" max="100" value={editor.overrides.snapshotQuality} oninput={(event) => editor.update("snapshotQuality", Number((event.currentTarget as HTMLInputElement).value))} class="input-modern w-full text-xs {mediaOverrideClass('snapshotQuality')}" />
+                    <span class="text-xs text-gray-500">/100</span>
+                  </div>
+                </div>
               </div>
             {/if}
           </div>
           <!-- VIDEO PANEL -->
-          <div class="space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner {editor.episode.mediaType !== 'video' ? 'opacity-45' : ''}">
+          <div class="relative z-10 space-y-4 rounded-xl border border-gray-800 bg-gray-800/30 p-5 shadow-inner {editor.episode.mediaType !== 'video' ? 'opacity-45' : ''}">
             <div class="flex items-center justify-between rounded-lg border border-rose-500/20 bg-rose-500/10 p-3">
               <span class="text-sm font-semibold text-rose-200">
                 {t("flashcards.generateVideoClips")}

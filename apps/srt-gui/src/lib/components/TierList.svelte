@@ -71,7 +71,7 @@
   {:else}
     <div class="space-y-6">
       {#each tiers as tier, tierIndex (tier.id)}
-        <div class="border-b border-white/5 pb-6 last:border-b-0 last:pb-0">
+        <div class="border-b border-white/5 pb-6 last:border-b-0 last:pb-0 relative" style:z-index={50 - tierIndex * 5}>
           <!-- Tier Accordion Header -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div

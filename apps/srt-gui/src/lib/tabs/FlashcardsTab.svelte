@@ -48,6 +48,11 @@
   import { previewStore } from "$lib/stores/previewStore.svelte";
   import type { EpisodeMediaOverrides, AudioTrackInfo, EpisodeMediaOverrideKey } from "$lib/types/flashcardMediaTypes";
   import { formatAudioTrackLabel } from "$lib/types/flashcardMediaTypes";
+  import {
+    loadMediaSettings,
+    saveMediaSettings,
+    type MediaSettings,
+  } from "$lib/utils/mediaSettings";
   import type { CardFilterSettings } from "$lib/types/flashcardFilterTypes";
   import CardFiltersPanel from "$lib/panels/CardFiltersPanel.svelte";
   import { episodeMediaEditorStore } from "$lib/stores/episodeMediaEditorStore.svelte";
@@ -103,10 +108,6 @@
   const SERIES_MODE_KEY = "vesta-flashcards-series-mode";
   const SMART_MATCHING_RULES_KEY = "vesta-flashcards-smart-matching-rules";
   const ANKI_FIELDS_PANEL_OPEN_KEY = "vesta-flashcards-anki-fields-panel-open";
-  const FLASHCARD_MEDIA_WIDTH_KEY = "vesta-flashcards-media-width";
-  const FLASHCARD_MEDIA_HEIGHT_KEY = "vesta-flashcards-media-height";
-  const DEFAULT_FLASHCARD_MEDIA_WIDTH = 240;
-  const DEFAULT_FLASHCARD_MEDIA_HEIGHT = 160;
 
   let smartFileMatchingEnabled = $derived(uiMode.easyMode || smartMatchingStore.enabled);
 
@@ -188,20 +189,6 @@
     }
   }
 
-  function loadStoredDimension(key: string, fallback: number): number {
-    try {
-      const value = Number.parseInt(vestaConfig.getItem(key) || "", 10);
-      return Number.isFinite(value) && value > 0 ? value : fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
-  function persistDimension(key: string, value: number) {
-    if (!Number.isFinite(value) || value <= 0) return;
-    vestaConfig.setItem(key, String(Math.round(value)));
-  }
-
   function getStudiedLanguagePreference(): string {
     return noteTypeLanguage || loadDefaultLanguage(DEFAULT_FLASHCARDS_LANGUAGE_KEY);
   }
@@ -237,6 +224,9 @@
     "snapshotWidth",
     "snapshotHeight",
     "cropBottom",
+    // Codec choice is deck-wide (a deck mixing webp and jpg helps nobody);
+    // quality and resolution are per-episode, since source quality varies.
+    "snapshotQuality",
   ];
   const videoOverrideKeys: EpisodeMediaOverrideKey[] = [
     "generateVideoClips",
@@ -656,25 +646,7 @@
   // Movie-mode media settings — same shape as EpisodeMediaOverrides so a
   // per-episode override is just a partial diff against this object (see
   // getGenericMediaSettings / getEpisodeMediaSettings below).
-  let mediaSettings = $state<Required<EpisodeMediaOverrides>>({
-    generateAudio: true,
-    audioBitrate: 128,
-    audioTrackIndex: null,
-    normalizeAudio: false,
-    audioPadStart: 0,
-    audioPadEnd: 0,
-    generateSnapshots: true,
-    snapshotWidth: loadStoredDimension(FLASHCARD_MEDIA_WIDTH_KEY, DEFAULT_FLASHCARD_MEDIA_WIDTH),
-    snapshotHeight: loadStoredDimension(FLASHCARD_MEDIA_HEIGHT_KEY, DEFAULT_FLASHCARD_MEDIA_HEIGHT),
-    cropBottom: 0,
-    generateVideoClips: false,
-    videoCodec: "h264",
-    h264Preset: "medium",
-    videoBitrate: 800,
-    videoAudioBitrate: 128,
-    videoPadStart: 250,
-    videoPadEnd: 50,
-  });
+  let mediaSettings = $state<MediaSettings>(loadMediaSettings());
   // "auto" = GPU encoder when available (default), "off" = force libx264 (expert mode).
   // Not part of EpisodeMediaOverrides: it's a global preference, not overridable per-episode.
   let videoHwAccel = $state(
@@ -785,12 +757,10 @@
     }
   });
 
+  // One effect for the whole blob: every media setting now survives a restart,
+  // not just the two dimensions that used to have their own keys.
   $effect(() => {
-    persistDimension(FLASHCARD_MEDIA_WIDTH_KEY, mediaSettings.snapshotWidth);
-  });
-
-  $effect(() => {
-    persistDimension(FLASHCARD_MEDIA_HEIGHT_KEY, mediaSettings.snapshotHeight);
+    saveMediaSettings($state.snapshot(mediaSettings));
   });
 
   // Export format state lives in exportFormatStore (generationStore only
@@ -1826,6 +1796,7 @@
     let totalAudio = 0;
     let totalSnapshots = 0;
     let totalVideoClips = 0;
+    let totalOutputBytes = 0;
     const apkgPaths: string[] = [];
     let hadError = false;
     let errorMessages: string[] = [];
@@ -1882,6 +1853,7 @@
             totalAudio += res.audio_clips;
             totalSnapshots += res.snapshots;
             totalVideoClips += res.video_clips;
+            totalOutputBytes += res.output_size_bytes ?? 0;
             if (res.apkg_path) apkgPaths.push(res.apkg_path);
             generationStore.addLog(
               `✓ Ep ${epNum}: ${res.cards_generated} ${t("flashcards.cardsGenerated")}`,
@@ -1937,6 +1909,7 @@
         videoClips: totalVideoClips,
         tsvPath: null,
         apkgPath: finalApkgPath,
+        outputSizeBytes: totalOutputBytes,
       };
 
       generationStore.addLog(
@@ -1957,6 +1930,7 @@
         videoClips: 0,
         tsvPath: null,
         apkgPath: null,
+        outputSizeBytes: 0,
       };
     } finally {
       generationStore.isProcessing = false;
@@ -2009,6 +1983,7 @@
         videoClips: res.video_clips,
         tsvPath: res.tsv_path,
         apkgPath: res.apkg_path,
+        outputSizeBytes: res.output_size_bytes ?? 0,
       };
 
 
@@ -2042,6 +2017,7 @@
         videoClips: 0,
         tsvPath: null,
         apkgPath: null,
+        outputSizeBytes: 0,
       };
     } finally {
       generationStore.isProcessing = false;
@@ -2323,7 +2299,7 @@
     <div class="space-y-3 min-w-0 pr-1 min-h-0 overflow-y-auto scrollbar-thin" role="list">
       {#each effectivePanelLayout.col1 as panelId, idx}
         {#if isPanelVisible(panelId)}
-        <div class="relative" role="listitem">
+        <div class="relative" style:z-index={50 - idx * 5} role="listitem">
           {@render panelContent(panelId)}
         </div>
         {/if}
@@ -2334,7 +2310,7 @@
       <div class="space-y-3 min-w-0 pr-1 min-h-0 overflow-y-auto scrollbar-thin" role="list">
         {#each effectivePanelLayout.col2 as panelId, idx}
           {#if isPanelVisible(panelId)}
-          <div class="relative" role="listitem">
+          <div class="relative" style:z-index={50 - idx * 5} role="listitem">
             {@render panelContent(panelId)}
           </div>
           {/if}
@@ -2346,7 +2322,7 @@
       <div class="space-y-3 min-w-0 pr-1 min-h-0 overflow-y-auto scrollbar-thin" role="list">
         {#each effectivePanelLayout.col3 as panelId, idx}
           {#if isPanelVisible(panelId)}
-          <div class="relative" role="listitem">
+          <div class="relative" style:z-index={50 - idx * 5} role="listitem">
             {@render panelContent(panelId)}
           </div>
           {/if}

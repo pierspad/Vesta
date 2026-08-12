@@ -76,3 +76,6 @@ REFACTOR-PLAN.md
 apps/srt-gui/reports/
 !Test_Subs/fixtures/detour/*.srt
 !Test_Subs/fixtures/detour/detour_clip_90s.mp4
+
+# Superpowers design docs/plans: locali, non tracciati.
+docs/superpowers/

@@ -39,6 +39,115 @@ pub struct SubFileInfo {
     pub duration_ms: i64,
 }
 
+/// Container/codec for the per-card snapshot.
+///
+/// Each variant owns its file extension and its ffmpeg arguments so adding a
+/// format never means hunting through the exporters for a hardcoded `"jpg"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SnapshotFormat {
+    Jpeg,
+    #[default]
+    Webp,
+    Avif,
+}
+
+impl SnapshotFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Jpeg => "jpg",
+            Self::Webp => "webp",
+            Self::Avif => "avif",
+        }
+    }
+
+    /// Encoder arguments for a single still frame.
+    ///
+    /// `quality` is always the same user-facing 0-100 scale (100 = best), which
+    /// each format maps onto its own native scale — two of which are inverted.
+    pub fn ffmpeg_args(self, quality: u8) -> Vec<String> {
+        let q = quality.min(100) as u32;
+        match self {
+            // ffmpeg's -q:v for mjpeg runs 2 (best) to 31 (worst).
+            Self::Jpeg => {
+                let qv = 31 - (q * 29 + 50) / 100;
+                vec![
+                    "-pix_fmt".into(),
+                    "yuvj420p".into(),
+                    "-q:v".into(),
+                    qv.to_string(),
+                ]
+            }
+            // libwebp's -quality is already 0-100, best at 100.
+            Self::Webp => vec![
+                "-c:v".into(),
+                "libwebp".into(),
+                "-quality".into(),
+                q.to_string(),
+            ],
+            // libaom's -crf runs 0 (best) to 63 (worst), but the bottom of
+            // that range is visually lossless and produces files *larger*
+            // than WebP -- which defeats the reason to pick AVIF. Map onto
+            // the window that is actually useful for stills.
+            Self::Avif => {
+                const AVIF_BEST_CRF: u32 = 20;
+                let crf = 63 - (q * (63 - AVIF_BEST_CRF) + 50) / 100;
+                vec![
+                    "-c:v".into(),
+                    "libaom-av1".into(),
+                    "-still-picture".into(),
+                    "1".into(),
+                    "-crf".into(),
+                    crf.to_string(),
+                ]
+            }
+        }
+    }
+}
+
+/// Container/codec for the per-card audio clip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AudioFormat {
+    /// Plays everywhere including AnkiMobile; stays the default for that reason.
+    #[default]
+    Mp3,
+    /// ~2.3x smaller at 64k, but AnkiMobile (iOS) cannot decode Opus in Ogg.
+    Opus,
+}
+
+impl AudioFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Mp3 => "mp3",
+            Self::Opus => "opus",
+        }
+    }
+
+    pub fn ffmpeg_args(self, bitrate: u32) -> Vec<String> {
+        match self {
+            Self::Mp3 => vec![
+                "-ab".into(),
+                format!("{bitrate}k"),
+                "-ar".into(),
+                "44100".into(),
+                "-f".into(),
+                "mp3".into(),
+            ],
+            Self::Opus => vec![
+                "-c:a".into(),
+                "libopus".into(),
+                "-b:a".into(),
+                format!("{bitrate}k"),
+            ],
+        }
+    }
+}
+
+fn default_snapshot_quality() -> u8 {
+    80
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FlashcardConfig {
     pub target_subs_path: String,
@@ -68,10 +177,18 @@ pub struct FlashcardConfig {
     pub audio_pad_start_ms: i64,
     pub audio_pad_end_ms: i64,
 
+    #[serde(default)]
+    pub audio_format: AudioFormat,
+
     pub generate_snapshots: bool,
     pub snapshot_width: u32,
     pub snapshot_height: u32,
     pub crop_bottom: u32,
+
+    #[serde(default)]
+    pub snapshot_format: SnapshotFormat,
+    #[serde(default = "default_snapshot_quality")]
+    pub snapshot_quality: u8,
 
     pub generate_video_clips: bool,
     pub video_codec: String,
@@ -129,10 +246,13 @@ impl Default for FlashcardConfig {
             normalize_audio: false,
             audio_pad_start_ms: 0,
             audio_pad_end_ms: 0,
+            audio_format: AudioFormat::default(),
             generate_snapshots: false,
-            snapshot_width: 240,
-            snapshot_height: 160,
+            snapshot_width: 256,
+            snapshot_height: 144,
             crop_bottom: 0,
+            snapshot_format: SnapshotFormat::default(),
+            snapshot_quality: default_snapshot_quality(),
             generate_video_clips: false,
             video_codec: "h264".to_string(),
             h264_preset: "ultrafast".to_string(),
@@ -307,6 +427,151 @@ pub struct FlashcardResult {
     pub video_clips: usize,
     pub tsv_path: Option<String>,
     pub apkg_path: Option<String>,
+
+    /// Size of what was actually written: the apkg file, or the sum of the
+    /// media directory for TSV output. Exact, unlike a pre-generation estimate.
+    pub output_size_bytes: u64,
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    fn arg_after(args: &[String], flag: &str) -> String {
+        let i = args.iter().position(|a| a == flag).expect("flag present");
+        args[i + 1].clone()
+    }
+
+    #[test]
+    fn webp_quality_passes_through_unchanged() {
+        for q in [0u8, 1, 50, 99, 100] {
+            let args = SnapshotFormat::Webp.ffmpeg_args(q);
+            assert_eq!(arg_after(&args, "-quality"), q.to_string());
+        }
+    }
+
+    #[test]
+    fn jpeg_quality_scale_is_inverted_and_within_ffmpeg_range() {
+        // Best user quality must map to ffmpeg's *lowest* -q:v, not its highest.
+        assert_eq!(
+            arg_after(&SnapshotFormat::Jpeg.ffmpeg_args(100), "-q:v"),
+            "2"
+        );
+        assert_eq!(
+            arg_after(&SnapshotFormat::Jpeg.ffmpeg_args(0), "-q:v"),
+            "31"
+        );
+
+        let mut previous = 32u32;
+        for q in 0..=100u8 {
+            let qv: u32 = arg_after(&SnapshotFormat::Jpeg.ffmpeg_args(q), "-q:v")
+                .parse()
+                .unwrap();
+            assert!(
+                (2..=31).contains(&qv),
+                "q={q} produced out-of-range -q:v {qv}"
+            );
+            assert!(qv <= previous, "q={q} did not decrease -q:v monotonically");
+            previous = qv;
+        }
+    }
+
+    #[test]
+    fn avif_crf_scale_is_inverted_and_within_libaom_range() {
+        assert_eq!(
+            arg_after(&SnapshotFormat::Avif.ffmpeg_args(100), "-crf"),
+            "20"
+        );
+        assert_eq!(
+            arg_after(&SnapshotFormat::Avif.ffmpeg_args(0), "-crf"),
+            "63"
+        );
+
+        let mut previous = 64u32;
+        for q in 0..=100u8 {
+            let crf: u32 = arg_after(&SnapshotFormat::Avif.ffmpeg_args(q), "-crf")
+                .parse()
+                .unwrap();
+            assert!(crf <= 63, "q={q} produced out-of-range -crf {crf}");
+            assert!(crf <= previous, "q={q} did not decrease -crf monotonically");
+            previous = crf;
+        }
+    }
+
+    #[test]
+    fn quality_above_100_is_clamped_not_wrapped() {
+        assert_eq!(
+            arg_after(&SnapshotFormat::Jpeg.ffmpeg_args(255), "-q:v"),
+            arg_after(&SnapshotFormat::Jpeg.ffmpeg_args(100), "-q:v")
+        );
+        assert_eq!(
+            arg_after(&SnapshotFormat::Webp.ffmpeg_args(255), "-quality"),
+            "100"
+        );
+    }
+
+    #[test]
+    fn extensions_match_the_encoder_that_writes_them() {
+        assert_eq!(SnapshotFormat::Jpeg.extension(), "jpg");
+        assert_eq!(SnapshotFormat::Webp.extension(), "webp");
+        assert_eq!(SnapshotFormat::Avif.extension(), "avif");
+        assert_eq!(AudioFormat::Mp3.extension(), "mp3");
+        assert_eq!(AudioFormat::Opus.extension(), "opus");
+    }
+
+    #[test]
+    fn audio_bitrate_reaches_the_right_flag_per_codec() {
+        assert_eq!(arg_after(&AudioFormat::Mp3.ffmpeg_args(128), "-ab"), "128k");
+        let opus = AudioFormat::Opus.ffmpeg_args(64);
+        assert_eq!(arg_after(&opus, "-b:a"), "64k");
+        assert_eq!(arg_after(&opus, "-c:a"), "libopus");
+    }
+
+    #[test]
+    fn defaults_are_webp_and_mp3() {
+        let c = FlashcardConfig::default();
+        assert_eq!(c.snapshot_format, SnapshotFormat::Webp);
+        assert_eq!(c.audio_format, AudioFormat::Mp3);
+        assert_eq!(c.snapshot_quality, 80);
+    }
+
+    #[test]
+    fn configs_written_before_these_fields_existed_still_deserialize() {
+        let legacy = r#"{
+            "target_subs_path": "a.srt", "native_subs_path": null, "video_path": null,
+            "audio_path": null, "output_dir": "/tmp", "use_timings_from": "target",
+            "span_start_ms": null, "span_end_ms": null, "time_shift_target_ms": 0,
+            "time_shift_native_ms": 0,
+            "filters": {
+                "include_words": null, "exclude_words": null,
+                "exclude_duplicates_subs1": false, "exclude_duplicates_subs2": false,
+                "min_chars": null, "max_chars": null,
+                "min_duration_ms": null, "max_duration_ms": null,
+                "exclude_styled": false, "actor_filter": null,
+                "only_cjk": false, "remove_no_match": false
+            },
+            "context": { "leading": 0, "trailing": 0, "max_gap_seconds": 0.0 },
+            "combine_sentences": false, "continuation_chars": "",
+            "generate_audio": true, "audio_bitrate": 128, "audio_track_index": null,
+            "normalize_audio": false, "audio_pad_start_ms": 0, "audio_pad_end_ms": 0,
+            "generate_snapshots": true, "snapshot_width": 240, "snapshot_height": 160,
+            "crop_bottom": 0, "generate_video_clips": false, "video_codec": "h264",
+            "h264_preset": "medium", "video_bitrate": 800, "video_audio_bitrate": 128,
+            "video_pad_start_ms": 0, "video_pad_end_ms": 0, "deck_name": "D",
+            "episode_number": 1, "export_format": "tsv", "note_type_name": null,
+            "field_names": null, "output_fields": {
+                "include_tag": true, "include_sequence": true, "include_audio": true,
+                "include_snapshot": true, "include_video": false,
+                "include_subs1": true, "include_subs2": true
+            },
+            "cpu_cores": null, "card_front_html": null, "card_back_html": null,
+            "card_css": null
+        }"#;
+        let c: FlashcardConfig = serde_json::from_str(legacy).expect("legacy config parses");
+        assert_eq!(c.snapshot_format, SnapshotFormat::Webp);
+        assert_eq!(c.snapshot_quality, 80);
+        assert_eq!(c.audio_format, AudioFormat::Mp3);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

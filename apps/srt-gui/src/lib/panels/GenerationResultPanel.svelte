@@ -1,6 +1,7 @@
 <script lang="ts">
   import { locale } from "$lib/i18n";
   import { generationStore } from "$lib/stores/generationStore.svelte";
+  import { formatBytes } from "$lib/types/flashcardMediaTypes";
 
   /** Detailed progress/result/error display shown in the main panel grid.
    * Distinct from the compact GenerationStatusDisplay.svelte in the footer
@@ -83,6 +84,9 @@
             {/if}
             {#if generationStore.result.videoClips > 0}
               <span>🎬 {generationStore.result.videoClips} {t("flashcards.countVideo")}</span>
+            {/if}
+            {#if generationStore.result.outputSizeBytes > 0}
+              <span>💾 {formatBytes(generationStore.result.outputSizeBytes)}</span>
             {/if}
           </div>
           {#if generationStore.result.tsvPath}

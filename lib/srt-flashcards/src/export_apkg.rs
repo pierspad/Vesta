@@ -2,7 +2,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::export_tsv::{render_text_with_context, sanitize_filename};
-use super::media::ms_to_ffmpeg_ts;
+use super::media::{MediaKind, media_filename, ms_to_ffmpeg_ts, video_clip_extension};
 use super::types::*;
 
 fn clean_field_name(value: &str, fallback: &str) -> String {
@@ -316,7 +316,12 @@ pub(crate) fn generate_apkg(
             }
 
             if of.include_audio {
-                let filename = format!("{}_{:03}_{:04}.mp3", deck_sanitized, ep, seq_num);
+                let filename = media_filename(
+                    MediaKind::Audio(config.audio_format),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
+                );
                 fields.push(if media_dir.join(&filename).exists() {
                     format!("[sound:{}]", filename)
                 } else {
@@ -325,7 +330,12 @@ pub(crate) fn generate_apkg(
             }
 
             if of.include_snapshot {
-                let filename = format!("{}_{:03}_{:04}.jpg", deck_sanitized, ep, seq_num);
+                let filename = media_filename(
+                    MediaKind::Snapshot(config.snapshot_format),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
+                );
                 fields.push(if media_dir.join(&filename).exists() {
                     format!("<img src=\"{}\">", filename)
                 } else {
@@ -334,12 +344,12 @@ pub(crate) fn generate_apkg(
             }
 
             if of.include_video {
-                let ext = if config.video_codec == "h264" {
-                    "mp4"
-                } else {
-                    "avi"
-                };
-                let filename = format!("{}_{:03}_{:04}.{}", deck_sanitized, ep, seq_num, ext);
+                let filename = media_filename(
+                    MediaKind::Video(video_clip_extension(&config.video_codec)),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
+                );
                 fields.push(if media_dir.join(&filename).exists() {
                     format!("[sound:{}]", filename)
                 } else {
@@ -416,7 +426,12 @@ pub(crate) fn generate_apkg(
         let seq_num = seq + 1;
 
         if config.generate_audio {
-            let filename = format!("{}_{:03}_{:04}.mp3", deck_sanitized, ep, seq_num);
+            let filename = media_filename(
+                MediaKind::Audio(config.audio_format),
+                &deck_sanitized,
+                ep,
+                seq_num,
+            );
             let file_path = media_dir.join(&filename);
             if file_path.exists() {
                 media_map.insert(media_idx.to_string(), filename.clone());
@@ -426,7 +441,12 @@ pub(crate) fn generate_apkg(
         }
 
         if config.generate_snapshots {
-            let filename = format!("{}_{:03}_{:04}.jpg", deck_sanitized, ep, seq_num);
+            let filename = media_filename(
+                MediaKind::Snapshot(config.snapshot_format),
+                &deck_sanitized,
+                ep,
+                seq_num,
+            );
             let file_path = media_dir.join(&filename);
             if file_path.exists() {
                 media_map.insert(media_idx.to_string(), filename.clone());
@@ -436,12 +456,12 @@ pub(crate) fn generate_apkg(
         }
 
         if config.generate_video_clips {
-            let ext = if config.video_codec == "h264" {
-                "mp4"
-            } else {
-                "avi"
-            };
-            let filename = format!("{}_{:03}_{:04}.{}", deck_sanitized, ep, seq_num, ext);
+            let filename = media_filename(
+                MediaKind::Video(video_clip_extension(&config.video_codec)),
+                &deck_sanitized,
+                ep,
+                seq_num,
+            );
             let file_path = media_dir.join(&filename);
             if file_path.exists() {
                 media_map.insert(media_idx.to_string(), filename.clone());

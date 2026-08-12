@@ -2,7 +2,14 @@
   import { locale } from "$lib/i18n";
   import { uiMode } from "$lib/stores/uiModeStore.svelte";
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
-  import { formatAudioTrackLabel, type AudioTrackInfo, type EpisodeMediaOverrides } from "$lib/types/flashcardMediaTypes";
+  import {
+    bitratesFor,
+    equivalentBitrate,
+    formatAudioTrackLabel,
+    type AudioFormat,
+    type AudioTrackInfo,
+    type EpisodeMediaOverrides,
+  } from "$lib/types/flashcardMediaTypes";
 
   interface Props {
     settings: Required<EpisodeMediaOverrides>;
@@ -19,12 +26,26 @@
 
   let t = $derived($locale);
   let easyMode = $derived(!uiMode.expertMode);
+
+  let bitrateOptions = $derived(
+    bitratesFor(settings.audioFormat).map((b) => ({ value: String(b), label: `${b} kb/s` })),
+  );
+
+  /** Switching codec carries the quality *intent*, not the number: 128k MP3 and
+   *  128k Opus are not the same trade-off, and leaving 128k on Opus would throw
+   *  away most of the saving the user just asked for. */
+  function setAudioFormat(next: AudioFormat) {
+    const previous = settings.audioFormat;
+    if (previous === next) return;
+    settings.audioBitrate = equivalentBitrate(previous, next, settings.audioBitrate);
+    settings.audioFormat = next;
+  }
 </script>
 
 <div
   inert={!hasAudio}
   title={!hasAudio ? hintLoadMediaFirst : undefined}
-  class="glass-card p-5 relative z-10 overflow-visible {!hasAudio ? 'opacity-40' : ''}"
+  class="glass-card p-5 relative z-30 overflow-visible {!hasAudio ? 'opacity-40' : ''}"
 >
   <div class="flex items-center justify-between mb-3">
     <h3 class="text-lg font-semibold flex items-center gap-2 text-cyan-400">
@@ -90,13 +111,7 @@
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.bitrate")}</span>
           <SearchableSelect
             noResultsText={t("common.noResults")}
-            options={[
-              { value: "64", label: "64 kb/s" },
-              { value: "128", label: "128 kb/s" },
-              { value: "192", label: "192 kb/s" },
-              { value: "256", label: "256 kb/s" },
-              { value: "320", label: "320 kb/s" },
-            ]}
+            options={bitrateOptions}
             value={String(settings.audioBitrate)}
             onchange={(v) => (settings.audioBitrate = parseInt(v))}
             placeholder="Bitrate"
@@ -104,6 +119,23 @@
         </div>
       {/if}
     </div>
+
+    <!-- Shown in both modes: shrinking a shared deck is the whole reason Opus
+         is here, and that is not an expert-only concern. -->
+    <label class="vesta-check-row">
+      <input
+        type="checkbox"
+        checked={settings.audioFormat === "opus"}
+        onchange={(e) => setAudioFormat(e.currentTarget.checked ? "opus" : "mp3")}
+        class="vesta-check-input shrink-0"
+      />
+      <span class="min-w-0 text-left text-xs font-medium text-gray-300">
+        {t("flashcards.compactAudio")}
+      </span>
+    </label>
+    {#if settings.audioFormat === "opus"}
+      <p class="text-[10px] text-amber-500/80 leading-snug">{t("flashcards.opusWarning")}</p>
+    {/if}
     {#if !easyMode}
       <div class="grid grid-cols-3 gap-2 items-end">
         <div>

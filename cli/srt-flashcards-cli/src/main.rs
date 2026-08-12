@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use srt_flashcards::{
-    ContextConfig, FieldNamesConfig, FlashcardConfig, FlashcardProgressEvent, MediaTools,
-    OutputFields, SubtitleFilters,
+    AudioFormat, ContextConfig, FieldNamesConfig, FlashcardConfig, FlashcardProgressEvent,
+    MediaTools, OutputFields, SnapshotFormat, SubtitleFilters,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -91,18 +91,30 @@ struct GenerateArgs {
     /// Loudness-normalize audio clips (EBU R128).
     #[arg(long)]
     normalize_audio: bool,
-    /// Audio bitrate (kbps).
+    /// Audio bitrate (kbps). Opus needs far less than MP3 for speech: 64 is
+    /// roughly equivalent to 128 in MP3.
     #[arg(long, default_value_t = 128)]
     audio_bitrate: u32,
+    /// Audio codec. Opus is ~2.3x smaller than MP3 but does not play on
+    /// AnkiMobile (iOS), so it is not the default for shared decks.
+    #[arg(long, default_value = "mp3", value_parser = ["mp3", "opus"])]
+    audio_format: String,
     /// Explicit audio track index (ffmpeg 0:a:N order).
     #[arg(long)]
     audio_track: Option<usize>,
     /// Snapshot / video width in pixels.
-    #[arg(long, default_value_t = 240)]
+    #[arg(long, default_value_t = 256)]
     snapshot_width: u32,
     /// Snapshot / video height in pixels.
-    #[arg(long, default_value_t = 160)]
+    #[arg(long, default_value_t = 144)]
     snapshot_height: u32,
+    /// Snapshot image codec. WebP is about half the size of JPEG at the same
+    /// perceived quality; AVIF is smaller still but ~2x slower to encode.
+    #[arg(long, default_value = "webp", value_parser = ["webp", "jpeg", "avif"])]
+    snapshot_format: String,
+    /// Snapshot quality, 0-100 (100 = best). Mapped onto each codec's own scale.
+    #[arg(long, default_value_t = 80)]
+    snapshot_quality: u8,
     /// Crop N pixels off the bottom (e.g. to remove burned-in subs).
     #[arg(long, default_value_t = 0)]
     crop_bottom: u32,
@@ -223,10 +235,20 @@ impl GenerateArgs {
             audio_bitrate: self.audio_bitrate,
             audio_track_index: self.audio_track,
             normalize_audio: self.normalize_audio,
+            audio_format: match self.audio_format.as_str() {
+                "opus" => AudioFormat::Opus,
+                _ => AudioFormat::Mp3,
+            },
             generate_snapshots: !self.no_snapshots,
             snapshot_width: self.snapshot_width,
             snapshot_height: self.snapshot_height,
             crop_bottom: self.crop_bottom,
+            snapshot_format: match self.snapshot_format.as_str() {
+                "jpeg" => SnapshotFormat::Jpeg,
+                "avif" => SnapshotFormat::Avif,
+                _ => SnapshotFormat::Webp,
+            },
+            snapshot_quality: self.snapshot_quality,
             generate_video_clips: !self.no_video,
             video_codec: self.video_codec.clone(),
             h264_preset: self.h264_preset.clone(),

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
@@ -20,7 +20,10 @@ use export_apkg::generate_apkg;
 use export_tsv::{generate_tsv, sanitize_filename};
 use filters::{apply_filters, apply_span, combine_sentences, compute_context};
 use matcher::match_subtitles;
-use media::{extract_audio_clip, extract_snapshot, extract_video_clip, normalize_audio};
+use media::{
+    MediaKind, extract_audio_clip, extract_snapshot, extract_video_clip, media_filename,
+    video_clip_extension,
+};
 use parser::parse_subtitle_file;
 
 #[derive(Debug, Clone)]
@@ -103,6 +106,7 @@ fn cancelled_result(
         video_clips: video,
         tsv_path: None,
         apkg_path: None,
+        output_size_bytes: 0,
     }
 }
 
@@ -353,6 +357,7 @@ pub async fn generate(
             video_clips: 0,
             tsv_path: None,
             apkg_path: None,
+            output_size_bytes: 0,
         });
     }
 
@@ -453,9 +458,14 @@ pub async fn generate(
 
             if needs_audio {
                 let source = media_source_arc.clone().unwrap();
-                let output_path =
-                    media_dir.join(format!("{}_{:03}_{:04}.mp3", deck_sanitized, ep, seq_num));
+                let output_path = media_dir.join(media_filename(
+                    MediaKind::Audio(config.audio_format),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
+                ));
                 let bitrate = config.audio_bitrate;
+                let audio_format = config.audio_format;
                 let audio_track_index = config.audio_track_index;
                 let pad_s = config.audio_pad_start_ms;
                 let pad_e = config.audio_pad_end_ms;
@@ -474,20 +484,25 @@ pub async fn generate(
                         pad_e,
                         bitrate,
                         audio_track_index,
+                        audio_format,
+                        normalize,
                         &ffmpeg,
                     )
                     .await;
-                    if result.is_ok() && normalize {
-                        let _ = normalize_audio(&output_path, &ffmpeg).await;
-                    }
                     ("audio", result, seq_num)
                 });
             }
 
             if needs_snapshots {
                 let source = video_source_arc.clone().unwrap();
-                let output_path =
-                    media_dir.join(format!("{}_{:03}_{:04}.jpg", deck_sanitized, ep, seq_num));
+                let output_path = media_dir.join(media_filename(
+                    MediaKind::Snapshot(config.snapshot_format),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
+                ));
+                let snapshot_format = config.snapshot_format;
+                let snapshot_quality = config.snapshot_quality;
                 let w = config.snapshot_width;
                 let h = config.snapshot_height;
                 let crop = config.crop_bottom;
@@ -504,6 +519,8 @@ pub async fn generate(
                         w,
                         h,
                         crop,
+                        snapshot_format,
+                        snapshot_quality,
                         &ffmpeg,
                     )
                     .await;
@@ -513,10 +530,11 @@ pub async fn generate(
 
             if needs_video {
                 let source = video_source_arc.clone().unwrap();
-                let ext = if video_codec == "h264" { "mp4" } else { "avi" };
-                let output_path = media_dir.join(format!(
-                    "{}_{:03}_{:04}.{}",
-                    deck_sanitized, ep, seq_num, ext
+                let output_path = media_dir.join(media_filename(
+                    MediaKind::Video(video_clip_extension(&video_codec)),
+                    &deck_sanitized,
+                    ep,
+                    seq_num,
                 ));
                 let codec = video_codec.clone();
                 let preset = h264_preset.clone();
@@ -726,6 +744,13 @@ pub async fn generate(
         HashMap::new(),
     );
 
+    // Exact, unlike a pre-generation estimate: the bytes are already on disk.
+    // An apkg is self-contained; a TSV leaves its media loose in media_dir.
+    let output_size_bytes = match &apkg_path_result {
+        Some(path) => std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+        None => dir_size_bytes(&media_dir),
+    };
+
     Ok(FlashcardResult {
         success: true,
         message: format!(
@@ -738,5 +763,20 @@ pub async fn generate(
         video_clips: video_count,
         tsv_path: tsv_path_result,
         apkg_path: apkg_path_result,
+        output_size_bytes,
     })
+}
+
+/// Total size of the files directly inside `dir`, ignoring anything it cannot
+/// stat. Media directories are flat, so this does not recurse.
+fn dir_size_bytes(dir: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum()
 }

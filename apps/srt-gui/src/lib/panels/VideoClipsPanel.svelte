@@ -2,7 +2,7 @@
   import { locale } from "$lib/i18n";
   import { uiMode } from "$lib/stores/uiModeStore.svelte";
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
-  import type { EpisodeMediaOverrides } from "$lib/types/flashcardMediaTypes";
+  import { VIDEO_QUALITY_STEPS, type EpisodeMediaOverrides, type VideoQualityStep } from "$lib/types/flashcardMediaTypes";
 
   interface Props {
     settings: Required<EpisodeMediaOverrides>;
@@ -16,15 +16,25 @@
 
   let t = $derived($locale);
   let easyMode = $derived(!uiMode.expertMode);
+
+  let activeVideoQuality = $derived(
+    VIDEO_QUALITY_STEPS.find((s) => s.videoBitrate === settings.videoBitrate) ?? VIDEO_QUALITY_STEPS[1]
+  );
+
+  function applyVideoQualityStep(step: VideoQualityStep) {
+    settings.videoBitrate = step.videoBitrate;
+    settings.videoAudioBitrate = step.videoAudioBitrate;
+    settings.h264Preset = step.h264Preset;
+  }
 </script>
 
 <div
   inert={!hasVideo}
   title={!hasVideo ? hintLoadVideoFirst : undefined}
-  class="glass-card p-5 relative z-5 overflow-visible {!hasVideo ? 'opacity-40' : ''}"
+  class="glass-card p-5 relative z-20 overflow-visible {!hasVideo ? 'opacity-40' : ''}"
 >
   <div class="flex items-center justify-between mb-3">
-    <h3 class="text-lg font-semibold flex items-center gap-2 text-rose-400">
+    <h3 class="text-lg font-semibold flex items-center gap-2 text-orange-400">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           stroke-linecap="round"
@@ -36,7 +46,7 @@
       <span class="flex flex-col">
         <span>{t("flashcards.generateVideoClips")}</span>
         {#if effectiveExportFormat === "apkg"}
-          <span class="text-[10px] text-rose-300/60 font-normal normal-case mt-0.5">
+          <span class="text-[10px] text-orange-300/60 font-normal normal-case mt-0.5">
             {t("flashcards.videoExclusiveHint")}
           </span>
         {/if}
@@ -47,7 +57,7 @@
         if (hasVideo) settings.generateVideoClips = !settings.generateVideoClips;
       }}
       class="w-10 h-5 rounded-full transition-all duration-200 relative
-        {settings.generateVideoClips ? 'bg-rose-500' : 'bg-gray-600'}"
+        {settings.generateVideoClips ? 'bg-orange-500' : 'bg-gray-600'}"
       aria-label="Toggle video clips"
       disabled={!hasVideo}
     >
@@ -58,8 +68,73 @@
     </button>
   </div>
 
-  {#if !easyMode}
-    <div class="space-y-2 transition-all duration-200 {!settings.generateVideoClips ? 'opacity-40 pointer-events-none' : ''}">
+  <div class="space-y-2 transition-all duration-200 {!settings.generateVideoClips ? 'opacity-40 pointer-events-none' : ''}">
+    {#if easyMode}
+      <!-- Easy Mode: Simple Video Quality vs Weight Balance Selector -->
+      <div class="space-y-3 bg-gray-950/30 p-3.5 rounded-xl border border-orange-500/15">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-medium text-gray-300 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            {t("flashcards.videoQualityVsSize")}
+          </span>
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
+            {t(`flashcards.quality.${activeVideoQuality?.id ?? "balanced"}`)}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1.5 p-1 bg-black/40 rounded-xl border border-white/5">
+          {#each VIDEO_QUALITY_STEPS as step}
+            <button
+              type="button"
+              onclick={() => applyVideoQualityStep(step)}
+              class="py-1.5 px-2 rounded-lg text-xs font-medium transition-all duration-150 flex flex-col items-center gap-0.5
+                {activeVideoQuality?.id === step.id
+                  ? 'bg-orange-500 text-white shadow-md shadow-orange-900/40 font-semibold scale-[1.02]'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}"
+            >
+              <span>{t(`flashcards.quality.${step.id}`)}</span>
+              <span class="text-[9px] opacity-70">
+                {step.id === 'light' ? '~0.5 MB' : step.id === 'balanced' ? '~1.2 MB' : '~2.5 MB'}
+              </span>
+            </button>
+          {/each}
+        </div>
+
+        <div class="space-y-1 pt-1">
+          <div class="flex justify-between text-[10px] text-gray-400">
+            <span class="flex items-center gap-1">
+              <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+              {t("flashcards.weightLow")}
+            </span>
+            <span class="flex items-center gap-1">
+              {t("flashcards.weightHigh")}
+              <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+            </span>
+          </div>
+          <div class="h-2 rounded-full bg-gray-800/80 p-0.5 relative overflow-hidden">
+            <div
+              class="h-full w-full rounded-full transition-[clip-path] duration-300 ease-out"
+              style:background="linear-gradient(90deg, #059669 0%, #10b981 18%, #34d399 35%, #22c55e 38%, #84cc16 52%, #eab308 68%, #f97316 85%, #dc2626 100%)"
+              style:clip-path="inset(0 {activeVideoQuality?.id === 'light' ? '68%' : activeVideoQuality?.id === 'balanced' ? '32%' : '0%'} 0 0)"
+            ></div>
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-400 leading-snug">
+          {activeVideoQuality?.id === 'light'
+            ? t("flashcards.videoQualityHint.light")
+            : activeVideoQuality?.id === 'high'
+            ? t("flashcards.videoQualityHint.high")
+            : t("flashcards.videoQualityHint.balanced")}
+        </p>
+      </div>
+    {:else}
+      <!-- Expert Mode: Fine-grained video options -->
       <div class="grid grid-cols-2 gap-2">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.width")}</span>
@@ -166,8 +241,8 @@
           </div>
         </div>
       </div>
-    </div>
-  {/if}
+    {/if}
+  </div>
 
   {#if settings.generateVideoClips && !settings.generateAudio}
     <div class="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-200 rounded-xl text-xs flex items-start gap-2">

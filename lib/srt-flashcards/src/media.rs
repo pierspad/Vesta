@@ -1,6 +1,48 @@
 use anyhow::{Context as _, Result};
 use std::path::Path;
 
+use super::types::{AudioFormat, SnapshotFormat};
+
+/// Which per-card media file a name refers to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaKind {
+    Audio(AudioFormat),
+    Snapshot(SnapshotFormat),
+    /// Video clips keep their existing codec-derived extension.
+    Video(&'static str),
+}
+
+impl MediaKind {
+    fn extension(self) -> &'static str {
+        match self {
+            Self::Audio(f) => f.extension(),
+            Self::Snapshot(f) => f.extension(),
+            Self::Video(ext) => ext,
+        }
+    }
+}
+
+/// The single place that knows what a per-card media file is called.
+///
+/// The generator, the TSV exporter and the apkg exporter (both its field
+/// references and its media manifest) must all agree on this name; when they
+/// each built it themselves, adding a format meant a five-file hunt and any
+/// miss shipped a deck whose media silently failed to resolve.
+pub fn media_filename(kind: MediaKind, deck_sanitized: &str, ep: u32, seq_num: usize) -> String {
+    format!(
+        "{}_{:03}_{:04}.{}",
+        deck_sanitized,
+        ep,
+        seq_num,
+        kind.extension()
+    )
+}
+
+/// Extension used for a video clip produced with `video_codec`.
+pub fn video_clip_extension(video_codec: &str) -> &'static str {
+    if video_codec == "h264" { "mp4" } else { "avi" }
+}
+
 pub fn media_command(cmd: &str) -> tokio::process::Command {
     #[allow(unused_mut)]
     let mut command = tokio::process::Command::new(cmd);
@@ -211,6 +253,8 @@ pub(crate) async fn extract_audio_clip(
     pad_end_ms: i64,
     bitrate: u32,
     audio_track_index: Option<usize>,
+    format: AudioFormat,
+    normalize: bool,
     ffmpeg_cmd: &str,
 ) -> Result<()> {
     let (start_ts, duration_ts) = clip_window(start_ms, end_ms, pad_start_ms, pad_end_ms);
@@ -235,16 +279,18 @@ pub(crate) async fn extract_audio_clip(
         let audio_map = format!("0:a:{}", track_index);
         cmd.args(["-map", audio_map.as_str()]);
     }
-    cmd.args([
-        "-ac",
-        "2",
-        "-ab",
-        &format!("{}k", bitrate),
-        "-ar",
-        "44100",
-        "-f",
-        "mp3",
-    ]);
+    cmd.args(["-ac", "2"]);
+
+    // Loudness normalisation rides along with the one encode we already do.
+    // Doing it as a second pass would decode and re-encode an already-lossy
+    // clip -- merely wasteful for MP3, but lossy-on-lossy for Opus.
+    if normalize {
+        cmd.args(["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]);
+    }
+
+    for arg in format.ffmpeg_args(bitrate) {
+        cmd.arg(arg);
+    }
     cmd.arg(output_path.as_os_str());
 
     run_ffmpeg(cmd, "audio").await
@@ -259,6 +305,8 @@ pub(crate) async fn extract_snapshot(
     width: u32,
     height: u32,
     crop_bottom: u32,
+    format: SnapshotFormat,
+    quality: u8,
     ffmpeg_cmd: &str,
 ) -> Result<()> {
     let midpoint_ms = start_ms + (end_ms - start_ms) / 2;
@@ -281,11 +329,10 @@ pub(crate) async fn extract_snapshot(
         "1",
         "-vf",
         &vf,
-        "-pix_fmt",
-        "yuvj420p",
-        "-q:v",
-        "2",
     ]);
+    for arg in format.ffmpeg_args(quality) {
+        cmd.arg(arg);
+    }
     cmd.arg(output_path.as_os_str());
 
     run_ffmpeg(cmd, "snapshot").await
@@ -380,27 +427,42 @@ pub(crate) async fn extract_video_clip(
     run_ffmpeg(cmd, "video").await
 }
 
-pub(crate) async fn normalize_audio(file_path: &Path, ffmpeg_cmd: &str) -> Result<()> {
-    let temp_path = file_path.with_extension("normalized.mp3");
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let mut cmd = media_command(ffmpeg_cmd);
-    cmd.args(["-y", "-i"]);
-    cmd.arg(file_path.as_os_str());
-    cmd.args([
-        "-af",
-        "loudnorm=I=-16:TP=-1.5:LRA=11",
-        "-ar",
-        "44100",
-        "-ac",
-        "2",
-    ]);
-    cmd.arg(temp_path.as_os_str());
-
-    let output = cmd.output().await.context("Failed to normalize audio")?;
-    if output.status.success() {
-        std::fs::rename(&temp_path, file_path)?;
-    } else {
-        let _ = std::fs::remove_file(&temp_path);
+    #[test]
+    fn filenames_carry_the_extension_of_their_format() {
+        assert_eq!(
+            media_filename(MediaKind::Audio(AudioFormat::Opus), "Deck", 3, 42),
+            "Deck_003_0042.opus"
+        );
+        assert_eq!(
+            media_filename(MediaKind::Snapshot(SnapshotFormat::Webp), "Deck", 3, 42),
+            "Deck_003_0042.webp"
+        );
+        assert_eq!(
+            media_filename(MediaKind::Snapshot(SnapshotFormat::Jpeg), "Deck", 1, 1),
+            "Deck_001_0001.jpg"
+        );
     }
-    Ok(())
+
+    #[test]
+    fn sequence_and_episode_stay_zero_padded() {
+        // Anki sorts these as strings; losing the padding reorders the deck.
+        assert_eq!(
+            media_filename(MediaKind::Audio(AudioFormat::Mp3), "D", 1, 7),
+            "D_001_0007.mp3"
+        );
+        assert_eq!(
+            media_filename(MediaKind::Audio(AudioFormat::Mp3), "D", 12, 1234),
+            "D_012_1234.mp3"
+        );
+    }
+
+    #[test]
+    fn video_extension_follows_codec() {
+        assert_eq!(video_clip_extension("h264"), "mp4");
+        assert_eq!(video_clip_extension("mpeg4"), "avi");
+    }
 }

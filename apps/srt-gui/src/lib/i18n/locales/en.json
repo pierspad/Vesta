@@ -940,5 +940,12 @@
   "translate.translated": "Translated",
   "translate.translating": "Translating...",
   "translate.usingCustomModel": "Using custom model",
-  "translate.waitingForTranslation": "Waiting for translation to start..."
+  "translate.waitingForTranslation": "Waiting for translation to start...",
+  "flashcards.difficulty.title": "Difficulty Tagging (CEFR / HSK / JLPT)",
+  "flashcards.difficulty.schemeLabel": "Level scheme",
+  "flashcards.difficulty.unknownPolicyLabel": "Unknown words",
+  "flashcards.difficulty.ignore": "Ignore unlisted words",
+  "flashcards.difficulty.highest": "Assign highest level to unknown words",
+  "flashcards.difficulty.note": "Note",
+  "flashcards.difficulty.hintText": "Each card gets an Anki tag (e.g. HSK::3, JLPT::N3, CEFR::B1) equal to the level of the most complex word in the sentence."
 }

@@ -940,5 +940,12 @@
   "translate.translated": "Tradotto",
   "translate.translating": "Traduzione in corso...",
   "translate.usingCustomModel": "Modello personalizzato selezionato",
-  "translate.waitingForTranslation": "In attesa dell'avvio della traduzione..."
+  "translate.waitingForTranslation": "In attesa dell'avvio della traduzione...",
+  "flashcards.difficulty.title": "Tagging Difficoltà (CEFR / HSK / JLPT)",
+  "flashcards.difficulty.schemeLabel": "Schema di livello",
+  "flashcards.difficulty.unknownPolicyLabel": "Parole sconosciute",
+  "flashcards.difficulty.ignore": "Ignora parole fuori lista",
+  "flashcards.difficulty.highest": "Assegna livello massimo alle parole sconosciute",
+  "flashcards.difficulty.note": "Nota",
+  "flashcards.difficulty.hintText": "Ogni carta riceve un tag Anki (es. HSK::3, JLPT::N3, CEFR::B1) pari al livello della parola più complessa presente nella frase."
 }

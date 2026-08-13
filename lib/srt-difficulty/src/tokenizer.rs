@@ -116,10 +116,7 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
         if lower.ends_with("ing") && lower.len() > 5 {
             let base = &lower[..lower.len() - 3];
             found_level = table.get(base);
-        } else if lower.ends_with("ed") && lower.len() > 4 {
-            let base = &lower[..lower.len() - 2];
-            found_level = table.get(base);
-        } else if lower.ends_with("es") && lower.len() > 4 {
+        } else if (lower.ends_with("ed") || lower.ends_with("es")) && lower.len() > 4 {
             let base = &lower[..lower.len() - 2];
             found_level = table.get(base);
         } else if lower.ends_with('s') && lower.len() > 3 {

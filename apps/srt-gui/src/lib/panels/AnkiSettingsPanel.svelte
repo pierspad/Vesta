@@ -12,6 +12,8 @@
     limitNoteTypeFieldValue,
   } from "$lib/types/noteTypes";
   import { ankiTemplateStore, type AnkiFieldKey, type TemplateCodeTab } from "$lib/stores/ankiTemplateStore.svelte";
+  import ToggleRow from "$lib/components/ToggleRow.svelte";
+  import { ankiStore } from "$lib/stores/ankiStore.svelte";
 
   interface Props {
     /** SettingsTab.svelte's own settingsCopy translation helper -- kept local
@@ -147,6 +149,17 @@
 </script>
 
 <div class="mt-6 space-y-4">
+
+  <div class="glass-card p-5 mb-4">
+    <ToggleRow
+      label="Font automatico per la lingua"
+      description="Imposta automaticamente la pila di font CSS (Noto Fonts/Sistema) nel modello Anki in base alla lingua dei sottotitoli target per evitare caratteri mancanti."
+      checked={ankiStore.autoCardFont}
+      accent="emerald"
+      iconPath="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10"
+      onchange={(val) => ankiStore.setAutoCardFont(val)}
+    />
+  </div>
 
   <div class="glass-card p-5">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">

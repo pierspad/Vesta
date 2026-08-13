@@ -6,15 +6,25 @@ class AnkiStore {
   status = $state<"unknown" | "checking" | "online" | "offline">("unknown");
   version = $state<number | null>(null);
   decks = $state<string[]>([]);
+  autoCardFont = $state<boolean>(true);
 
   constructor() {
     this.url = vestaConfig.getItem("vesta-ankiconnect-url") || "http://127.0.0.1:8765";
+    const savedAutoFont = vestaConfig.getItem("vesta-auto-card-font");
+    this.autoCardFont = savedAutoFont !== "false";
   }
 
   setUrl(newUrl: string) {
     this.url = newUrl;
     try {
       vestaConfig.setItem("vesta-ankiconnect-url", newUrl);
+    } catch {}
+  }
+
+  setAutoCardFont(val: boolean) {
+    this.autoCardFont = val;
+    try {
+      vestaConfig.setItem("vesta-auto-card-font", String(val));
     } catch {}
   }
 

@@ -11,6 +11,7 @@ mod matcher;
 mod parser;
 mod types;
 
+pub mod fonts;
 pub mod media;
 
 pub use media::{H264Encoder, check_ffmpeg, detect_h264_encoder, video_has_audio};

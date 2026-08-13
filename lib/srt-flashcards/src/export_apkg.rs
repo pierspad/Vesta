@@ -399,25 +399,26 @@ pub(crate) fn generate_apkg(
             let guid = format!("{:010x}", note_id as u64);
 
             let mut tags_val = String::new();
-            if let (Some(diff), Some(table)) =
-                (config.difficulty.as_ref(), difficulty_table.as_ref())
-            {
-                if diff.enabled {
-                    let opts = srt_difficulty::AnalyzeOptions {
-                        unknown: diff.unknown_policy,
-                        min_token_chars: 1,
+            let diff_and_table = config
+                .difficulty
+                .as_ref()
+                .filter(|d| d.enabled)
+                .zip(difficulty_table.as_ref());
+            if let Some((diff, table)) = diff_and_table {
+                let opts = srt_difficulty::AnalyzeOptions {
+                    unknown: diff.unknown_policy,
+                    min_token_chars: 1,
+                };
+                let card_level = srt_difficulty::analyze(&line.subs1.text, table, &opts);
+                if let Some(lvl) = card_level.level {
+                    let tag = srt_difficulty::tag_for(diff.scheme, lvl);
+                    let final_tag = match &diff.tag_prefix {
+                        Some(prefix) if !prefix.trim().is_empty() => {
+                            format!("{}_{}", prefix, tag)
+                        }
+                        _ => tag,
                     };
-                    let card_level = srt_difficulty::analyze(&line.subs1.text, table, &opts);
-                    if let Some(lvl) = card_level.level {
-                        let tag = srt_difficulty::tag_for(diff.scheme, lvl);
-                        let final_tag = match &diff.tag_prefix {
-                            Some(prefix) if !prefix.trim().is_empty() => {
-                                format!("{}_{}", prefix, tag)
-                            }
-                            _ => tag,
-                        };
-                        tags_val = format!(" {} ", final_tag);
-                    }
+                    tags_val = format!(" {} ", final_tag);
                 }
             }
 

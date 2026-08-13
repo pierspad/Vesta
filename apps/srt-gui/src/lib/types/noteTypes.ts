@@ -349,7 +349,7 @@ export const defaultCardTemplates: CardTemplateConfig = {
 <span class='media'>{{Video}}</span>
 <br />`,
   css: `.card {
-  font-family: arial;
+  font-family: var(--vesta-target-font, arial);
   font-size: 20px;
   text-align: center;
   color: black;

@@ -20,3 +20,4 @@ tempfile = { workspace = true }
 rusqlite = { version = "0.40", features = ["bundled"] }
 sha1_smol = "1.0"
 zip = "8"
+srt-difficulty = { workspace = true }

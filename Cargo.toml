@@ -39,6 +39,7 @@ srt-refine = { path = "./lib/srt-refine", version = "0.18.1" }
 srt-transcribe = { path = "./lib/srt-transcribe", version = "0.18.1" }
 srt-condense = { path = "./lib/srt-condense", version = "0.18.1" }
 srt-ankiconnect = { path = "./lib/srt-ankiconnect", version = "0.18.1" }
+srt-difficulty = { path = "./lib/srt-difficulty", version = "0.18.1" }
 
 [profile.dev]
 opt-level = 0

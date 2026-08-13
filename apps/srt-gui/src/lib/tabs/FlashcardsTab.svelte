@@ -55,6 +55,7 @@
   } from "$lib/utils/mediaSettings";
   import type { CardFilterSettings } from "$lib/types/flashcardFilterTypes";
   import CardFiltersPanel from "$lib/panels/CardFiltersPanel.svelte";
+  import DifficultyPanel, { type DifficultySettings } from "$lib/panels/DifficultyPanel.svelte";
   import { episodeMediaEditorStore } from "$lib/stores/episodeMediaEditorStore.svelte";
   import EpisodeMediaSettingsModal from "$lib/modals/EpisodeMediaSettingsModal.svelte";
   import AudioClipsPanel from "$lib/panels/AudioClipsPanel.svelte";
@@ -702,6 +703,12 @@
     maxDurationEnabled: false,
     combineSentences: false,
     continuationChars: ",、→",
+  });
+
+  let difficultySettings = $state<DifficultySettings>({
+    enabled: false,
+    scheme: "hsk",
+    unknownPolicy: "ignore",
   });
 
   let prevMinChars: number | undefined = undefined;
@@ -1494,6 +1501,15 @@
       exportFormat: generationStore.effectiveExportFormat,
       noteType: activeNoteType,
       cpuCores: generationStore.effectiveCpuCores,
+      targetLanguage: getStudiedLanguagePreference(),
+      autoCardFont: ankiStore.autoCardFont,
+      difficulty: difficultySettings.enabled ? {
+        enabled: true,
+        scheme: difficultySettings.scheme,
+        language: getStudiedLanguagePreference(),
+        unknown_policy: difficultySettings.unknownPolicy,
+        tag_prefix: null,
+      } : null,
     });
   }
 
@@ -1840,6 +1856,15 @@
           exportFormat: generationStore.effectiveExportFormat,
           noteType: activeNoteType,
           cpuCores: generationStore.effectiveCpuCores,
+          targetLanguage: getStudiedLanguagePreference(),
+          autoCardFont: ankiStore.autoCardFont,
+          difficulty: difficultySettings.enabled ? {
+            enabled: true,
+            scheme: difficultySettings.scheme,
+            language: getStudiedLanguagePreference(),
+            unknown_policy: difficultySettings.unknownPolicy,
+            tag_prefix: null,
+          } : null,
         });
 
         await previewStore.applyOverrides(epConfig);
@@ -2256,11 +2281,17 @@
         hintLoadVideoFirst={HINT_LOAD_VIDEO_FIRST}
       />
     {:else if panelId === "cardFilters"}
-      <CardFiltersPanel
-        bind:filters={cardFilters}
-        {hasAnyFiles}
-        hintLoadTargetFirst={HINT_LOAD_TARGET_FIRST}
-      />
+      <div class="space-y-4">
+        <CardFiltersPanel
+          bind:filters={cardFilters}
+          {hasAnyFiles}
+          hintLoadTargetFirst={HINT_LOAD_TARGET_FIRST}
+        />
+        <DifficultyPanel
+          bind:settings={difficultySettings}
+          studiedLanguage={getStudiedLanguagePreference()}
+        />
+      </div>
 
     {:else if panelId === "naming"}
       <DeckNamingPanel

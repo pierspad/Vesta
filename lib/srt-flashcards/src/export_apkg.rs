@@ -234,13 +234,14 @@ pub(crate) fn generate_apkg(
                 .unwrap_or(ANKI_BACK_TEMPLATE),
             &template_replacements,
         );
-        let css = config.card_css.as_deref().unwrap_or(ANKI_CARD_STYLING);
+        let base_css = config.card_css.as_deref().unwrap_or(ANKI_CARD_STYLING);
+        let css = crate::fonts::maybe_prepend_font_vars(base_css, config);
 
         let note_type_json =
             serde_json::to_string(note_type_name).unwrap_or_else(|_| "\"subs2srs\"".to_string());
         let qfmt_json = serde_json::to_string(&qfmt).unwrap_or_else(|_| "\"\"".to_string());
         let afmt_json = serde_json::to_string(&afmt).unwrap_or_else(|_| "\"\"".to_string());
-        let css_json = serde_json::to_string(css).unwrap_or_else(|_| "\"\"".to_string());
+        let css_json = serde_json::to_string(&css).unwrap_or_else(|_| "\"\"".to_string());
 
         let models_json = format!(
             r#"{{"{mid}":{{"id":{mid},"name":{note_type},"type":0,"mod":{ts},"usn":-1,"sortf":0,"did":{did},"tmpls":[{{"name":"Card 1","ord":0,"qfmt":{qfmt},"afmt":{afmt},"did":null,"bqfmt":"","bafmt":""}}],"flds":[{flds}],"css":{css},"latexPre":"\\\\documentclass[12pt]{{article}}\\\\special{{papersize=3in,5in}}\\\\usepackage[utf8]{{inputenc}}\\\\usepackage{{amssymb,amsmath}}\\\\pagestyle{{empty}}\\\\setlength{{\\\\parindent}}{{0in}}\\\\begin{{document}}\\n","latexPost":"\\\\end{{document}}","latexsvg":false,"req":[[0,"all",[0]]]}}}}"#,
@@ -280,6 +281,16 @@ pub(crate) fn generate_apkg(
             decks = decks_sql,
             dconf = dconf_sql,
         ));
+
+        let difficulty_table = if let Some(diff) = &config.difficulty {
+            if diff.enabled {
+                srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         for (seq, line) in active_lines.iter().enumerate() {
             let note_id = timestamp * 1000 + seq as i64;
@@ -387,16 +398,41 @@ pub(crate) fn generate_apkg(
 
             let guid = format!("{:010x}", note_id as u64);
 
+            let mut tags_val = String::new();
+            if let (Some(diff), Some(table)) =
+                (config.difficulty.as_ref(), difficulty_table.as_ref())
+            {
+                if diff.enabled {
+                    let opts = srt_difficulty::AnalyzeOptions {
+                        unknown: diff.unknown_policy,
+                        min_token_chars: 1,
+                    };
+                    let card_level = srt_difficulty::analyze(&line.subs1.text, table, &opts);
+                    if let Some(lvl) = card_level.level {
+                        let tag = srt_difficulty::tag_for(diff.scheme, lvl);
+                        let final_tag = match &diff.tag_prefix {
+                            Some(prefix) if !prefix.trim().is_empty() => {
+                                format!("{}_{}", prefix, tag)
+                            }
+                            _ => tag,
+                        };
+                        tags_val = format!(" {} ", final_tag);
+                    }
+                }
+            }
+
             let flds_sql = flds.replace('\'', "''");
             let sfld_sql = sfld.replace('\'', "''");
             let guid_sql = guid.replace('\'', "''");
+            let tags_sql = tags_val.replace('\'', "''");
 
             sql.push_str(&format!(
-                "INSERT INTO notes VALUES ({nid}, '{guid}', {mid}, {ts}, 0, '', '{flds}', '{sfld}', {csum}, 0, '');\n",
+                "INSERT INTO notes VALUES ({nid}, '{guid}', {mid}, {ts}, 0, '{tags}', '{flds}', '{sfld}', {csum}, 0, '');\n",
                 nid = note_id,
                 guid = guid_sql,
                 mid = model_id,
                 ts = timestamp,
+                tags = tags_sql,
                 flds = flds_sql,
                 sfld = sfld_sql,
                 csum = csum,
@@ -606,7 +642,7 @@ pub(crate) const ANKI_CARD_STYLING: &str = r#"
   border: 1px solid #eee;
 }
 .card {
-  font-family: arial;
+  font-family: var(--vesta-target-font, arial);
   font-size: 20px;
   text-align: center;
   color: black;
@@ -619,12 +655,12 @@ hr.solid {
   font-size: 36px;
 }
 .reading {
-  font-family: arial;
+  font-family: var(--vesta-target-font, inherit);
   font-size: 36px;
   color: #AA0000;
 }
 .meaning {
-  font-family: arial;
+  font-family: var(--vesta-target-font, inherit);
   font-size: 36px;
 }
 .sequence_marker {

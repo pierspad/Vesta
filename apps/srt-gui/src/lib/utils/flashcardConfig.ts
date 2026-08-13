@@ -28,6 +28,9 @@ export interface FlashcardConfigInputs {
   exportFormat: string;
   noteType: NoteTypeDef;
   cpuCores: number;
+  targetLanguage?: string | null;
+  autoCardFont?: boolean;
+  difficulty?: any;
 }
 
 export function buildFlashcardConfig(i: FlashcardConfigInputs) {
@@ -96,5 +99,8 @@ export function buildFlashcardConfig(i: FlashcardConfigInputs) {
     card_front_html: templates.frontHtml,
     card_back_html: templates.backHtml,
     card_css: templates.css,
+    target_language: i.targetLanguage ?? null,
+    auto_card_font: i.autoCardFont ?? true,
+    difficulty: i.difficulty ?? null,
   };
 }

@@ -217,6 +217,23 @@ pub struct FlashcardConfig {
     pub card_front_html: Option<String>,
     pub card_back_html: Option<String>,
     pub card_css: Option<String>,
+
+    #[serde(default)]
+    pub target_language: Option<String>,
+    #[serde(default = "default_true")]
+    pub auto_card_font: bool,
+
+    #[serde(default)]
+    pub difficulty: Option<DifficultyConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DifficultyConfig {
+    pub enabled: bool,
+    pub scheme: srt_difficulty::LevelScheme,
+    pub language: String,
+    pub unknown_policy: srt_difficulty::UnknownPolicy,
+    pub tag_prefix: Option<String>,
 }
 
 fn default_video_hw_accel() -> String {
@@ -271,6 +288,9 @@ impl Default for FlashcardConfig {
             card_front_html: None,
             card_back_html: None,
             card_css: None,
+            target_language: None,
+            auto_card_font: true,
+            difficulty: None,
         }
     }
 }

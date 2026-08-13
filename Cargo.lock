@@ -4372,6 +4372,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "srt-difficulty"
+version = "0.18.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "srt-extract"
 version = "0.18.1"
 dependencies = [
@@ -4399,6 +4408,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1_smol",
+ "srt-difficulty",
  "srt-parser",
  "tempfile",
  "tokio",

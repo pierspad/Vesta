@@ -112,7 +112,7 @@ def combined_chart(media, subcount, series, seconds, out_path):
     ax.set_ylim(0, 125)
     ax.set_ylabel("Relative generation time (% of slowest baseline)")
     ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(100))
-    ax.set_title("Vesta vs subs2srs — Flashcard Generation Performance (lower is better)",
+    ax.set_title("Vesta vs subs2srs — Flashcard Generation Time in Seconds (lower is better)",
                  fontweight="bold", pad=16, fontsize=12)
     ax.set_xticks(x, [f"{pretty(m)}\n({subcount[m]:,} subtitles)" for m in media],
                   fontsize=9.5)
@@ -121,7 +121,7 @@ def combined_chart(media, subcount, series, seconds, out_path):
 
     # Explanatory caption under legend
     fig.text(0.5, -0.06,
-             "* Normalized per film: 100% = slowest baseline (subs2srs). Numbers above bars show actual elapsed seconds.",
+             "* Normalized per film: 100% = slowest baseline. Numbers above bars show actual elapsed seconds.",
              ha="center", fontsize=8, color="#555555", style="italic")
 
     fig.tight_layout()

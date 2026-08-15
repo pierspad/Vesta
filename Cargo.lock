@@ -4334,7 +4334,7 @@ dependencies = [
 
 [[package]]
 name = "srt-apkg"
-version = "0.19.0"
+version = "0.20.0"
 dependencies = [
  "tempfile",
  "zip 8.6.0",

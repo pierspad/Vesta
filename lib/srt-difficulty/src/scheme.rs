@@ -6,6 +6,7 @@ pub enum LevelScheme {
     Cefr,
     Hsk,
     Jlpt,
+    Custom,
 }
 
 impl LevelScheme {
@@ -14,6 +15,7 @@ impl LevelScheme {
             Self::Cefr => "CEFR",
             Self::Hsk => "HSK",
             Self::Jlpt => "JLPT",
+            Self::Custom => "CUSTOM",
         }
     }
 }

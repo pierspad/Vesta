@@ -2,29 +2,38 @@
   import { locale } from "$lib/i18n";
   import { uiMode } from "$lib/stores/uiModeStore.svelte";
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
-  import { VIDEO_QUALITY_STEPS, type EpisodeMediaOverrides, type VideoQualityStep } from "$lib/types/flashcardMediaTypes";
+  import {
+    VIDEO_QUALITY_STEPS,
+    matchVideoQualityStep,
+    type EpisodeMediaOverrides,
+    type VideoQualityStep,
+  } from "$lib/types/flashcardMediaTypes";
 
   interface Props {
     settings: Required<EpisodeMediaOverrides>;
-    /** GPU-accel preference: not per-episode overridable, so it isn't part of `settings`. */
-    videoHwAccel: string;
     hasVideo: boolean;
     effectiveExportFormat: "tsv" | "apkg" | "anki";
     hintLoadVideoFirst: string;
   }
-  let { settings = $bindable(), videoHwAccel = $bindable(), hasVideo, effectiveExportFormat, hintLoadVideoFirst }: Props = $props();
+  let { settings = $bindable(), hasVideo, effectiveExportFormat, hintLoadVideoFirst }: Props = $props();
 
   let t = $derived($locale);
   let easyMode = $derived(!uiMode.expertMode);
 
+  const CUSTOM = "__custom__";
+
   let activeVideoQuality = $derived(
-    VIDEO_QUALITY_STEPS.find((s) => s.videoBitrate === settings.videoBitrate) ?? VIDEO_QUALITY_STEPS[1]
+    matchVideoQualityStep(settings.videoBitrate, settings.videoWidth, settings.videoHeight)
   );
 
-  function applyVideoQualityStep(step: VideoQualityStep) {
+  function applyVideoQualityStep(stepOrId: VideoQualityStep | string) {
+    const step = typeof stepOrId === "string" ? VIDEO_QUALITY_STEPS.find((s) => s.id === stepOrId) : stepOrId;
+    if (!step) return;
     settings.videoBitrate = step.videoBitrate;
     settings.videoAudioBitrate = step.videoAudioBitrate;
     settings.h264Preset = step.h264Preset;
+    settings.videoWidth = step.width;
+    settings.videoHeight = step.height;
   }
 </script>
 
@@ -80,7 +89,7 @@
             {t("flashcards.videoQualityVsSize")}
           </span>
           <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
-            {t(`flashcards.quality.${activeVideoQuality?.id ?? "balanced"}`)}
+            {activeVideoQuality ? t(`flashcards.quality.${activeVideoQuality.id}`) : t("flashcards.custom")}
           </span>
         </div>
 
@@ -94,7 +103,7 @@
                   ? 'bg-orange-500 text-white shadow-md shadow-orange-900/40 font-semibold scale-[1.02]'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}"
             >
-              <span>{t(`flashcards.quality.${step.id}`)}</span>
+              <span>{t(`flashcards.quality.${step.id}`)} ({step.width}x{step.height})</span>
               <span class="text-[9px] opacity-70">
                 {step.id === 'light' ? '~0.5 MB' : step.id === 'balanced' ? '~1.2 MB' : '~2.5 MB'}
               </span>
@@ -125,28 +134,41 @@
             ></div>
           </div>
         </div>
-        <p class="text-[10px] text-gray-400 leading-snug">
-          {activeVideoQuality?.id === 'light'
-            ? t("flashcards.videoQualityHint.light")
-            : activeVideoQuality?.id === 'high'
-            ? t("flashcards.videoQualityHint.high")
-            : t("flashcards.videoQualityHint.balanced")}
-        </p>
       </div>
     {:else}
       <!-- Expert Mode: Fine-grained video options -->
       <div class="grid grid-cols-2 gap-2">
+        <div class="col-span-2">
+          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.quality")}</span>
+          <SearchableSelect
+            noResultsText={t("common.noResults")}
+            options={[
+              ...VIDEO_QUALITY_STEPS.map((s) => ({
+                value: s.id,
+                label: `${t(`flashcards.quality.${s.id}`)} (${s.width}x${s.height} · ${s.videoBitrate} kb/s)`,
+              })),
+              ...(activeVideoQuality ? [] : [{ value: CUSTOM, label: `${t("flashcards.custom")} (${settings.videoWidth}x${settings.videoHeight} · ${settings.videoBitrate} kb/s)` }]),
+            ]}
+            value={activeVideoQuality?.id ?? CUSTOM}
+            onchange={(val) => {
+              if (val !== CUSTOM) applyVideoQualityStep(val);
+            }}
+            placeholder={t("flashcards.quality")}
+          />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.width")}</span>
           <div class="flex items-center gap-1">
-            <input type="number" bind:value={settings.snapshotWidth} class="input-modern w-full text-xs" />
+            <input type="number" bind:value={settings.videoWidth} class="input-modern w-full text-xs" />
             <span class="text-xs text-gray-500">px</span>
           </div>
         </div>
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.height")}</span>
           <div class="flex items-center gap-1">
-            <input type="number" bind:value={settings.snapshotHeight} class="input-modern w-full text-xs" />
+            <input type="number" bind:value={settings.videoHeight} class="input-modern w-full text-xs" />
             <span class="text-xs text-gray-500">px</span>
           </div>
         </div>
@@ -184,22 +206,6 @@
           />
         </div>
       </div>
-      {#if uiMode.expertMode && settings.videoCodec === "h264"}
-        <div>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.videoEncoder")}</span>
-          <SearchableSelect
-            className="compact-select"
-            noResultsText={t("common.noResults")}
-            options={[
-              { value: "auto", label: t("flashcards.videoEncoderAuto") },
-              { value: "off", label: t("flashcards.videoEncoderX264") },
-            ]}
-            value={videoHwAccel}
-            onchange={(v) => (videoHwAccel = v)}
-            placeholder="Encoder"
-          />
-        </div>
-      {/if}
       <div class="grid grid-cols-2 gap-2">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.videoBitrate")}</span>

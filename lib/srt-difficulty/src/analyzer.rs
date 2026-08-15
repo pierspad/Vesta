@@ -82,5 +82,6 @@ pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
             6 => "CEFR::C2".to_string(),
             _ => format!("CEFR::L{}", level),
         },
+        LevelScheme::Custom => format!("Level::{}", level),
     }
 }

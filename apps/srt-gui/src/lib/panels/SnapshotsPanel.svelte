@@ -4,9 +4,7 @@
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
   import {
     QUALITY_STEPS,
-    RESOLUTION_PRESETS,
     matchQualityStep,
-    matchResolutionPreset,
     type EpisodeMediaOverrides,
     type SnapshotFormat,
   } from "$lib/types/flashcardMediaTypes";
@@ -24,21 +22,9 @@
 
   const CUSTOM = "__custom__";
 
-  // Presets are shortcuts that *write into* the raw values rather than a state
-  // living beside them, so the two can never disagree: whatever the numbers
-  // say is the truth, and a number no preset produces reads as "Custom".
-  let activePreset = $derived(matchResolutionPreset(settings.snapshotWidth, settings.snapshotHeight));
-  let activeQuality = $derived(matchQualityStep(settings.snapshotQuality));
-  let customResolutionLabel = $derived(
-    `${t("flashcards.custom")} (${settings.snapshotWidth}x${settings.snapshotHeight})`,
+  let activeQuality = $derived(
+    matchQualityStep(settings.snapshotQuality, settings.snapshotWidth, settings.snapshotHeight)
   );
-
-  function applyResolutionPreset(id: string) {
-    const preset = RESOLUTION_PRESETS.find((p) => p.id === id);
-    if (!preset) return;
-    settings.snapshotWidth = preset.width;
-    settings.snapshotHeight = preset.height;
-  }
 
   function applyQualityStep(id: string) {
     const step = QUALITY_STEPS.find((s) => s.id === id);
@@ -102,7 +88,7 @@
             {t("flashcards.qualityVsSize")}
           </span>
           <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-            {t(`flashcards.quality.${activeQuality?.id ?? "balanced"}`)}
+            {activeQuality ? t(`flashcards.quality.${activeQuality.id}`) : t("flashcards.custom")}
           </span>
         </div>
 
@@ -116,7 +102,7 @@
                   ? 'bg-purple-600/90 text-white shadow-md shadow-purple-900/40 font-semibold scale-[1.02]'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}"
             >
-              <span>{t(`flashcards.quality.${step.id}`)}</span>
+              <span>{t(`flashcards.quality.${step.id}`)} ({step.snapshotWidth}x{step.snapshotHeight})</span>
               <span class="text-[9px] opacity-70">
                 {step.id === 'light' ? '~15 KB' : step.id === 'balanced' ? '~35 KB' : '~70 KB'}
               </span>
@@ -147,29 +133,10 @@
             ></div>
           </div>
         </div>
-        <p class="text-[10px] text-gray-400 leading-snug">
-          {t(`flashcards.qualityHint.${activeQuality?.id ?? "balanced"}`)}
-        </p>
       </div>
     {:else}
-      <!-- Expert Mode: Fine-grained controls -->
+      <!-- Expert Mode: Unified Quality Preset + Fine-grained controls -->
       <div class="grid grid-cols-2 gap-2">
-        <div>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.resolution")}</span>
-          <SearchableSelect
-            noResultsText={t("common.noResults")}
-            options={[
-              ...RESOLUTION_PRESETS.map((p) => ({
-                value: p.id,
-                label: `${p.label} (${p.width}x${p.height})`,
-              })),
-              ...(activePreset ? [] : [{ value: CUSTOM, label: customResolutionLabel }]),
-            ]}
-            value={activePreset?.id ?? CUSTOM}
-            onchange={applyResolutionPreset}
-            placeholder={t("flashcards.resolution")}
-          />
-        </div>
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.quality")}</span>
           <SearchableSelect
@@ -177,21 +144,17 @@
             options={[
               ...QUALITY_STEPS.map((s) => ({
                 value: s.id,
-                label: t(`flashcards.quality.${s.id}`),
+                label: `${t(`flashcards.quality.${s.id}`)} (${s.snapshotWidth}x${s.snapshotHeight})`,
               })),
-              ...(activeQuality ? [] : [{ value: CUSTOM, label: `${t("flashcards.custom")} (${settings.snapshotQuality})` }]),
+              ...(activeQuality ? [] : [{ value: CUSTOM, label: `${t("flashcards.custom")} (${settings.snapshotWidth}x${settings.snapshotHeight})` }]),
             ]}
             value={activeQuality?.id ?? CUSTOM}
-            onchange={applyQualityStep}
+            onchange={(val) => {
+              if (val !== CUSTOM) applyQualityStep(val);
+            }}
             placeholder={t("flashcards.quality")}
           />
         </div>
-      </div>
-      <p class="text-[10px] text-gray-500 leading-snug">
-        {t(`flashcards.qualityHint.${activeQuality?.id ?? "custom"}`)}
-      </p>
-
-      <div class="grid grid-cols-2 gap-2 pt-1">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.snapshotFormat")}</span>
           <SearchableSelect
@@ -206,6 +169,9 @@
             placeholder="WebP"
           />
         </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.qualityValue")}</span>
           <div class="flex items-center gap-1">
@@ -219,13 +185,20 @@
             <span class="text-xs text-gray-500">/100</span>
           </div>
         </div>
+        <div>
+          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.cropBottom")}</span>
+          <div class="flex items-center gap-1">
+            <input type="number" bind:value={settings.cropBottom} class="input-modern w-full text-xs" />
+            <span class="text-xs text-gray-500">px</span>
+          </div>
+        </div>
       </div>
 
       {#if settings.snapshotFormat === "avif"}
         <p class="text-[10px] text-amber-500/80 leading-snug">{t("flashcards.avifWarning")}</p>
       {/if}
 
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 gap-2">
         <div>
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.width")}</span>
           <div class="flex items-center gap-1">
@@ -237,13 +210,6 @@
           <span class="block text-xs text-gray-500 mb-1">{t("flashcards.height")}</span>
           <div class="flex items-center gap-1">
             <input type="number" bind:value={settings.snapshotHeight} class="input-modern w-full text-xs" />
-            <span class="text-xs text-gray-500">px</span>
-          </div>
-        </div>
-        <div>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.cropBottom")}</span>
-          <div class="flex items-center gap-1">
-            <input type="number" bind:value={settings.cropBottom} class="input-modern w-full text-xs" />
             <span class="text-xs text-gray-500">px</span>
           </div>
         </div>

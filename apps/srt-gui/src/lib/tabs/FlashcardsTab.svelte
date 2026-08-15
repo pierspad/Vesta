@@ -56,6 +56,7 @@
   import type { CardFilterSettings } from "$lib/types/flashcardFilterTypes";
   import CardFiltersPanel from "$lib/panels/CardFiltersPanel.svelte";
   import DifficultyPanel, { type DifficultySettings } from "$lib/panels/DifficultyPanel.svelte";
+  import { difficultyStore } from "$lib/stores/difficultyStore.svelte";
   import { episodeMediaEditorStore } from "$lib/stores/episodeMediaEditorStore.svelte";
   import EpisodeMediaSettingsModal from "$lib/modals/EpisodeMediaSettingsModal.svelte";
   import AudioClipsPanel from "$lib/panels/AudioClipsPanel.svelte";
@@ -237,6 +238,8 @@
     "videoAudioBitrate",
     "videoPadStart",
     "videoPadEnd",
+    "videoWidth",
+    "videoHeight",
   ];
 
   function mediaOverrideValueChanged(key: EpisodeMediaOverrideKey): boolean {
@@ -705,10 +708,29 @@
     continuationChars: ",、→",
   });
 
-  let difficultySettings = $state<DifficultySettings>({
-    enabled: false,
-    scheme: "hsk",
-    unknownPolicy: "ignore",
+  const DIFFICULTY_SETTINGS_KEY = "vesta-flashcards-difficulty-settings";
+
+  function loadDifficultySettings(): DifficultySettings {
+    try {
+      const saved = vestaConfig.getItem(DIFFICULTY_SETTINGS_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return {
+      enabled: false,
+      scheme: "cefr",
+      unknownPolicy: "ignore",
+      customPrefix: "Level",
+    };
+  }
+
+  let difficultySettings = $state<DifficultySettings>(loadDifficultySettings());
+
+  $effect(() => {
+    try {
+      vestaConfig.setItem(DIFFICULTY_SETTINGS_KEY, JSON.stringify(difficultySettings));
+    } catch {}
   });
 
   let prevMinChars: number | undefined = undefined;
@@ -1503,12 +1525,14 @@
       cpuCores: generationStore.effectiveCpuCores,
       targetLanguage: getStudiedLanguagePreference(),
       autoCardFont: ankiStore.autoCardFont,
-      difficulty: difficultySettings.enabled ? {
+      difficulty: (difficultyStore.enabled && difficultySettings.enabled) ? {
         enabled: true,
         scheme: difficultySettings.scheme,
         language: getStudiedLanguagePreference(),
         unknown_policy: difficultySettings.unknownPolicy,
-        tag_prefix: null,
+        tag_prefix: difficultySettings.customPrefix?.trim() || null,
+        custom_file_path: difficultySettings.customFilePath?.trim() || null,
+        custom_tsv: difficultySettings.customTsv?.trim() || null,
       } : null,
     });
   }
@@ -1858,12 +1882,14 @@
           cpuCores: generationStore.effectiveCpuCores,
           targetLanguage: getStudiedLanguagePreference(),
           autoCardFont: ankiStore.autoCardFont,
-          difficulty: difficultySettings.enabled ? {
+          difficulty: (difficultyStore.enabled && difficultySettings.enabled) ? {
             enabled: true,
             scheme: difficultySettings.scheme,
             language: getStudiedLanguagePreference(),
             unknown_policy: difficultySettings.unknownPolicy,
-            tag_prefix: null,
+            tag_prefix: difficultySettings.customPrefix?.trim() || null,
+            custom_file_path: difficultySettings.customFilePath?.trim() || null,
+            custom_tsv: difficultySettings.customTsv?.trim() || null,
           } : null,
         });
 
@@ -2275,7 +2301,6 @@
     {:else if panelId === "videoClips"}
       <VideoClipsPanel
         bind:settings={mediaSettings}
-        bind:videoHwAccel
         {hasVideo}
         effectiveExportFormat={generationStore.effectiveExportFormat}
         hintLoadVideoFirst={HINT_LOAD_VIDEO_FIRST}
@@ -2287,10 +2312,12 @@
           {hasAnyFiles}
           hintLoadTargetFirst={HINT_LOAD_TARGET_FIRST}
         />
-        <DifficultyPanel
-          bind:settings={difficultySettings}
-          studiedLanguage={getStudiedLanguagePreference()}
-        />
+        {#if difficultyStore.enabled}
+          <DifficultyPanel
+            bind:settings={difficultySettings}
+            studiedLanguage={getStudiedLanguagePreference()}
+          />
+        {/if}
       </div>
 
     {:else if panelId === "naming"}

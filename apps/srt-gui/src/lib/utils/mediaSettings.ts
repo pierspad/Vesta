@@ -46,6 +46,8 @@ export const defaultMediaSettings: MediaSettings = {
   videoAudioBitrate: 128,
   videoPadStart: 250,
   videoPadEnd: 50,
+  videoWidth: DEFAULT_RESOLUTION.width,
+  videoHeight: DEFAULT_RESOLUTION.height,
 };
 
 const SNAPSHOT_FORMATS: SnapshotFormat[] = ["jpeg", "webp", "avif"];
@@ -102,6 +104,8 @@ export function sanitizeMediaSettings(raw: unknown): MediaSettings {
     videoAudioBitrate: int(o.videoAudioBitrate, d.videoAudioBitrate, 8, 512),
     videoPadStart: int(o.videoPadStart, d.videoPadStart, 0, 60_000),
     videoPadEnd: int(o.videoPadEnd, d.videoPadEnd, 0, 60_000),
+    videoWidth: int(o.videoWidth, typeof o.snapshotWidth === "number" ? o.snapshotWidth : d.videoWidth, 16, 7680),
+    videoHeight: int(o.videoHeight, typeof o.snapshotHeight === "number" ? o.snapshotHeight : d.videoHeight, 16, 4320),
   };
 }
 

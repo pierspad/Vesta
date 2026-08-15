@@ -228,6 +228,22 @@
               <div class="space-y-4 animate-fade-in">
                 <div class="grid grid-cols-2 gap-3">
                   <div>
+                    <span class="mb-1 block text-xs text-gray-500">{t("flashcards.width")}</span>
+                    <div class="flex items-center gap-1">
+                      <input type="number" value={editor.overrides.videoWidth} oninput={(event) => editor.update("videoWidth", Number((event.currentTarget as HTMLInputElement).value))} class="input-modern w-full text-xs {mediaOverrideClass('videoWidth')}" />
+                      <span class="text-xs text-gray-500">px</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span class="mb-1 block text-xs text-gray-500">{t("flashcards.height")}</span>
+                    <div class="flex items-center gap-1">
+                      <input type="number" value={editor.overrides.videoHeight} oninput={(event) => editor.update("videoHeight", Number((event.currentTarget as HTMLInputElement).value))} class="input-modern w-full text-xs {mediaOverrideClass('videoHeight')}" />
+                      <span class="text-xs text-gray-500">px</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
                     <span class="mb-1 block text-xs text-gray-500">{t("flashcards.videoCodec")}</span>
                     <SearchableSelect
                       className="compact-select {mediaOverrideClass('videoCodec')}"

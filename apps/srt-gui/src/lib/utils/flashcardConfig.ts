@@ -89,6 +89,8 @@ export function buildFlashcardConfig(i: FlashcardConfigInputs) {
     video_audio_bitrate: i.media.videoAudioBitrate,
     video_pad_start_ms: i.media.videoPadStart,
     video_pad_end_ms: i.media.videoPadEnd,
+    video_width: i.media.videoWidth ?? null,
+    video_height: i.media.videoHeight ?? null,
     deck_name: i.deckName,
     episode_number: i.episodeNumber,
     export_format: i.exportFormat,

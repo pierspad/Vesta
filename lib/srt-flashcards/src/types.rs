@@ -200,6 +200,10 @@ pub struct FlashcardConfig {
     pub video_audio_bitrate: u32,
     pub video_pad_start_ms: i64,
     pub video_pad_end_ms: i64,
+    #[serde(default)]
+    pub video_width: Option<u32>,
+    #[serde(default)]
+    pub video_height: Option<u32>,
 
     pub deck_name: String,
     pub episode_number: u32,
@@ -234,6 +238,10 @@ pub struct DifficultyConfig {
     pub language: String,
     pub unknown_policy: srt_difficulty::UnknownPolicy,
     pub tag_prefix: Option<String>,
+    #[serde(default)]
+    pub custom_file_path: Option<String>,
+    #[serde(default)]
+    pub custom_tsv: Option<String>,
 }
 
 fn default_video_hw_accel() -> String {
@@ -278,6 +286,8 @@ impl Default for FlashcardConfig {
             video_audio_bitrate: 128,
             video_pad_start_ms: 0,
             video_pad_end_ms: 0,
+            video_width: None,
+            video_height: None,
             deck_name: String::new(),
             episode_number: 1,
             export_format: Some("tsv".to_string()),
@@ -591,6 +601,48 @@ mod format_tests {
         assert_eq!(c.snapshot_format, SnapshotFormat::Webp);
         assert_eq!(c.snapshot_quality, 80);
         assert_eq!(c.audio_format, AudioFormat::Mp3);
+        assert_eq!(c.video_width, None);
+        assert_eq!(c.video_height, None);
+    }
+
+    #[test]
+    fn video_dimensions_deserialize_when_present() {
+        let json = r#"{
+            "target_subs_path": "a.srt", "native_subs_path": null, "video_path": null,
+            "audio_path": null, "output_dir": "/tmp", "use_timings_from": "target",
+            "span_start_ms": null, "span_end_ms": null, "time_shift_target_ms": 0,
+            "time_shift_native_ms": 0,
+            "filters": {
+                "include_words": null, "exclude_words": null,
+                "exclude_duplicates_subs1": false, "exclude_duplicates_subs2": false,
+                "min_chars": null, "max_chars": null,
+                "min_duration_ms": null, "max_duration_ms": null,
+                "exclude_styled": false, "actor_filter": null,
+                "only_cjk": false, "remove_no_match": false
+            },
+            "context": { "leading": 0, "trailing": 0, "max_gap_seconds": 0.0 },
+            "combine_sentences": false, "continuation_chars": "",
+            "generate_audio": true, "audio_bitrate": 128, "audio_track_index": null,
+            "normalize_audio": false, "audio_pad_start_ms": 0, "audio_pad_end_ms": 0,
+            "generate_snapshots": true, "snapshot_width": 640, "snapshot_height": 360,
+            "crop_bottom": 0, "generate_video_clips": true, "video_codec": "h264",
+            "h264_preset": "medium", "video_bitrate": 800, "video_audio_bitrate": 128,
+            "video_pad_start_ms": 0, "video_pad_end_ms": 0,
+            "video_width": 426, "video_height": 240,
+            "deck_name": "D", "episode_number": 1, "export_format": "tsv",
+            "note_type_name": null, "field_names": null, "output_fields": {
+                "include_tag": true, "include_sequence": true, "include_audio": true,
+                "include_snapshot": true, "include_video": true,
+                "include_subs1": true, "include_subs2": true
+            },
+            "cpu_cores": null, "card_front_html": null, "card_back_html": null,
+            "card_css": null
+        }"#;
+        let c: FlashcardConfig = serde_json::from_str(json).expect("config parses");
+        assert_eq!(c.snapshot_width, 640);
+        assert_eq!(c.snapshot_height, 360);
+        assert_eq!(c.video_width, Some(426));
+        assert_eq!(c.video_height, Some(240));
     }
 }
 

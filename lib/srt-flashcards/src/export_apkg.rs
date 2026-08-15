@@ -284,7 +284,27 @@ pub(crate) fn generate_apkg(
 
         let difficulty_table = if let Some(diff) = &config.difficulty {
             if diff.enabled {
-                srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+                if let Some(path) = &diff.custom_file_path {
+                    if !path.trim().is_empty() {
+                        srt_difficulty::LevelTable::from_file(path, diff.scheme).ok()
+                    } else if let Some(tsv) = &diff.custom_tsv {
+                        if !tsv.trim().is_empty() {
+                            srt_difficulty::LevelTable::from_tsv(tsv, diff.scheme).ok()
+                        } else {
+                            srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+                        }
+                    } else {
+                        srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+                    }
+                } else if let Some(tsv) = &diff.custom_tsv {
+                    if !tsv.trim().is_empty() {
+                        srt_difficulty::LevelTable::from_tsv(tsv, diff.scheme).ok()
+                    } else {
+                        srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+                    }
+                } else {
+                    srt_difficulty::LevelTable::builtin(diff.scheme, &diff.language).ok()
+                }
             } else {
                 None
             }
@@ -411,12 +431,19 @@ pub(crate) fn generate_apkg(
                 };
                 let card_level = srt_difficulty::analyze(&line.subs1.text, table, &opts);
                 if let Some(lvl) = card_level.level {
-                    let tag = srt_difficulty::tag_for(diff.scheme, lvl);
                     let final_tag = match &diff.tag_prefix {
                         Some(prefix) if !prefix.trim().is_empty() => {
-                            format!("{}_{}", prefix, tag)
+                            if diff.scheme == srt_difficulty::LevelScheme::Custom {
+                                format!("{}::{}", prefix.trim(), lvl)
+                            } else {
+                                format!(
+                                    "{}_{}",
+                                    prefix.trim(),
+                                    srt_difficulty::tag_for(diff.scheme, lvl)
+                                )
+                            }
                         }
-                        _ => tag,
+                        _ => srt_difficulty::tag_for(diff.scheme, lvl),
                     };
                     tags_val = format!(" {} ", final_tag);
                 }

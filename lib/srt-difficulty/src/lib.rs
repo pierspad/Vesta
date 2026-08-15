@@ -64,4 +64,18 @@ mod tests {
         let card = analyze("你好！xyz_unknown_word", &table, &opts);
         assert_eq!(card.level, Some(5)); // highest level in sample dictionary
     }
+
+    #[test]
+    fn test_custom_scheme_analysis() {
+        let custom_tsv = "hello\t1\nworld\t2\nquantum\t4\n";
+        let table = LevelTable::from_tsv(custom_tsv, LevelScheme::Custom).unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("Hello there world!", &table, &opts);
+        assert_eq!(card1.level, Some(2));
+        assert_eq!(tag_for(LevelScheme::Custom, 2), "Level::2");
+
+        let card2 = analyze("Quantum computers are fast.", &table, &opts);
+        assert_eq!(card2.level, Some(4));
+    }
 }

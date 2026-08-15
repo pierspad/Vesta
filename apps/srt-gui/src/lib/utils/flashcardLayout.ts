@@ -29,14 +29,14 @@ const MOVIE_LAYOUT_KEY = "vesta-flashcards-layout-v4";
 const SERIES_LAYOUT_KEY = "vesta-flashcards-series-layout-v4";
 
 const DEFAULT_LAYOUT: ColumnLayout = {
-  col1: ["files"],
-  col2: ["audioClips", "snapshots", "videoClips"],
+  col1: ["files", "audioClips"],
+  col2: ["snapshots", "videoClips"],
   col3: ["naming", "cardFilters", "progressResult"],
 };
 
 const DEFAULT_SERIES_LAYOUT: ColumnLayout = {
-  col1: ["files"],
-  col2: ["audioClips", "snapshots", "videoClips"],
+  col1: ["audioClips", "snapshots"],
+  col2: ["videoClips"],
   col3: ["naming", "cardFilters", "progressResult"],
 };
 
@@ -85,37 +85,36 @@ export function computeEffectivePanelLayout(
       // In easy mode (no expert mode), spread audio/snapshot/video across 3 columns
       if (easyMode) {
         return {
-          col1: ["files", "audioClips"],
+          col1: ["audioClips"],
           col2: ["snapshots"],
           col3: ["videoClips", "progressResult"],
         };
       }
       return {
-        col1: ["files", "naming", "audioClips", "snapshots"],
+        col1: ["audioClips", "snapshots"],
         col2: ["videoClips"],
-        col3: ["cardFilters", "progressResult"],
+        col3: ["naming", "cardFilters", "progressResult"],
       };
     }
 
     if (effectiveColumnCount === 2) {
-      // Easy mode: skip 2-col, collapse to 1 col directly
+      // Easy mode: collapse to 2 columns
       if (easyMode) {
         return {
-          col1: ["files", "audioClips", "snapshots", "videoClips", "progressResult"],
-          col2: [],
+          col1: ["audioClips", "snapshots"],
+          col2: ["videoClips", "progressResult"],
           col3: [],
         };
       }
       return {
-        col1: ["files", "audioClips", "snapshots", "videoClips", "progressResult"],
-        col2: ["naming", "cardFilters"],
+        col1: ["audioClips", "snapshots", "naming"],
+        col2: ["videoClips", "cardFilters", "progressResult"],
         col3: [],
       };
     }
 
     return {
       col1: [
-        "files",
         "naming",
         "audioClips",
         "snapshots",
@@ -128,17 +127,31 @@ export function computeEffectivePanelLayout(
     };
   } else {
     if (effectiveColumnCount === 3) {
+      if (easyMode) {
+        return {
+          col1: ["files", "audioClips"],
+          col2: ["snapshots"],
+          col3: ["videoClips", "progressResult"],
+        };
+      }
       return {
-        col1: ["files", "naming"],
-        col2: ["audioClips", "videoClips"],
-        col3: ["snapshots", "cardFilters", "progressResult"],
+        col1: ["files", "audioClips"],
+        col2: ["snapshots", "videoClips"],
+        col3: ["naming", "cardFilters", "progressResult"],
       };
     }
 
     if (effectiveColumnCount === 2) {
+      if (easyMode) {
+        return {
+          col1: ["files", "audioClips", "snapshots"],
+          col2: ["videoClips", "progressResult"],
+          col3: [],
+        };
+      }
       return {
-        col1: ["files", "naming", "cardFilters"],
-        col2: ["audioClips", "snapshots", "videoClips", "progressResult"],
+        col1: ["files", "audioClips", "snapshots"],
+        col2: ["videoClips", "naming", "cardFilters", "progressResult"],
         col3: [],
       };
     }

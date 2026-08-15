@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "vesta",
-        "width": 1650,
-        "height": 890,
+        "width": 1720,
+        "height": 980,
         "resizable": true,
         "fullscreen": false,
         "minWidth": 340,

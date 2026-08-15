@@ -330,8 +330,8 @@
     let html = escapeHtml(code);
     
     if (lang === "html") {
-      html = html.replace(/([a-zA-Z-]+)="([^"]*)"/g, '<span class="text-amber-300">$1</span>="<span class="text-emerald-300">$2</span>"');
-      html = html.replace(/(&lt;[\/\w:-]+)/g, '<span class="text-pink-400">$1</span>');
+      html = html.replace(/([a-zA-Z0-9_-]+)=("([^"]*)"|'([^']*)')/g, '<span class="text-amber-300">$1</span>=<span class="text-emerald-300">$2</span>');
+      html = html.replace(/(&lt;\/?[\w:-]+)/g, '<span class="text-pink-400">$1</span>');
       html = html.replace(/(\/?&gt;)/g, '<span class="text-pink-400">$1</span>');
       html = html.replace(/\{\{(.*?)\}\}/g, (_match: string, variableName: string) => {
         const normalized = String(variableName).trim();
@@ -364,7 +364,6 @@
       html = html.replace(/^(\s*[-*+•]\s+)/gm, '<span class="text-amber-400 font-bold">$1</span>');
       html = html.replace(/^(\s*\d+\.\s+)/gm, '<span class="text-amber-400 font-bold">$1</span>');
     }
-    // ensure blank line at the end renders spaces correctly if needed
     return html;
   }
 </script>
@@ -383,19 +382,17 @@
     <div style="transform: translateY(-{scrollTop}px)">
       {#each lines as _, i}
         <div
-          style="height: {lineHeights[i] ? lineHeights[i] + 'px' : '1.625em'}"
+          style="height: {lineHeights[i] ? lineHeights[i] + 'px' : '1.625rem'}"
           class="leading-relaxed whitespace-pre flex justify-end items-start"
-        >
-          {i + 1}
-        </div>
+        >{i + 1}</div>
       {/each}
     </div>
   </div>
   {/if}
 
   <div class="relative flex-1 overflow-hidden h-full">
-    <!-- Highlighted Code -->
-    <pre
+    <!-- Highlighted Code Layer (replaces <pre> to prevent template whitespace interpolation) -->
+    <div
       class="absolute inset-0 w-full h-full p-3 pr-9 m-0 font-mono text-sm leading-relaxed text-gray-300 pointer-events-none overflow-hidden"
       aria-hidden="true"
     >
@@ -403,13 +400,11 @@
         {#each lines as line, i}
           <div
             bind:clientHeight={lineHeights[i]}
-            class="min-h-[1.625em] {wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}"
-          >
-            {@html highlight(line, language) || '<br/>'}
-          </div>
+            class="min-h-[1.625rem] {wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'}"
+          >{@html highlight(line, language) || '&nbsp;'}</div>
         {/each}
       </div>
-    </pre>
+    </div>
 
     <!-- Transparent Textarea -->
     <textarea
@@ -489,6 +484,11 @@
 </div>
 
 <style>
+  textarea {
+    tab-size: 2;
+    -moz-tab-size: 2;
+  }
+
   textarea::selection {
     background-color: rgba(99, 102, 241, 0.4);
     color: transparent;

@@ -10,6 +10,7 @@ import {
   formatBytes,
   matchQualityStep,
   matchResolutionPreset,
+  matchVideoQualityStep,
 } from "$lib/types/flashcardMediaTypes";
 
 describe("sanitizeMediaSettings", () => {
@@ -107,10 +108,20 @@ describe("resolution and quality presets", () => {
     expect(matchResolutionPreset(427, 240)).toBeNull();
   });
 
-  it("maps a quality number back to its step", () => {
+  it("maps a quality number and dimensions back to its step", () => {
     expect(matchQualityStep(80)?.id).toBe("balanced");
     expect(matchQualityStep(60)?.id).toBe("light");
+    expect(matchQualityStep(80, 426, 240)?.id).toBe("balanced");
+    expect(matchQualityStep(80, 854, 480)).toBeNull();
     expect(matchQualityStep(81)).toBeNull();
+  });
+
+  it("maps video quality settings back to video quality step", () => {
+    expect(matchVideoQualityStep(800, 426, 240)?.id).toBe("balanced");
+    expect(matchVideoQualityStep(400, 256, 144)?.id).toBe("light");
+    expect(matchVideoQualityStep(1500, 640, 360)?.id).toBe("high");
+    expect(matchVideoQualityStep(800, 854, 480)).toBeNull();
+    expect(matchVideoQualityStep(999, 426, 240)).toBeNull();
   });
 });
 

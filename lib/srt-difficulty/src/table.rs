@@ -20,7 +20,7 @@ impl LevelTable {
                 continue;
             }
 
-            let parts: Vec<&str> = line.split(&['\t', ','][..]).collect();
+            let parts: Vec<&str> = line.split(&['\t', ',', ';', '=', ':'][..]).collect();
             if parts.len() < 2 {
                 continue;
             }
@@ -50,6 +50,11 @@ impl LevelTable {
         })
     }
 
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P, scheme: LevelScheme) -> Result<Self> {
+        let content = std::fs::read_to_string(path)?;
+        Self::from_tsv(&content, scheme)
+    }
+
     pub fn builtin(scheme: LevelScheme, lang: &str) -> Result<Self> {
         let primary_lang = lang.split(&['-', '_'][..]).next().unwrap_or(lang);
         let tsv_content = match scheme {
@@ -60,6 +65,7 @@ impl LevelTable {
                 "ja" => BUILTIN_JLPT_TSV,
                 _ => BUILTIN_CEFR_EN_TSV,
             },
+            LevelScheme::Custom => BUILTIN_CEFR_EN_TSV,
         };
 
         Self::from_tsv(tsv_content, scheme)

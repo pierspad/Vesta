@@ -27,7 +27,7 @@ export default defineConfig({
   // (jsdom + mocked `invoke`), which isn't worth it yet for a desktop app
   // that's manually smoke-tested before every release.
   test: {
-    include: ["src/lib/{utils,config}/**/*.test.ts"],
+    include: ["src/lib/**/*.test.ts"],
     environment: "node",
     setupFiles: ["src/lib/test-setup.ts"],
   },

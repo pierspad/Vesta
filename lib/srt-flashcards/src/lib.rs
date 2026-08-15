@@ -544,8 +544,8 @@ pub async fn generate(
                 let audio_track_index = config.audio_track_index;
                 let pad_s = config.video_pad_start_ms;
                 let pad_e = config.video_pad_end_ms;
-                let w = config.snapshot_width;
-                let h = config.snapshot_height;
+                let w = config.video_width.unwrap_or(config.snapshot_width);
+                let h = config.video_height.unwrap_or(config.snapshot_height);
                 let crop = config.crop_bottom;
                 let ffmpeg = ffmpeg_cmd_arc.clone();
                 let permit = semaphore.clone();

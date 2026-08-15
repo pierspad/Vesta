@@ -152,11 +152,25 @@
             <span class="text-xs text-gray-500">ms</span>
           </div>
         </div>
-        <div class="flex justify-center">
-          <label class="vesta-check-row min-h-[42px] w-full">
-            <input type="checkbox" bind:checked={settings.normalizeAudio} class="vesta-check-input shrink-0" />
-            <span class="min-w-0 text-left text-xs font-medium text-gray-300">{t("flashcards.normalizeAudio")}</span>
-          </label>
+        <div>
+          <button
+            type="button"
+            onclick={() => (settings.normalizeAudio = !settings.normalizeAudio)}
+            class="w-full h-8.5 px-2 rounded-lg border transition-all duration-200 flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer select-none
+              {settings.normalizeAudio
+                ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-md shadow-cyan-950/40 ring-1 ring-cyan-400/40'
+                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:border-white/20'}"
+            aria-pressed={settings.normalizeAudio}
+          >
+            <svg class="w-3.5 h-3.5 shrink-0 {settings.normalizeAudio ? 'text-cyan-300' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {#if settings.normalizeAudio}
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              {:else}
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+              {/if}
+            </svg>
+            <span class="truncate">{t("flashcards.normalizeAudio")}</span>
+          </button>
         </div>
       </div>
     {/if}

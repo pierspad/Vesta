@@ -27,6 +27,8 @@ export interface EpisodeMediaOverrides {
   videoAudioBitrate?: number;
   videoPadStart?: number;
   videoPadEnd?: number;
+  videoWidth?: number;
+  videoHeight?: number;
 }
 
 export type EpisodeMediaOverrideKey = keyof EpisodeMediaOverrides;
@@ -110,18 +112,51 @@ export interface VideoQualityStep {
   videoBitrate: number;
   videoAudioBitrate: number;
   h264Preset: string;
+  width: number;
+  height: number;
 }
 
 export const VIDEO_QUALITY_STEPS: VideoQualityStep[] = [
-  { id: "light", videoBitrate: 400, videoAudioBitrate: 64, h264Preset: "fast" },
-  { id: "balanced", videoBitrate: 800, videoAudioBitrate: 128, h264Preset: "medium" },
-  { id: "high", videoBitrate: 1500, videoAudioBitrate: 192, h264Preset: "medium" },
+  { id: "light", videoBitrate: 400, videoAudioBitrate: 64, h264Preset: "fast", width: 256, height: 144 },
+  { id: "balanced", videoBitrate: 800, videoAudioBitrate: 128, h264Preset: "medium", width: 426, height: 240 },
+  { id: "high", videoBitrate: 1500, videoAudioBitrate: 192, h264Preset: "medium", width: 640, height: 360 },
 ];
 
 export const DEFAULT_QUALITY_STEP = QUALITY_STEPS[1];
+export const DEFAULT_VIDEO_QUALITY_STEP = VIDEO_QUALITY_STEPS[1];
 
-export function matchQualityStep(snapshotQuality: number): QualityStep | null {
-  return QUALITY_STEPS.find((s) => s.snapshotQuality === snapshotQuality) ?? null;
+export function matchQualityStep(
+  snapshotQuality: number,
+  snapshotWidth?: number,
+  snapshotHeight?: number,
+): QualityStep | null {
+  return (
+    QUALITY_STEPS.find(
+      (s) =>
+        s.snapshotQuality === snapshotQuality &&
+        (snapshotWidth === undefined || s.snapshotWidth === snapshotWidth) &&
+        (snapshotHeight === undefined || s.snapshotHeight === snapshotHeight)
+    ) ?? null
+  );
+}
+
+export function matchVideoQualityStep(
+  videoBitrate: number,
+  width?: number,
+  height?: number,
+  videoAudioBitrate?: number,
+  h264Preset?: string,
+): VideoQualityStep | null {
+  return (
+    VIDEO_QUALITY_STEPS.find(
+      (s) =>
+        s.videoBitrate === videoBitrate &&
+        (width === undefined || s.width === width) &&
+        (height === undefined || s.height === height) &&
+        (videoAudioBitrate === undefined || s.videoAudioBitrate === videoAudioBitrate) &&
+        (h264Preset === undefined || s.h264Preset === h264Preset)
+    ) ?? null
+  );
 }
 
 /** Bitrates offered for Opus. Speech needs far less than the MP3 ladder

@@ -29,6 +29,23 @@ Each card can also include:
 - an audio snippet
 - a snapshot of the sentence
 - a video clip of the sentence
+- **Difficulty Tagging** (CEFR, HSK, JLPT, or Custom TSV database)
+
+### Difficulty Tagging & Vocabulary Schemes
+
+Vesta can automatically analyze the lexical complexity of each subtitle line and tag generated Anki cards with their corresponding difficulty level (e.g. `CEFR::B1`, `HSK::3`, `JLPT::N2`, `Level::4`):
+
+- **Smart Matching**: Vesta automatically selects the appropriate proficiency scheme based on the target subtitle language:
+  - `Chinese` (`zh`, `cmn`) → **HSK** (Levels 1 to 6)
+  - `Japanese` (`ja`, `jpn`) → **JLPT** (Levels N5 to N1)
+  - `European & other languages` (`en`, `it`, `es`, `fr`, `de`, `pt`, `ru`, `nl`, `pl`, etc.) → **CEFR** (Levels A1=1 to C2=6)
+  - `Custom`: User-defined lists and files.
+
+- **Custom Scheme Databases & Templates**:
+  - In **Settings > Anki**, you can download official starter `.tsv` templates for CEFR, HSK, and JLPT.
+  - Modify or expand the list in any spreadsheet or text editor.
+  - **File Format**: `word<TAB>level_number` (or `word,level_number`), with levels specified as integer numbers (1 to 6). Lines starting with `#` are treated as comments.
+  - Load your custom `.tsv` file or paste word lists directly in the Flashcards tab.
 
 ## More Features
 

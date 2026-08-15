@@ -1,28 +1,11 @@
-# Vesta
+# <img src="docs/fireplace.svg" alt="Vesta" height="32" valign="middle"> Vesta
 
 > [!WARNING]
 > **Work in Progress**: This README is currently temporary and a work in progress (WIP), is subject to ongoing reorganization, and will be further refined and expanded.
 
 **subs2srs, but actually fast.**
 
-Vesta is a modern desktop application for language learners and power users that turns video and subtitle files into rich, synchronized Anki flashcard decks, auto-aligned subtitles, and translated media in minutes instead of hours.
-
-Built with **Rust (Tauri)** + **Svelte 5** + **TypeScript**.
-
----
-
-## What it does
-
-Load a video and its subtitles. Synchronize them, translate them with AI if needed, and export a ready-to-study Anki deck with high-quality audio clips, snapshots, video clips, and difficulty tags synced to the exact lines of dialogue.
-
-![Benchmark comparison: Vesta vs subs2srs](docs/fireplace.png)
-
-### Why Vesta?
-
-- **Parallelized & Multi-core by Default**: Written from scratch in Rust, distributing ffmpeg extractions, media encoding, and database operations across all available CPU cores.
-- **2.3× – 2.6× Faster Than subs2srs**: Completes large multi-episode deck generation workflows in a fraction of the time required by legacy tools.
-- **100% Offline Capable**: Core media processing, local Whisper transcription, VAD speech segmentation, and proficiency vocabulary tagging run entirely on your local machine without mandatory internet access.
-- **Decoupled & Modular Architecture**: Every engine is a standalone, headless Rust crate with matching CLI tools.
+Vesta is a modern desktop application for language learners and power users that turns video and subtitle files into rich, synchronized Anki flashcard decks, auto-aligned subtitles, and translated media in minutes instead of hours — running **~2.5× faster than subs2srs** with parallelized multi-core processing and 100% offline capability.
 
 ---
 

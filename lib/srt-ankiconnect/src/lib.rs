@@ -98,3 +98,43 @@ pub async fn store_media_file(url: &str, filename: &str, data_base64: &str) -> R
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_anki_note_serialization() {
+        let mut fields = std::collections::HashMap::new();
+        fields.insert("Expression".to_string(), "Hello".to_string());
+        fields.insert("Meaning".to_string(), "Ciao".to_string());
+
+        let note = AnkiNote {
+            deck_name: "Test Deck".to_string(),
+            model_name: "Basic".to_string(),
+            fields,
+            tags: vec!["vesta".to_string(), "chapter1".to_string()],
+        };
+
+        let json = serde_json::to_string(&note).unwrap();
+        assert!(json.contains("Test Deck"));
+        assert!(json.contains("Hello"));
+        assert!(json.contains("vesta"));
+
+        let deserialized: AnkiNote = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.deck_name, "Test Deck");
+        assert_eq!(deserialized.tags.len(), 2);
+    }
+
+    #[test]
+    fn test_add_notes_result_deserialization_with_null_duplicates() {
+        // AnkiConnect returns null for duplicates when allowDuplicate is false
+        let mock_result = json!([17000000001i64, null, 17000000002i64]);
+        let parsed: Vec<Option<i64>> = serde_json::from_value(mock_result).unwrap();
+
+        assert_eq!(parsed.len(), 3);
+        assert_eq!(parsed[0], Some(17000000001i64));
+        assert_eq!(parsed[1], None);
+        assert_eq!(parsed[2], Some(17000000002i64));
+    }
+}

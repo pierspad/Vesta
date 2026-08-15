@@ -365,4 +365,89 @@ Come stai?"#;
         assert_eq!(subs.get(&1).unwrap().text, "Ciao mondo!");
         assert_eq!(subs.get(&2).unwrap().text, "Come stai?");
     }
+
+    #[test]
+    fn test_normalize_subtitles_fills_gaps() {
+        let mut subs = HashMap::new();
+        subs.insert(
+            1,
+            Subtitle {
+                id: 1,
+                start: Timestamp::from_milliseconds(1000),
+                end: Timestamp::from_milliseconds(2000),
+                text: "First".to_string(),
+            },
+        );
+        subs.insert(
+            3,
+            Subtitle {
+                id: 3,
+                start: Timestamp::from_milliseconds(5000),
+                end: Timestamp::from_milliseconds(6000),
+                text: "Third".to_string(),
+            },
+        );
+
+        SrtParser::normalize_subtitles(&mut subs);
+
+        assert_eq!(subs.len(), 3);
+        assert!(subs.contains_key(&1));
+        assert!(subs.contains_key(&2));
+        assert!(subs.contains_key(&3));
+
+        let placeholder = subs.get(&2).unwrap();
+        assert_eq!(placeholder.text, "[...]");
+        assert_eq!(placeholder.start.milliseconds, 2000);
+        assert_eq!(placeholder.end.milliseconds, 5000);
+    }
+
+    #[test]
+    fn test_normalize_subtitles_gap_safety_skips_huge_gap() {
+        let mut subs = HashMap::new();
+        subs.insert(
+            1,
+            Subtitle {
+                id: 1,
+                start: Timestamp::from_milliseconds(1000),
+                end: Timestamp::from_milliseconds(2000),
+                text: "First".to_string(),
+            },
+        );
+        subs.insert(
+            100_000,
+            Subtitle {
+                id: 100_000,
+                start: Timestamp::from_milliseconds(5000),
+                end: Timestamp::from_milliseconds(6000),
+                text: "Far away".to_string(),
+            },
+        );
+
+        // Gap is > MAX_NORMALIZE_GAP (50_000). Must NOT allocate 99_998 placeholders.
+        SrtParser::normalize_subtitles(&mut subs);
+        assert_eq!(subs.len(), 2);
+    }
+
+    #[test]
+    fn test_invalid_timestamp_returns_err() {
+        assert!(Timestamp::from_srt_string("invalid").is_err());
+        assert!(Timestamp::from_srt_string("00:00:20").is_err());
+        assert!(Timestamp::from_srt_string("00:aa:20,000").is_err());
+        assert!(Timestamp::from_srt_string("00:00:20,000:00").is_err());
+    }
+
+    #[test]
+    fn test_subtitle_to_srt_string_roundtrip() {
+        let sub = Subtitle {
+            id: 42,
+            start: Timestamp::new(1, 23, 45, 678),
+            end: Timestamp::new(1, 23, 50, 123),
+            text: "Hello\nWorld!".to_string(),
+        };
+
+        let srt_str = sub.to_srt_string();
+        assert!(srt_str.contains("42"));
+        assert!(srt_str.contains("01:23:45,678 --> 01:23:50,123"));
+        assert!(srt_str.contains("Hello\nWorld!"));
+    }
 }

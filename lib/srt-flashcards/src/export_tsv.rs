@@ -14,34 +14,51 @@ pub(crate) fn render_text_with_context<'a, F>(
 where
     F: Fn(&'a MatchedLine) -> Option<&'a str>,
 {
-    let mut text = String::with_capacity(main_text.len() + 128);
+    let has_leading = !line.leading_context.is_empty();
+    let has_trailing = !line.trailing_context.is_empty();
+
+    if !has_leading
+        && !has_trailing
+        && !main_text.contains('\n')
+        && (!replace_tabs || !main_text.contains('\t'))
+    {
+        return main_text.to_string();
+    }
+
+    let mut result = String::with_capacity(main_text.len() + 128);
+
+    let push_escaped = |target: &mut String, s: &str| {
+        for ch in s.chars() {
+            match ch {
+                '\n' => target.push_str("<br>"),
+                '\t' if replace_tabs => target.push(' '),
+                _ => target.push(ch),
+            }
+        }
+    };
 
     for &ctx_idx in &line.leading_context {
         if let Some(ctx_line) = all_lines.get(ctx_idx)
             && let Some(ctx_text) = get_text(ctx_line)
         {
-            let _ = write!(text, "<span {span_attr}>{ctx_text}</span><br>");
+            let _ = write!(result, "<span {span_attr}>");
+            push_escaped(&mut result, ctx_text);
+            result.push_str("</span><br>");
         }
     }
 
-    text.push_str(main_text);
+    push_escaped(&mut result, main_text);
 
     for &ctx_idx in &line.trailing_context {
         if let Some(ctx_line) = all_lines.get(ctx_idx)
             && let Some(ctx_text) = get_text(ctx_line)
         {
-            let _ = write!(text, "<br><span {span_attr}>{ctx_text}</span>");
+            let _ = write!(result, "<br><span {span_attr}>");
+            push_escaped(&mut result, ctx_text);
+            result.push_str("</span>");
         }
     }
 
-    let mut result = String::with_capacity(text.len() + 16);
-    for ch in text.chars() {
-        match ch {
-            '\n' => result.push_str("<br>"),
-            '\t' if replace_tabs => result.push(' '),
-            _ => result.push(ch),
-        }
-    }
     result
 }
 
@@ -191,4 +208,64 @@ pub(crate) fn sanitize_filename(name: &str) -> String {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line_with_context(
+        idx: usize,
+        text: &str,
+        leading: Vec<usize>,
+        trailing: Vec<usize>,
+    ) -> MatchedLine {
+        MatchedLine {
+            index: idx,
+            subs1: SubEntry {
+                id: idx as u32 + 1,
+                start_ms: 0,
+                end_ms: 1000,
+                text: text.to_string(),
+                actor: None,
+                style: None,
+                active: true,
+            },
+            subs2: None,
+            active: true,
+            leading_context: leading,
+            trailing_context: trailing,
+        }
+    }
+
+    #[test]
+    fn test_sanitize_filename() {
+        assert_eq!(
+            sanitize_filename("Deck: Friends / S01E01?"),
+            "Deck__Friends___S01E01_"
+        );
+        assert_eq!(sanitize_filename("valid_name-123"), "valid_name-123");
+    }
+
+    #[test]
+    fn test_render_text_with_context_tabs_and_newlines() {
+        let lines = vec![
+            line_with_context(0, "Prev line", Vec::new(), Vec::new()),
+            line_with_context(1, "Main\tline\nwith break", vec![0], vec![2]),
+            line_with_context(2, "Next line", Vec::new(), Vec::new()),
+        ];
+
+        let rendered = render_text_with_context(
+            &lines[1].subs1.text,
+            &lines[1],
+            &lines,
+            |m| Some(&m.subs1.text),
+            "class=\"ctx\"",
+            true, // replace tabs with spaces for TSV
+        );
+
+        assert!(rendered.contains("<span class=\"ctx\">Prev line</span><br>"));
+        assert!(rendered.contains("Main line<br>with break")); // tab replaced by space
+        assert!(rendered.contains("<br><span class=\"ctx\">Next line</span>"));
+    }
 }

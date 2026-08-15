@@ -412,8 +412,8 @@ pub(crate) fn generate_apkg(
             let sfld = if !fields.is_empty() { &fields[0] } else { "" };
 
             let csum = {
-                let hex_str = sha1_smol::Sha1::from(sfld).digest().to_string();
-                i64::from_str_radix(&hex_str[0..8], 16).unwrap_or(0)
+                let bytes = sha1_smol::Sha1::from(sfld).digest().bytes();
+                u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as i64
             };
 
             let guid = format!("{:010x}", note_id as u64);
@@ -454,8 +454,10 @@ pub(crate) fn generate_apkg(
             let guid_sql = guid.replace('\'', "''");
             let tags_sql = tags_val.replace('\'', "''");
 
-            sql.push_str(&format!(
-                "INSERT INTO notes VALUES ({nid}, '{guid}', {mid}, {ts}, 0, '{tags}', '{flds}', '{sfld}', {csum}, 0, '');\n",
+            use std::fmt::Write as _;
+            let _ = writeln!(
+                sql,
+                "INSERT INTO notes VALUES ({nid}, '{guid}', {mid}, {ts}, 0, '{tags}', '{flds}', '{sfld}', {csum}, 0, '');",
                 nid = note_id,
                 guid = guid_sql,
                 mid = model_id,
@@ -464,16 +466,17 @@ pub(crate) fn generate_apkg(
                 flds = flds_sql,
                 sfld = sfld_sql,
                 csum = csum,
-            ));
+            );
 
-            sql.push_str(&format!(
-                "INSERT INTO cards VALUES ({cid}, {nid}, {did}, 0, {ts}, 0, 0, 0, {due}, 0, 2500, 0, 0, 0, 0, 0, 0, '');\n",
+            let _ = writeln!(
+                sql,
+                "INSERT INTO cards VALUES ({cid}, {nid}, {did}, 0, {ts}, 0, 0, 0, {due}, 0, 2500, 0, 0, 0, 0, 0, 0, '');",
                 cid = card_id,
                 nid = note_id,
                 did = deck_id,
                 ts = timestamp,
                 due = seq + 1,
-            ));
+            );
         }
 
         sql.push_str("COMMIT;\n");

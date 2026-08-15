@@ -127,18 +127,50 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn test_is_media_extension() {
+        assert!(is_media_extension("mp3"));
+        assert!(is_media_extension("wav"));
+        assert!(is_media_extension("webp"));
+        assert!(is_media_extension("jpg"));
+        assert!(is_media_extension("mp4"));
+        assert!(is_media_extension("ttf"));
+
+        assert!(!is_media_extension("txt"));
+        assert!(!is_media_extension("json"));
+        assert!(!is_media_extension("anki2"));
+        assert!(!is_media_extension(""));
+    }
+
+    #[test]
     fn round_trip() {
         let src = tempfile::tempdir().unwrap();
         let mut f = fs::File::create(src.path().join("hello.txt")).unwrap();
         f.write_all(b"hello apkg").unwrap();
 
+        let mut f_media = fs::File::create(src.path().join("audio.mp3")).unwrap();
+        f_media.write_all(b"fake audio data").unwrap();
+
         let zip_path = src.path().join("out.zip");
         zip_from_dir(src.path(), &zip_path).unwrap();
         assert!(zip_path.exists());
+
+        // Verify compression methods in the created zip archive
+        let zip_file = fs::File::open(&zip_path).unwrap();
+        let mut archive = zip::ZipArchive::new(zip_file).unwrap();
+        for i in 0..archive.len() {
+            let entry = archive.by_index(i).unwrap();
+            if entry.name() == "audio.mp3" {
+                assert_eq!(entry.compression(), zip::CompressionMethod::Stored);
+            } else if entry.name() == "hello.txt" {
+                assert_eq!(entry.compression(), zip::CompressionMethod::Deflated);
+            }
+        }
 
         let dest = tempfile::tempdir().unwrap();
         unzip_to(&zip_path, dest.path()).unwrap();
         let content = fs::read_to_string(dest.path().join("hello.txt")).unwrap();
         assert_eq!(content, "hello apkg");
+        let media_content = fs::read(dest.path().join("audio.mp3")).unwrap();
+        assert_eq!(media_content, b"fake audio data");
     }
 }

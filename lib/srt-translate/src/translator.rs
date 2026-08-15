@@ -593,13 +593,13 @@ fn try_legacy_parsing(text: &str, expected_count: usize) -> Option<HashMap<u32, 
                 if let Ok(id) = id_str.parse::<u32>() {
                     current_id = Some(id);
 
-                    let trans = trans_part
-                        .trim()
-                        .trim_start_matches(|c: char| !c.is_alphabetic() || c.is_ascii_uppercase())
-                        .trim_start_matches("TRANSLATION:")
-                        .trim_start_matches("translation:")
-                        .trim_start_matches("Translation:")
-                        .trim();
+                    let mut trans = trans_part.trim();
+                    if let Some((_, after_colon)) = trans.split_once(':')
+                        && (trans.to_lowercase().starts_with("translation:")
+                            || trans.to_lowercase().starts_with("trans:"))
+                    {
+                        trans = after_colon.trim();
+                    }
                     current_translation = trans.to_string();
                 }
             }
@@ -619,5 +619,48 @@ fn try_legacy_parsing(text: &str, expected_count: usize) -> Option<HashMap<u32, 
         Some(translations)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_json_translations_clean_json() {
+        let json = r#"[{"id":1,"text":"Ciao mondo"},{"id":2,"text":"Come va?"}]"#;
+        let map = parse_json_translations(json, 2).unwrap();
+        assert_eq!(map.get(&1).unwrap(), "Ciao mondo");
+        assert_eq!(map.get(&2).unwrap(), "Come va?");
+    }
+
+    #[test]
+    fn test_parse_json_translations_markdown_fenced() {
+        let text = r#"Here is the translation:
+```json
+[
+  {"id": 10, "text": "Bonjour"},
+  {"id": 20, "text": "Au revoir"}
+]
+```
+Hope this helps!
+"#;
+        let map = parse_json_translations(text, 2).unwrap();
+        assert_eq!(map.get(&10).unwrap(), "Bonjour");
+        assert_eq!(map.get(&20).unwrap(), "Au revoir");
+    }
+
+    #[test]
+    fn test_parse_json_translations_legacy_fallback() {
+        let text = "ID: 1 | TRANSLATION: First line\nID: 2 | TRANSLATION: Second line";
+        let map = parse_json_translations(text, 2).unwrap();
+        assert_eq!(map.get(&1).unwrap(), "First line");
+        assert_eq!(map.get(&2).unwrap(), "Second line");
+    }
+
+    #[test]
+    fn test_parse_json_translations_mismatched_count_errors() {
+        let json = r#"[{"id":1,"text":"Only one item"}]"#;
+        assert!(parse_json_translations(json, 2).is_err());
     }
 }

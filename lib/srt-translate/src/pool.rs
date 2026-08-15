@@ -127,3 +127,87 @@ pub fn build_pool(tiers: &[Vec<TierEntry>]) -> Result<TranslatorPool, String> {
 
     Ok(pool)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_provider_defaults() {
+        let (api_type, url, rpm, model) = provider_defaults("google");
+        assert_eq!(api_type, ApiType::Google);
+        assert_eq!(url, "https://generativelanguage.googleapis.com/v1beta");
+        assert_eq!(rpm, 15);
+        assert_eq!(model, "gemini-2.5-flash");
+
+        let (api_type, url, rpm, model) = provider_defaults("groq");
+        assert_eq!(api_type, ApiType::Groq);
+        assert_eq!(url, "https://api.groq.com/openai/v1");
+        assert_eq!(rpm, 30);
+        assert_eq!(model, "llama-3.3-70b-versatile");
+
+        let (api_type, url, rpm, model) = provider_defaults("unknown_local");
+        assert_eq!(api_type, ApiType::Local);
+        assert_eq!(url, "http://localhost:11434/v1");
+        assert_eq!(rpm, 0);
+        assert_eq!(model, "llama3.2");
+    }
+
+    #[test]
+    fn test_provider_allows_missing_key() {
+        assert!(provider_allows_missing_key("local"));
+        assert!(provider_allows_missing_key("LOCAL"));
+        assert!(provider_allows_missing_key("custom"));
+        assert!(!provider_allows_missing_key("google"));
+        assert!(!provider_allows_missing_key("openai"));
+    }
+
+    #[test]
+    fn test_build_pool_success() {
+        let tiers = vec![
+            vec![TierEntry {
+                provider: "google".to_string(),
+                model: "gemini-2.5-flash".to_string(),
+                api_key: Some("test-key".to_string()),
+                api_url: None,
+                rpm: Some(10),
+                max_requests: Some(50),
+            }],
+            vec![TierEntry {
+                provider: "local".to_string(),
+                model: "qwen2.5".to_string(),
+                api_key: None, // allowed for local
+                api_url: Some("http://localhost:11434/v1".to_string()),
+                rpm: None,
+                max_requests: None,
+            }],
+        ];
+
+        let pool = build_pool(&tiers).unwrap();
+        assert_eq!(pool.len(), 2);
+        assert_eq!(pool[0].len(), 1);
+        assert!(pool[0][0].label.contains("T1 · google · gemini-2.5-flash"));
+        assert!(pool[0][0].rate_limiter.is_some());
+        assert_eq!(pool[0][0].max_requests, Some(50));
+
+        assert_eq!(pool[1].len(), 1);
+        assert!(pool[1][0].label.contains("T2 · local · qwen2.5"));
+    }
+
+    #[test]
+    fn test_build_pool_empty_or_invalid_returns_err() {
+        let empty_tiers: Vec<Vec<TierEntry>> = vec![];
+        assert!(build_pool(&empty_tiers).is_err());
+
+        // Remote provider with missing key gets dropped, leaving pool empty -> error
+        let invalid_tiers = vec![vec![TierEntry {
+            provider: "google".to_string(),
+            model: "gemini-2.5-flash".to_string(),
+            api_key: None, // Missing key for google -> dropped
+            api_url: None,
+            rpm: None,
+            max_requests: None,
+        }]];
+        assert!(build_pool(&invalid_tiers).is_err());
+    }
+}

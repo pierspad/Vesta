@@ -278,8 +278,8 @@ fn build_batch_prompt(per_card_prompt: &str, cards: &[RefineCard]) -> String {
     #[derive(Serialize)]
     struct BatchCard<'a> {
         id: &'a str,
-        expression: String,
-        meaning: String,
+        expression: std::borrow::Cow<'a, str>,
+        meaning: std::borrow::Cow<'a, str>,
     }
     let payload: Vec<BatchCard<'_>> = cards
         .iter()

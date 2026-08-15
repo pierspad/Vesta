@@ -150,3 +150,53 @@ static CEFR_RU_TABLE: LazyLock<LevelTable> = LazyLock::new(|| {
 static CEFR_PT_TABLE: LazyLock<LevelTable> = LazyLock::new(|| {
     LevelTable::from_tsv(BUILTIN_CEFR_PT_TSV, LevelScheme::Cefr).expect("CEFR PT TSV must parse")
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_tsv_various_separators_and_comments() {
+        let tsv_content = r#"
+# Comment line to ignore
+apple	1
+banana,2
+cherry;3
+date=4
+elderberry:5
+
+# Another comment with spaces
+"#;
+        let table = LevelTable::from_tsv(tsv_content, LevelScheme::Custom).unwrap();
+        assert_eq!(table.map.len(), 5);
+        assert_eq!(table.get("apple"), Some(1));
+        assert_eq!(table.get("banana"), Some(2));
+        assert_eq!(table.get("cherry"), Some(3));
+        assert_eq!(table.get("date"), Some(4));
+        assert_eq!(table.get("elderberry"), Some(5));
+
+        assert_eq!(table.max_level, 5);
+        assert_eq!(table.max_token_len, "elderberry".chars().count()); // 10 chars
+    }
+
+    #[test]
+    fn test_from_tsv_invalid_level_fails() {
+        let bad_tsv = "word\tinvalid_number\n";
+        assert!(LevelTable::from_tsv(bad_tsv, LevelScheme::Custom).is_err());
+    }
+
+    #[test]
+    fn test_builtin_ref_language_aliases() {
+        // French aliases: fr, fra, fre
+        let t1 = LevelTable::builtin_ref(LevelScheme::Cefr, "fr");
+        let t2 = LevelTable::builtin_ref(LevelScheme::Cefr, "fra");
+        let t3 = LevelTable::builtin_ref(LevelScheme::Cefr, "fre");
+        assert_eq!(t1.map.len(), t2.map.len());
+        assert_eq!(t1.map.len(), t3.map.len());
+
+        // German aliases: de, deu, ger
+        let t_de = LevelTable::builtin_ref(LevelScheme::Cefr, "de");
+        let t_ger = LevelTable::builtin_ref(LevelScheme::Cefr, "ger");
+        assert_eq!(t_de.map.len(), t_ger.map.len());
+    }
+}

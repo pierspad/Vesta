@@ -93,7 +93,10 @@ pub fn calculate_stats(subtitles: &HashMap<u32, Subtitle>) -> SubtitleStats {
     let mut longest_text_length = 0;
 
     for subtitle in subtitles.values() {
-        let duration = subtitle.end.total_milliseconds() - subtitle.start.total_milliseconds();
+        let duration = subtitle
+            .end
+            .total_milliseconds()
+            .saturating_sub(subtitle.start.total_milliseconds());
         total_duration += duration as f64 / 1000.0;
 
         let text_len = subtitle.text.len();
@@ -136,7 +139,35 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_stats() {
+    fn test_extract_to_summary_and_debug() {
+        let mut subs = HashMap::new();
+        subs.insert(1, create_test_subtitle(1, "First line", 0, 1000));
+        subs.insert(2, create_test_subtitle(2, "Second line", 1000, 2500));
+
+        let summary = extract_to_summary(&subs);
+        assert!(summary.contains("Total subtitles: 2"));
+        assert!(summary.contains("ID 1:"));
+        assert!(summary.contains("ID 2:"));
+
+        let debug = extract_to_debug(&subs);
+        assert!(debug.contains("First line"));
+        assert!(debug.contains("Second line"));
+
+        let res = extract(&subs, OutputFormat::Summary).unwrap();
+        assert_eq!(res, summary);
+    }
+
+    #[test]
+    fn test_output_format_parse() {
+        assert_eq!(OutputFormat::parse("json"), Some(OutputFormat::Json));
+        assert_eq!(OutputFormat::parse("JSON"), Some(OutputFormat::Json));
+        assert_eq!(OutputFormat::parse("summary"), Some(OutputFormat::Summary));
+        assert_eq!(OutputFormat::parse("debug"), Some(OutputFormat::Debug));
+        assert_eq!(OutputFormat::parse("unknown"), None);
+    }
+
+    #[test]
+    fn test_calculate_stats_normal() {
         let mut subs = HashMap::new();
         subs.insert(1, create_test_subtitle(1, "Hello", 0, 2000));
         subs.insert(2, create_test_subtitle(2, "World!", 2000, 4000));
@@ -145,5 +176,29 @@ mod tests {
         assert_eq!(stats.total_count, 2);
         assert_eq!(stats.total_duration_seconds, 4.0);
         assert_eq!(stats.average_duration_seconds, 2.0);
+        assert_eq!(stats.shortest_text_length, 5); // "Hello"
+        assert_eq!(stats.longest_text_length, 6); // "World!"
+        assert_eq!(stats.average_text_length, 5.5);
+    }
+
+    #[test]
+    fn test_calculate_stats_empty() {
+        let subs = HashMap::new();
+        let stats = calculate_stats(&subs);
+        assert_eq!(stats.total_count, 0);
+        assert_eq!(stats.total_duration_seconds, 0.0);
+        assert_eq!(stats.shortest_text_length, 0);
+        assert_eq!(stats.longest_text_length, 0);
+    }
+
+    #[test]
+    fn test_calculate_stats_corrupt_inverted_timestamps_no_panic() {
+        let mut subs = HashMap::new();
+        // End is before start (e.g. corrupt subtitle file)
+        subs.insert(1, create_test_subtitle(1, "Broken", 5000, 2000));
+
+        let stats = calculate_stats(&subs);
+        assert_eq!(stats.total_count, 1);
+        assert_eq!(stats.total_duration_seconds, 0.0); // saturating_sub protects from panic
     }
 }

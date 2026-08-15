@@ -461,4 +461,23 @@ mod tests {
         assert_eq!(ms_to_ts(0), "00:00:00.000");
         assert_eq!(ms_to_ts(3_661_042), "01:01:01.042");
     }
+
+    #[test]
+    fn merge_spans_empty_input() {
+        let merged = merge_spans(&[], 100, 500);
+        assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn merge_spans_nested_and_chained() {
+        // Inner span (2000, 3000) inside outer span (1000, 5000)
+        let spans = vec![(1_000, 5_000), (2_000, 3_000)];
+        let merged = merge_spans(&spans, 0, 500);
+        assert_eq!(merged, vec![(1_000, 5_000)]);
+
+        // 3 overlapping spans chained together
+        let chained = vec![(1_000, 2_500), (2_000, 3_500), (3_000, 4_500)];
+        let merged_chained = merge_spans(&chained, 0, 100);
+        assert_eq!(merged_chained, vec![(1_000, 4_500)]);
+    }
 }

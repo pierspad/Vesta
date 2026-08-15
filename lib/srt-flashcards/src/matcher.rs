@@ -75,3 +75,72 @@ pub(crate) fn combine_consecutive_repeats(matched: &mut Vec<MatchedLine>) {
         m.index = j;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sub(id: u32, start_ms: i64, end_ms: i64, text: &str) -> SubEntry {
+        SubEntry {
+            id,
+            start_ms,
+            end_ms,
+            text: text.to_string(),
+            actor: None,
+            style: None,
+            active: true,
+        }
+    }
+
+    #[test]
+    fn test_get_overlap() {
+        // Disjoint
+        assert_eq!(get_overlap(1000, 2000, 3000, 4000), 0);
+        assert_eq!(get_overlap(3000, 4000, 1000, 2000), 0);
+        // Partial overlap
+        assert_eq!(get_overlap(1000, 3000, 2000, 4000), 1000);
+        assert_eq!(get_overlap(2000, 4000, 1000, 3000), 1000);
+        // Fully contained
+        assert_eq!(get_overlap(1000, 4000, 2000, 3000), 1000);
+        assert_eq!(get_overlap(2000, 3000, 1000, 4000), 1000);
+        // Touching boundaries (0ms overlap)
+        assert_eq!(get_overlap(1000, 2000, 2000, 3000), 0);
+    }
+
+    #[test]
+    fn test_match_subtitles_basic() {
+        let s1 = vec![sub(1, 1000, 3000, "Hello"), sub(2, 4000, 6000, "World")];
+        let s2 = vec![sub(10, 1050, 2950, "Ciao"), sub(20, 3950, 6050, "Mondo")];
+
+        let matched = match_subtitles(&s1, &s2);
+        assert_eq!(matched.len(), 2);
+        assert_eq!(matched[0].subs1.text, "Hello");
+        assert_eq!(matched[0].subs2.as_ref().unwrap().text, "Ciao");
+        assert_eq!(matched[1].subs1.text, "World");
+        assert_eq!(matched[1].subs2.as_ref().unwrap().text, "Mondo");
+    }
+
+    #[test]
+    fn test_combine_consecutive_repeats() {
+        // Two consecutive s1 matching the same s2 (id 10)
+        let s1 = vec![
+            sub(1, 1000, 2000, "How"),
+            sub(2, 2100, 3000, "are you?"),
+            sub(3, 4000, 5000, "I am fine"),
+        ];
+        let s2 = vec![
+            sub(10, 1000, 3000, "Come stai?"),
+            sub(20, 4000, 5000, "Sto bene"),
+        ];
+
+        let matched = match_subtitles(&s1, &s2);
+        assert_eq!(matched.len(), 2);
+        assert_eq!(matched[0].subs1.text, "How are you?");
+        assert_eq!(matched[0].subs1.start_ms, 1000);
+        assert_eq!(matched[0].subs1.end_ms, 3000);
+        assert_eq!(matched[0].subs2.as_ref().unwrap().text, "Come stai?");
+
+        assert_eq!(matched[1].subs1.text, "I am fine");
+        assert_eq!(matched[1].subs2.as_ref().unwrap().text, "Sto bene");
+    }
+}

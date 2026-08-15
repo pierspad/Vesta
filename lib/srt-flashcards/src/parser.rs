@@ -390,3 +390,124 @@ pub(crate) fn parse_subtitle_file(path: &str) -> Result<(Vec<SubEntry>, &'static
 
     Ok((entries, format))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_format() {
+        assert_eq!(detect_format("movie.srt"), "srt");
+        assert_eq!(detect_format("movie.ass"), "ass");
+        assert_eq!(detect_format("movie.ssa"), "ass");
+        assert_eq!(detect_format("movie.vtt"), "vtt");
+        assert_eq!(detect_format("movie.webvtt"), "vtt");
+        assert_eq!(detect_format("song.lrc"), "lrc");
+        assert_eq!(detect_format("unknown.xyz"), "srt");
+    }
+
+    #[test]
+    fn test_parse_ass_full() {
+        let content = r#"[Script Info]
+Title: Sample ASS
+ScriptType: v4.00+
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Comment: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,This is a comment to ignore
+Dialogue: 0,0:00:01.50,0:00:04.20,Default,Actor1,0,0,0,,{\b1}Hello{\b0}, world!\NHow are you?
+Dialogue: 0,0:00:05.00,0:00:08.50,Default,Actor2,0,0,0,,I'm good, thanks, really!
+"#;
+
+        let entries = parse_ass(content).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        assert_eq!(entries[0].id, 1);
+        assert_eq!(entries[0].start_ms, 1500);
+        assert_eq!(entries[0].end_ms, 4200);
+        assert_eq!(entries[0].text, "Hello, world!\nHow are you?");
+        assert_eq!(entries[0].actor.as_deref(), Some("Actor1"));
+
+        assert_eq!(entries[1].id, 2);
+        assert_eq!(entries[1].start_ms, 5000);
+        assert_eq!(entries[1].end_ms, 8500);
+        // Commas in dialogue text must not be truncated
+        assert_eq!(entries[1].text, "I'm good, thanks, really!");
+        assert_eq!(entries[1].actor.as_deref(), Some("Actor2"));
+    }
+
+    #[test]
+    fn test_parse_ass_timestamp() {
+        assert_eq!(parse_ass_timestamp("0:01:23.45").unwrap(), 83450);
+        assert_eq!(parse_ass_timestamp("1:00:00.00").unwrap(), 3600000);
+    }
+
+    #[test]
+    fn test_strip_ass_tags() {
+        assert_eq!(strip_ass_tags(r#"{\b1}Bold text{\b0}"#), "Bold text");
+        assert_eq!(
+            strip_ass_tags(r#"{\pos(100,200)\fs20}Styled{\r} plain"#),
+            "Styled plain"
+        );
+        assert_eq!(strip_ass_tags("No tags here"), "No tags here");
+    }
+
+    #[test]
+    fn test_parse_vtt_full() {
+        let content = r#"WEBVTT - Sample File
+
+NOTE
+This is a comment note that should be ignored
+
+00:01.000 --> 00:04.500 align:start position:20%
+<v Roger>Hello <c.yellow>world</c>!
+
+00:05.000 --> 00:09.000
+Second line of subtitle
+with a line break
+"#;
+
+        let entries = parse_vtt(content).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        assert_eq!(entries[0].start_ms, 1000);
+        assert_eq!(entries[0].end_ms, 4500);
+        assert_eq!(entries[0].text, "Hello world!");
+
+        assert_eq!(entries[1].start_ms, 5000);
+        assert_eq!(entries[1].end_ms, 9000);
+        assert_eq!(
+            entries[1].text,
+            "Second line of subtitle\nwith a line break"
+        );
+    }
+
+    #[test]
+    fn test_parse_vtt_timestamp() {
+        // MM:SS.mmm
+        assert_eq!(parse_vtt_timestamp("01:23.456").unwrap(), 83456);
+        // HH:MM:SS.mmm
+        assert_eq!(parse_vtt_timestamp("01:02:03.456").unwrap(), 3723456);
+    }
+
+    #[test]
+    fn test_strip_vtt_tags() {
+        assert_eq!(
+            strip_vtt_tags("<b>Bold</b> and <i>Italic</i>"),
+            "Bold and Italic"
+        );
+        assert_eq!(strip_vtt_tags("<c.color>Colored</c>"), "Colored");
+    }
+
+    #[test]
+    fn test_parse_srt() {
+        let content =
+            "1\n00:00:01,000 --> 00:00:03,000\nFirst\n\n2\n00:00:04,000 --> 00:00:06,000\nSecond\n";
+        let entries = parse_srt(content).unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].start_ms, 1000);
+        assert_eq!(entries[0].text, "First");
+        assert_eq!(entries[1].start_ms, 4000);
+        assert_eq!(entries[1].text, "Second");
+    }
+}

@@ -483,3 +483,110 @@ pub fn normalize_text(value: &str) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_levenshtein_distance_basic() {
+        let a: Vec<char> = "kitten".chars().collect();
+        let b: Vec<char> = "sitting".chars().collect();
+        assert_eq!(levenshtein_distance(&a, &b), 3);
+
+        let empty: Vec<char> = Vec::new();
+        assert_eq!(levenshtein_distance(&empty, &empty), 0);
+        assert_eq!(levenshtein_distance(&a, &empty), a.len());
+        assert_eq!(levenshtein_distance(&empty, &b), b.len());
+    }
+
+    #[test]
+    fn test_levenshtein_distance_unicode_cjk_emoji() {
+        let zh1: Vec<char> = "你好世界".chars().collect();
+        let zh2: Vec<char> = "你好美丽的地球".chars().collect();
+        // Replacing "世界" (2 chars) with "美丽的地球" (5 chars) -> 5 edits
+        assert_eq!(levenshtein_distance(&zh1, &zh2), 5);
+
+        let ja1: Vec<char> = "こんにちは".chars().collect();
+        let ja2: Vec<char> = "こんばんは".chars().collect();
+        assert_eq!(levenshtein_distance(&ja1, &ja2), 2);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_long_string_heap_path() {
+        // Test strings >= 256 chars to test the heap allocation branch
+        let base_pattern = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let str1: String = base_pattern.repeat(10); // 360 chars
+        let mut str2 = str1.clone();
+        str2.push_str("extra_diff");
+
+        let chars1: Vec<char> = str1.chars().collect();
+        let chars2: Vec<char> = str2.chars().collect();
+
+        assert!(chars1.len() > 256);
+        assert_eq!(levenshtein_distance(&chars1, &chars2), 10);
+    }
+
+    #[test]
+    fn test_levenshtein_distance_stack_vs_heap_consistency() {
+        // Exact boundary: 255 chars (stack) vs 256 chars (heap)
+        let s255: Vec<char> = "a".repeat(255).chars().collect();
+        let s256: Vec<char> = "a".repeat(256).chars().collect();
+        assert_eq!(levenshtein_distance(&s255, &s256), 1);
+    }
+
+    #[test]
+    fn test_normalize_text() {
+        assert_eq!(normalize_text("  Hello,   World!  "), "hello world");
+        assert_eq!(
+            normalize_text("¿Cómo estás? ¡Muy bien!"),
+            "cómo estás muy bien"
+        );
+        assert_eq!(normalize_text("你好，世界！"), "你好 世界");
+        assert_eq!(normalize_text(""), "");
+        assert_eq!(normalize_text("...---..."), "");
+    }
+
+    #[test]
+    fn test_char_similarity_precomputed() {
+        let left: Vec<char> = "abcdef".chars().collect();
+        let right: Vec<char> = "abcdef".chars().collect();
+        assert!((char_similarity_precomputed(&left, &right) - 1.0).abs() < 1e-6);
+
+        let empty: Vec<char> = Vec::new();
+        assert_eq!(char_similarity_precomputed(&left, &empty), 0.0);
+    }
+
+    #[test]
+    fn test_token_overlap_score_precomputed() {
+        let t1 = vec![
+            "the".to_string(),
+            "quick".to_string(),
+            "brown".to_string(),
+            "fox".to_string(),
+        ];
+        let t2 = vec![
+            "the".to_string(),
+            "fast".to_string(),
+            "brown".to_string(),
+            "fox".to_string(),
+        ];
+        let score = token_overlap_score_precomputed(&t1, &t2);
+        assert!(score > 0.7 && score < 0.8);
+
+        let empty: Vec<String> = Vec::new();
+        assert_eq!(token_overlap_score_precomputed(&t1, &empty), 0.0);
+    }
+
+    #[test]
+    fn test_normalized_text_similarity() {
+        let n1 = NormalizedText::new("The quick brown fox jumps over the lazy dog.");
+        let n2 = NormalizedText::new("The fast brown fox jumps over the lazy dog.");
+        let sim = n1.similarity(&n2);
+        assert!(sim > 0.85);
+
+        let n3 = NormalizedText::new("Totally unrelated text about astronomy.");
+        let sim_unrelated = n1.similarity(&n3);
+        assert!(sim_unrelated < 0.2);
+    }
+}

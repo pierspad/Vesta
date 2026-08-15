@@ -437,14 +437,19 @@ fn save_apkg_to_apkg(
         .unwrap_or_default()
         .as_secs() as i64;
 
+    let mut select_stmt = conn
+        .prepare("SELECT mid, flds FROM notes WHERE id = ?")
+        .map_err(|e| format!("Errore preparazione query SELECT: {e}"))?;
+    let mut update_stmt = conn
+        .prepare("UPDATE notes SET flds = ?, sfld = ?, csum = ?, mod = ? WHERE id = ?")
+        .map_err(|e| format!("Errore preparazione query UPDATE: {e}"))?;
+
     conn.execute("BEGIN TRANSACTION", [])
         .map_err(|e| e.to_string())?;
 
     for (&nid, new_notes) in &updates_map {
         let (mid, flds): (i64, String) =
-            match conn.query_row("SELECT mid, flds FROM notes WHERE id = ?", [nid], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            }) {
+            match select_stmt.query_row([nid], |row| Ok((row.get(0)?, row.get(1)?))) {
                 Ok(res) => res,
                 Err(_) => continue,
             };
@@ -458,20 +463,20 @@ fn save_apkg_to_apkg(
         fields[notes_idx] = new_notes.clone();
 
         let joined_flds = fields.join("\x1f");
-        let sfld = fields.get(expr_idx).cloned().unwrap_or_default();
+        let sfld = fields.get(expr_idx).map(String::as_str).unwrap_or("");
 
         let csum = {
-            let hex_str = sha1_smol::Sha1::from(&sfld).digest().to_string();
-            i64::from_str_radix(&hex_str[0..8], 16).unwrap_or(0)
+            let bytes = sha1_smol::Sha1::from(sfld).digest().bytes();
+            u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as i64
         };
 
-        conn.execute(
-            "UPDATE notes SET flds = ?, sfld = ?, csum = ?, mod = ? WHERE id = ?",
-            rusqlite::params![joined_flds, sfld, csum, timestamp, nid],
-        )
-        .map_err(|e| format!("Errore durante l'aggiornamento SQLite: {e}"))?;
+        update_stmt
+            .execute(rusqlite::params![joined_flds, sfld, csum, timestamp, nid])
+            .map_err(|e| format!("Errore durante l'aggiornamento SQLite: {e}"))?;
     }
 
+    drop(select_stmt);
+    drop(update_stmt);
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
     drop(conn);
 
@@ -553,9 +558,9 @@ pub fn interpolate_prompt(template: &str, card: &RefineCard) -> String {
         .replace("{{notes}}", &card.notes)
 }
 
-pub fn strip_html(text: &str) -> String {
+pub fn strip_html(text: &str) -> std::borrow::Cow<'_, str> {
     if !text.contains('<') {
-        return text.to_string();
+        return std::borrow::Cow::Borrowed(text);
     }
     let mut out = String::with_capacity(text.len());
     let mut in_tag = false;
@@ -567,5 +572,66 @@ pub fn strip_html(text: &str) -> String {
             _ => {}
         }
     }
-    out
+    std::borrow::Cow::Owned(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_analyze_tsv_columns() {
+        let rows = vec![
+            vec![
+                "Hello world".to_string(),                  // Text (col 0)
+                "Ciao mondo".to_string(),                   // Text (col 1)
+                "[sound:ep01_0001.mp3]".to_string(),        // Sound media (col 2)
+                "<img src=\"ep01_0001.webp\">".to_string(), // Image media (col 3)
+                "001_0001_00:00:01".to_string(),            // Sequence (col 4)
+                "Some extra notes".to_string(),             // Text (col 5)
+            ],
+            vec![
+                "Second line".to_string(),
+                "Seconda riga".to_string(),
+                "[sound:ep01_0002.mp3]".to_string(),
+                "<img src=\"ep01_0002.webp\">".to_string(),
+                "001_0002_00:00:05".to_string(),
+                "".to_string(),
+            ],
+        ];
+
+        let text_cols = analyze_tsv_columns(&rows);
+        assert_eq!(text_cols, vec![0, 1, 5]);
+    }
+
+    #[test]
+    fn test_interpolate_prompt() {
+        let card = RefineCard {
+            id: "1".to_string(),
+            expression: "<b>Bonjour</b>".to_string(),
+            meaning: "<i>Hello</i>".to_string(),
+            notes: "existing note".to_string(),
+        };
+
+        let template =
+            "Explain '{{expression}}' (meaning: '{{meaning}}'). Existing notes: {{notes}}";
+        let result = interpolate_prompt(template, &card);
+        assert_eq!(
+            result,
+            "Explain 'Bonjour' (meaning: 'Hello'). Existing notes: existing note"
+        );
+    }
+
+    #[test]
+    fn test_strip_html_cow() {
+        let plain = "Hello world";
+        let res = strip_html(plain);
+        assert!(matches!(res, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(res, "Hello world");
+
+        let tagged = "Hello <b>world</b>!";
+        let res_tagged = strip_html(tagged);
+        assert!(matches!(res_tagged, std::borrow::Cow::Owned(_)));
+        assert_eq!(res_tagged, "Hello world!");
+    }
 }

@@ -153,3 +153,29 @@ Translation:",
         lang_info.full_name, title_info, surrounding_info, lang_info.examples, text
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_single_translation_prompt() {
+        let prompt = build_single_translation_prompt("Hello world", "it", Some("Movie Title"));
+        assert!(prompt.contains("Italian"));
+        assert!(prompt.contains("Hello world"));
+        assert!(prompt.contains("Movie Title"));
+    }
+
+    #[test]
+    fn test_build_batch_translation_prompt() {
+        let items = vec![
+            (1, "First line".to_string()),
+            (2, "Second line".to_string()),
+        ];
+        let prompt = build_batch_translation_prompt(&items, "es", None);
+        assert!(prompt.contains("Spanish"));
+        assert!(prompt.contains("\"id\": 1"));
+        assert!(prompt.contains("\"text\": \"First line\""));
+        assert!(prompt.contains("JSON array"));
+    }
+}

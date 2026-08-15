@@ -630,3 +630,47 @@ pub async fn run_auto_sync(
         cancelled: false,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_silent() {
+        assert!(is_silent(&[], 0.01));
+
+        let zeros = vec![0.0f32; 1000];
+        assert!(is_silent(&zeros, 0.01));
+
+        let low_noise = vec![0.001f32; 1000];
+        assert!(is_silent(&low_noise, 0.01));
+
+        let signal = vec![0.5f32; 1000];
+        assert!(!is_silent(&signal, 0.01));
+    }
+
+    #[test]
+    fn test_format_mm_ss() {
+        assert_eq!(format_mm_ss(0.0), "00:00");
+        assert_eq!(format_mm_ss(59.4), "00:59");
+        assert_eq!(format_mm_ss(65.0), "01:05");
+        assert_eq!(format_mm_ss(3600.0), "60:00");
+        assert_eq!(format_mm_ss(-10.0), "00:00"); // clamped to 0
+    }
+
+    #[test]
+    fn test_temporal_weight() {
+        // <= 8000ms is 1.0
+        assert_eq!(temporal_weight(0), 1.0);
+        assert_eq!(temporal_weight(5000), 1.0);
+        assert_eq!(temporal_weight(8000), 1.0);
+
+        // >= 45000ms is 0.65
+        assert_eq!(temporal_weight(45000), 0.65);
+        assert_eq!(temporal_weight(60000), 0.65);
+
+        // Intermediate value
+        let mid = temporal_weight(26500); // exactly halfway between 8000 and 45000
+        assert!((mid - (1.0 - 0.35 * 0.5)).abs() < 1e-6);
+    }
+}

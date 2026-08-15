@@ -248,3 +248,138 @@ pub(crate) fn apply_span(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn matched_line(idx: usize, start_ms: i64, end_ms: i64, text: &str) -> MatchedLine {
+        MatchedLine {
+            index: idx,
+            subs1: SubEntry {
+                id: idx as u32 + 1,
+                start_ms,
+                end_ms,
+                text: text.to_string(),
+                actor: None,
+                style: None,
+                active: true,
+            },
+            subs2: None,
+            active: true,
+            leading_context: Vec::new(),
+            trailing_context: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_apply_filters_cjk() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "English only"),
+            matched_line(1, 2000, 3000, "こんにちは (Japanese)"),
+            matched_line(2, 3000, 4000, "你好 (Chinese)"),
+        ];
+
+        let filters = SubtitleFilters {
+            only_cjk: true,
+            ..Default::default()
+        };
+
+        apply_filters(&mut lines, &filters);
+        assert!(!lines[0].active);
+        assert!(lines[1].active);
+        assert!(lines[2].active);
+    }
+
+    #[test]
+    fn test_apply_filters_include_exclude_words() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "I love rust programming"),
+            matched_line(1, 2000, 3000, "I hate bugs in code"),
+            matched_line(2, 3000, 4000, "Just regular dialogue"),
+        ];
+
+        let filters = SubtitleFilters {
+            include_words: Some("rust, dialogue".to_string()),
+            exclude_words: Some("bugs, bad".to_string()),
+            ..Default::default()
+        };
+
+        apply_filters(&mut lines, &filters);
+        assert!(lines[0].active); // contains "rust"
+        assert!(!lines[1].active); // does not contain include_words
+        assert!(lines[2].active); // contains "dialogue"
+    }
+
+    #[test]
+    fn test_apply_filters_duplicates() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "Repeated text"),
+            matched_line(1, 2000, 3000, "Repeated text"),
+            matched_line(2, 3000, 4000, "Unique text"),
+        ];
+
+        let filters = SubtitleFilters {
+            exclude_duplicates_subs1: true,
+            ..Default::default()
+        };
+
+        apply_filters(&mut lines, &filters);
+        assert!(lines[0].active);
+        assert!(!lines[1].active); // Duplicate excluded
+        assert!(lines[2].active);
+    }
+
+    #[test]
+    fn test_combine_sentences_multiple() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "Wait for it..."),
+            matched_line(1, 2100, 3000, "almost there..."),
+            matched_line(2, 3100, 4000, "done!"),
+            matched_line(3, 5000, 6000, "Next sentence."),
+        ];
+
+        combine_sentences(&mut lines, ".,-");
+        // Lines 0, 1, 2 should merge into one line
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].subs1.text, "Wait for it... almost there... done!");
+        assert_eq!(lines[0].subs1.start_ms, 1000);
+        assert_eq!(lines[0].subs1.end_ms, 4000);
+        assert_eq!(lines[1].subs1.text, "Next sentence.");
+    }
+
+    #[test]
+    fn test_compute_context_with_gap_limit() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "First"),
+            matched_line(1, 2500, 3500, "Second"), // gap from 0 is 500ms
+            matched_line(2, 10000, 11000, "Third"), // gap from 1 is 6500ms (exceeds max_gap)
+        ];
+
+        let ctx = ContextConfig {
+            leading: 2,
+            trailing: 2,
+            max_gap_seconds: 2.0,
+        };
+
+        compute_context(&mut lines, &ctx);
+        // Line 1 should have leading context [0]
+        assert_eq!(lines[1].leading_context, vec![0]);
+        // Line 2 should NOT have leading context because gap is 6.5s > 2.0s
+        assert_eq!(lines[2].leading_context, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn test_apply_span() {
+        let mut lines = vec![
+            matched_line(0, 1000, 2000, "Early"),
+            matched_line(1, 4000, 5000, "Middle"),
+            matched_line(2, 8000, 9000, "Late"),
+        ];
+
+        apply_span(&mut lines, Some(3000), Some(6000));
+        assert!(!lines[0].active);
+        assert!(lines[1].active);
+        assert!(!lines[2].active);
+    }
+}

@@ -343,10 +343,16 @@ where
         return cards.to_vec();
     };
 
+    let results_map: std::collections::HashMap<&str, &str> = parsed
+        .results
+        .iter()
+        .map(|r| (r.id.as_str(), r.notes.trim()))
+        .collect();
+
     let mut missing: Vec<RefineCard> = Vec::new();
     for card in cards {
-        match parsed.results.iter().find(|r| r.id == card.id) {
-            Some(r) if !r.notes.trim().is_empty() => {
+        match results_map.get(card.id.as_str()) {
+            Some(&notes) if !notes.is_empty() => {
                 let done = {
                     let mut s = shared.summary.lock().await;
                     s.done += 1;
@@ -356,7 +362,7 @@ where
                     shared,
                     RefineEvent::CardDone {
                         id: card.id.clone(),
-                        notes: r.notes.trim().to_string(),
+                        notes: notes.to_string(),
                         done,
                         total: shared.total,
                     },

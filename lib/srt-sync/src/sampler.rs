@@ -43,14 +43,13 @@ impl AdaptiveSampler {
     }
 
     pub fn mark_checked(&mut self, index: u32) {
-        if !self.checked_indices.contains(&index) {
-            self.checked_indices.push(index);
-            self.checked_indices.sort();
+        if let Err(pos) = self.checked_indices.binary_search(&index) {
+            self.checked_indices.insert(pos, index);
         }
     }
 
     pub fn is_checked(&self, index: u32) -> bool {
-        self.checked_indices.contains(&index)
+        self.checked_indices.binary_search(&index).is_ok()
     }
 
     pub fn checked_count(&self) -> usize {
@@ -129,7 +128,7 @@ impl AdaptiveSampler {
 
         for i in 1..=self.total_subtitles {
             let idx = i as u32;
-            if self.checked_indices.contains(&idx) {
+            if self.is_checked(idx) {
                 continue;
             }
 
@@ -169,21 +168,32 @@ impl AdaptiveSampler {
             .filter_map(|&idx| self.subtitle_times_ms.get(idx as usize - 1).copied())
             .collect();
 
+        if checked_times.is_empty() {
+            return self.suggest_binary_search();
+        }
+
         let mut best_index = None;
         let mut max_min_distance = -1_i64;
 
         for i in 1..=self.total_subtitles {
             let idx = i as u32;
-            if self.checked_indices.contains(&idx) {
+            if self.is_checked(idx) {
                 continue;
             }
 
             if let Some(&time_ms) = self.subtitle_times_ms.get(i - 1) {
-                let min_distance = checked_times
-                    .iter()
-                    .map(|&t| (t - time_ms).abs())
-                    .min()
-                    .unwrap_or(i64::MAX);
+                let pos = checked_times.partition_point(|&t| t < time_ms);
+                let mut min_distance = if pos < checked_times.len() {
+                    (checked_times[pos] - time_ms).abs()
+                } else {
+                    i64::MAX
+                };
+                if pos > 0 {
+                    let prev_d = (checked_times[pos - 1] - time_ms).abs();
+                    if prev_d < min_distance {
+                        min_distance = prev_d;
+                    }
+                }
 
                 if min_distance > max_min_distance {
                     max_min_distance = min_distance;
@@ -196,13 +206,18 @@ impl AdaptiveSampler {
     }
 
     fn suggest_sequential(&self) -> Option<u32> {
-        for i in 1..=self.total_subtitles {
-            let idx = i as u32;
-            if !self.checked_indices.contains(&idx) {
-                return Some(idx);
+        let mut expected = 1u32;
+        for &checked in &self.checked_indices {
+            if checked > expected {
+                return Some(expected);
             }
+            expected = checked + 1;
         }
-        None
+        if expected <= self.total_subtitles as u32 {
+            Some(expected)
+        } else {
+            None
+        }
     }
 
     pub fn reset(&mut self) {

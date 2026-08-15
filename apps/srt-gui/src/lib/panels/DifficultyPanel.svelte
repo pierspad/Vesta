@@ -7,7 +7,8 @@
 
   export interface DifficultySettings {
     enabled: boolean;
-    scheme: "cefr" | "hsk" | "jlpt" | "custom" | string;
+    scheme: string;
+    language?: string;
     customSchemeId?: string;
     unknownPolicy: "ignore" | "highest";
     customFilePath?: string;
@@ -20,14 +21,14 @@
     studiedLanguage?: string;
   }
 
-  let { settings = $bindable(), studiedLanguage = "zh" }: Props = $props();
+  let { settings = $bindable(), studiedLanguage = "en" }: Props = $props();
   let t = $derived($locale);
 
   // Auto-preset scheme from studied language if user hasn't explicitly chosen custom or another scheme
   $effect(() => {
-    if (!settings.enabled && settings.scheme !== "custom" && !settings.customSchemeId) {
+    if (studiedLanguage && settings.scheme !== "custom" && !settings.customSchemeId) {
       const autoScheme = inferSchemeForLanguage(studiedLanguage);
-      if (autoScheme === "hsk" || autoScheme === "jlpt" || autoScheme === "cefr") {
+      if (autoScheme && autoScheme !== settings.scheme && !settings.enabled) {
         settings.scheme = autoScheme;
       }
     }
@@ -48,7 +49,7 @@
         settings.customPrefix = first.tagPrefix || first.name;
       } else {
         // No custom schemes exist anymore, fallback to inferred
-        settings.scheme = inferSchemeForLanguage(studiedLanguage) as any;
+        settings.scheme = inferSchemeForLanguage(studiedLanguage);
         settings.customSchemeId = undefined;
         settings.customFilePath = "";
         settings.customPrefix = "";
@@ -58,14 +59,67 @@
 
   let schemeOptions = $derived.by(() => {
     const builtIn = [
-      { value: "cefr", label: t("flashcards.difficulty.schemeCefr") || "CEFR (English, Italian & Others A1 - C2)" },
-      { value: "hsk", label: t("flashcards.difficulty.schemeHsk") || "HSK (Chinese 1 - 6/9)" },
-      { value: "jlpt", label: t("flashcards.difficulty.schemeJlpt") || "JLPT (Japanese N5 - N1)" },
+      {
+        value: "cefr_en",
+        label: "CEFR English (Inglese · A1 - C2)",
+        searchTerms: "cefr english inglese cambridge oxford a1 a2 b1 b2 c1 c2 en eng standard",
+      },
+      {
+        value: "cefr_it",
+        label: "CEFR Italiano (Italian · A1 - C2)",
+        searchTerms: "cefr italiano italian cils celi plida colfis a1 a2 b1 b2 c1 c2 it ita",
+      },
+      {
+        value: "cefr_es",
+        label: "CEFR Español (Spagnolo / Spanish · A1 - C2)",
+        searchTerms: "cefr espanol spanish spagnolo dele cervantes elelex a1 a2 b1 b2 c1 c2 es spa",
+      },
+      {
+        value: "cefr_fr",
+        label: "CEFR Français (Francese / French · A1 - C2)",
+        searchTerms: "cefr francais french francese delf dalf fle flelex a1 a2 b1 b2 c1 c2 fr fra fre",
+      },
+      {
+        value: "cefr_de",
+        label: "CEFR Deutsch (Tedesco / German · A1 - C2)",
+        searchTerms: "cefr deutsch german tedesco goethe telc testdaf a1 a2 b1 b2 c1 c2 de deu ger",
+      },
+      {
+        value: "cefr_ru",
+        label: "CEFR Русский (Russo / Russian · A1 - C2)",
+        searchTerms: "cefr russian russo trki torfl трки a1 a2 b1 b2 c1 c2 ru rus",
+      },
+      {
+        value: "cefr_pt",
+        label: "CEFR Português (Portoghese / Portuguese · A1 - C2)",
+        searchTerms: "cefr portugues portuguese portoghese caple celpe a1 a2 b1 b2 c1 c2 pt por",
+      },
+      {
+        value: "hsk",
+        label: "HSK (Cinese Semplificato / Mandarin · 1 - 6)",
+        searchTerms: "hsk chinese cinese mandarino simplified 汉语 汉语水平考试 hanban hsk1 hsk2 hsk3 hsk4 hsk5 hsk6 zh cmn",
+      },
+      {
+        value: "tocfl",
+        label: "TOCFL (Cinese Tradizionale / Taiwan · 1 - 6)",
+        searchTerms: "tocfl chinese traditional taiwanese taiwan hong kong 繁體中文 華語文能力測驗 1 2 3 4 5 6 zh-tw zh-hk",
+      },
+      {
+        value: "jlpt",
+        label: "JLPT (Giapponese / Japanese · N5 - N1)",
+        searchTerms: "jlpt japanese giapponese nihongo 日本語 日本語能力試験 n5 n4 n3 n2 n1 ja jpn",
+      },
+      {
+        value: "topik",
+        label: "TOPIK (Coreano / Korean · 1 - 6)",
+        searchTerms: "topik korean coreano hangul 한국어 한국어능력시험 nikl 1 2 3 4 5 6 ko kor",
+      },
     ];
 
     const custom = difficultyStore.customSchemes.map((cs) => ({
       value: `custom:${cs.id}`,
-      label: `★ ${cs.name} (${getFileName(cs.filePath) || cs.filePath})`,
+      label: `Personalizzato: ${cs.name} (${getFileName(cs.filePath) || cs.filePath})`,
+      searchTerms: `custom personalizzato tsv csv ${cs.name} ${cs.tagPrefix || ""}`,
     }));
 
     return [...builtIn, ...custom];
@@ -74,12 +128,20 @@
   let currentSelectedValue = $derived(
     settings.scheme === "custom" && settings.customSchemeId
       ? `custom:${settings.customSchemeId}`
-      : settings.scheme
+      : (settings.scheme === "cefr" ? "cefr_en" : settings.scheme)
   );
 
   let policyOptions = $derived([
-    { value: "ignore", label: t("flashcards.difficulty.ignore") || "Ignore unlisted words" },
-    { value: "highest", label: t("flashcards.difficulty.highest") || "Assign highest level to unknown words" },
+    {
+      value: "ignore",
+      label: t("flashcards.difficulty.ignore") || "Ignore unlisted words",
+      searchTerms: "ignore ignora parole sconosciute fuori lista",
+    },
+    {
+      value: "highest",
+      label: t("flashcards.difficulty.highest") || "Assign highest level to unknown words",
+      searchTerms: "highest massimo livello parole sconosciute",
+    },
   ]);
 </script>
 
@@ -112,6 +174,7 @@
       <SearchableSelect
         options={schemeOptions}
         value={currentSelectedValue}
+        placeholder={t("flashcards.difficulty.schemePlaceholder") || "Cerca o seleziona uno schema di livello..."}
         onchange={(val) => {
           if (val.startsWith("custom:")) {
             const schemeId = val.replace("custom:", "");
@@ -122,7 +185,7 @@
               settings.customFilePath = cs.filePath;
               settings.customPrefix = cs.tagPrefix || cs.name;
             }
-          } else if (val === "hsk" || val === "jlpt" || val === "cefr") {
+          } else {
             settings.scheme = val;
             settings.customSchemeId = undefined;
             settings.customFilePath = "";
@@ -164,3 +227,4 @@
     </div>
   </div>
 </div>
+

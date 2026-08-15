@@ -17,10 +17,10 @@ pub(crate) fn apply_filters(lines: &mut [MatchedLine], filters: &SubtitleFilters
             .collect()
     });
 
-    let mut seen_subs1: HashSet<String> = HashSet::new();
-    let mut seen_subs2: HashSet<String> = HashSet::new();
+    let mut seen_subs1: HashSet<&str> = HashSet::new();
+    let mut seen_subs2: HashSet<&str> = HashSet::new();
 
-    let actor_filter: Option<Vec<String>> = filters.actor_filter.as_ref().map(|a| {
+    let actor_filter: Option<HashSet<String>> = filters.actor_filter.as_ref().map(|a| {
         a.split(',')
             .map(|s| s.trim().to_lowercase())
             .filter(|s| !s.is_empty())
@@ -32,26 +32,29 @@ pub(crate) fn apply_filters(lines: &mut [MatchedLine], filters: &SubtitleFilters
             continue;
         }
 
-        let text_lower = line.subs1.text.to_lowercase();
         let duration = line.subs1.end_ms - line.subs1.start_ms;
 
-        if let Some(ref words) = include_set
-            && !words.iter().any(|w| text_lower.contains(w))
-        {
-            line.active = false;
-            continue;
-        }
+        if include_set.is_some() || exclude_set.is_some() {
+            let text_lower = line.subs1.text.to_lowercase();
 
-        if let Some(ref words) = exclude_set
-            && words.iter().any(|w| text_lower.contains(w))
-        {
-            line.active = false;
-            continue;
+            if let Some(ref words) = include_set
+                && !words.iter().any(|w| text_lower.contains(w))
+            {
+                line.active = false;
+                continue;
+            }
+
+            if let Some(ref words) = exclude_set
+                && words.iter().any(|w| text_lower.contains(w))
+            {
+                line.active = false;
+                continue;
+            }
         }
 
         if filters.exclude_duplicates_subs1 {
-            let normalized = line.subs1.text.trim().to_string();
-            if seen_subs1.contains(&normalized) {
+            let normalized = line.subs1.text.trim();
+            if seen_subs1.contains(normalized) {
                 line.active = false;
                 continue;
             }
@@ -61,25 +64,28 @@ pub(crate) fn apply_filters(lines: &mut [MatchedLine], filters: &SubtitleFilters
         if filters.exclude_duplicates_subs2
             && let Some(ref s2) = line.subs2
         {
-            let normalized = s2.text.trim().to_string();
-            if seen_subs2.contains(&normalized) {
+            let normalized = s2.text.trim();
+            if seen_subs2.contains(normalized) {
                 line.active = false;
                 continue;
             }
             seen_subs2.insert(normalized);
         }
 
-        if let Some(min) = filters.min_chars
-            && line.subs1.text.chars().count() < min
-        {
-            line.active = false;
-            continue;
-        }
-        if let Some(max) = filters.max_chars
-            && line.subs1.text.chars().count() > max
-        {
-            line.active = false;
-            continue;
+        if filters.min_chars.is_some() || filters.max_chars.is_some() {
+            let char_count = line.subs1.text.chars().count();
+            if let Some(min) = filters.min_chars
+                && char_count < min
+            {
+                line.active = false;
+                continue;
+            }
+            if let Some(max) = filters.max_chars
+                && char_count > max
+            {
+                line.active = false;
+                continue;
+            }
         }
 
         if let Some(min) = filters.min_duration_ms
@@ -105,7 +111,8 @@ pub(crate) fn apply_filters(lines: &mut [MatchedLine], filters: &SubtitleFilters
                 line.active = false;
                 continue;
             };
-            if !actors.iter().any(|a| a == &actor.to_lowercase()) {
+            let actor_lower = actor.to_lowercase();
+            if !actors.contains(&actor_lower) {
                 line.active = false;
                 continue;
             }
@@ -133,15 +140,15 @@ pub(crate) fn apply_filters(lines: &mut [MatchedLine], filters: &SubtitleFilters
 }
 
 pub(crate) fn combine_sentences(lines: &mut Vec<MatchedLine>, continuation_chars: &str) {
-    if continuation_chars.is_empty() {
+    if continuation_chars.is_empty() || lines.is_empty() {
         return;
     }
 
     let cont_chars: Vec<char> = continuation_chars.chars().collect();
-    let mut i = 0;
+    let mut write_idx = 0;
 
-    while i + 1 < lines.len() {
-        let ends_with_cont = lines[i]
+    for read_idx in 1..lines.len() {
+        let ends_with_cont = lines[write_idx]
             .subs1
             .text
             .trim_end()
@@ -150,27 +157,34 @@ pub(crate) fn combine_sentences(lines: &mut Vec<MatchedLine>, continuation_chars
             .map(|c| cont_chars.contains(&c))
             .unwrap_or(false);
 
-        if ends_with_cont && lines[i].active && lines[i + 1].active {
-            let next_text = lines[i + 1].subs1.text.clone();
-            let next_end = lines[i + 1].subs1.end_ms;
-            let next_s2 = lines[i + 1].subs2.clone();
+        if ends_with_cont && lines[write_idx].active && lines[read_idx].active {
+            let next_end = lines[read_idx].subs1.end_ms;
+            let next_text = std::mem::take(&mut lines[read_idx].subs1.text);
 
-            lines[i].subs1.text = format!("{} {}", lines[i].subs1.text, next_text);
-            lines[i].subs1.end_ms = next_end;
+            lines[write_idx].subs1.text.reserve(1 + next_text.len());
+            lines[write_idx].subs1.text.push(' ');
+            lines[write_idx].subs1.text.push_str(&next_text);
+            lines[write_idx].subs1.end_ms = next_end;
 
-            if let (Some(s2), Some(next_s2)) = (&mut lines[i].subs2, next_s2) {
-                s2.text = format!("{} {}", s2.text, next_s2.text);
+            let next_s2 = lines[read_idx].subs2.take();
+            if let (Some(s2), Some(next_s2)) = (&mut lines[write_idx].subs2, next_s2) {
+                s2.text.reserve(1 + next_s2.text.len());
+                s2.text.push(' ');
+                s2.text.push_str(&next_s2.text);
                 s2.end_ms = next_s2.end_ms;
             }
-
-            lines.remove(i + 1);
-
-            for (j, m) in lines.iter_mut().enumerate() {
-                m.index = j;
-            }
         } else {
-            i += 1;
+            write_idx += 1;
+            if write_idx != read_idx {
+                lines.swap(write_idx, read_idx);
+            }
         }
+    }
+
+    lines.truncate(write_idx + 1);
+
+    for (j, m) in lines.iter_mut().enumerate() {
+        m.index = j;
     }
 }
 

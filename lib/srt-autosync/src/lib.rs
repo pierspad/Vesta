@@ -7,9 +7,7 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
 use srt_transcribe::audio::read_wav_to_f32;
-use srt_transcribe::transcribe::{
-    TranscribeOptions, TranscribedSegment, text_similarity, transcribe_full,
-};
+use srt_transcribe::transcribe::{TranscribeOptions, TranscribedSegment, transcribe_full};
 
 #[derive(Debug, Clone)]
 pub struct SubtitleLine {
@@ -428,11 +426,21 @@ pub async fn run_auto_sync(
             )
             .map_err(|e| format!("Failed to load Whisper model: {e:?}"))?;
 
-            let mut subtitles_sorted: Vec<(u32, i64, String)> = subtitles
+            struct SubtitleCandidate {
+                id: u32,
+                start_ms: i64,
+                norm: srt_transcribe::transcribe::NormalizedText,
+            }
+
+            let mut subtitles_sorted: Vec<SubtitleCandidate> = subtitles
                 .into_iter()
-                .map(|s| (s.id, s.start_ms, s.text))
+                .map(|s| SubtitleCandidate {
+                    id: s.id,
+                    start_ms: s.start_ms,
+                    norm: srt_transcribe::transcribe::NormalizedText::new(&s.text),
+                })
                 .collect();
-            subtitles_sorted.sort_by_key(|(_, start_ms, _)| *start_ms);
+            subtitles_sorted.sort_unstable_by_key(|s| s.start_ms);
 
             for (idx, prep) in prepared_segments.iter().enumerate() {
                 if token_clone.is_cancelled() {
@@ -505,24 +513,23 @@ pub async fn run_auto_sync(
                     .collect();
 
                 for tseg in &adjusted_segments {
-                    if tseg.text.split_whitespace().count() < 2 {
+                    let tseg_norm = srt_transcribe::transcribe::NormalizedText::new(&tseg.text);
+                    if tseg_norm.tokens.len() < 2 {
                         continue;
                     }
 
-                    let near_idx = subtitles_sorted
-                        .partition_point(|(_, sub_start_ms, _)| *sub_start_ms < tseg.start_ms);
+                    let near_idx =
+                        subtitles_sorted.partition_point(|sub| sub.start_ms < tseg.start_ms);
                     let window_start = near_idx.saturating_sub(40);
                     let window_end = (near_idx + 40).min(subtitles_sorted.len());
 
-                    for &(sub_id, sub_start_ms, ref sub_text) in
-                        &subtitles_sorted[window_start..window_end]
-                    {
-                        let time_diff = (sub_start_ms - tseg.start_ms).abs();
+                    for sub in &subtitles_sorted[window_start..window_end] {
+                        let time_diff = (sub.start_ms - tseg.start_ms).abs();
                         if time_diff > 45_000 {
                             continue;
                         }
 
-                        let sim = text_similarity(&tseg.text, sub_text);
+                        let sim = tseg_norm.similarity(&sub.norm);
                         if sim > 0.42 {
                             let score = sim * temporal_weight(time_diff);
                             if score < 0.40 {
@@ -530,8 +537,8 @@ pub async fn run_auto_sync(
                             }
 
                             all_matches.push(MatchCandidate {
-                                subtitle_id: sub_id,
-                                original_start_ms: sub_start_ms,
+                                subtitle_id: sub.id,
+                                original_start_ms: sub.start_ms,
                                 transcribed_start_ms: tseg.start_ms,
                                 similarity: sim,
                                 score,
@@ -561,18 +568,23 @@ pub async fn run_auto_sync(
     let mut best_offset = 0i64;
     let mut max_dense_count = 0;
 
-    for m in &all_matches {
-        let current_offset = m.transcribed_start_ms - m.original_start_ms;
-        let count = all_matches
+    if !all_matches.is_empty() {
+        let mut sorted_offsets: Vec<i64> = all_matches
             .iter()
-            .filter(|other| {
-                let other_offset = other.transcribed_start_ms - other.original_start_ms;
-                (other_offset - current_offset).abs() <= 15_000
-            })
-            .count();
-        if count > max_dense_count {
-            max_dense_count = count;
-            best_offset = current_offset;
+            .map(|m| m.transcribed_start_ms - m.original_start_ms)
+            .collect();
+        sorted_offsets.sort_unstable();
+
+        for &current_offset in &sorted_offsets {
+            let left_bound = current_offset - 15_000;
+            let right_bound = current_offset + 15_000;
+            let left_idx = sorted_offsets.partition_point(|&off| off < left_bound);
+            let right_idx = sorted_offsets.partition_point(|&off| off <= right_bound);
+            let count = right_idx.saturating_sub(left_idx);
+            if count > max_dense_count {
+                max_dense_count = count;
+                best_offset = current_offset;
+            }
         }
     }
 
@@ -595,7 +607,7 @@ pub async fn run_auto_sync(
     }
 
     let mut final_matches: Vec<MatchCandidate> = best_per_sub.into_values().collect();
-    final_matches.sort_by_key(|m| m.original_start_ms);
+    final_matches.sort_unstable_by_key(|m| m.original_start_ms);
 
     let mut suggestions: Vec<AnchorSuggestion> = Vec::new();
     let mut last_time: Option<i64> = None;

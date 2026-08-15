@@ -348,12 +348,103 @@ export const defaultCardTemplates: CardTemplateConfig = {
 <div class='media'>{{Snapshot}}</div>
 <span class='media'>{{Video}}</span>
 <br />`,
-  css: `.card {
-  font-family: var(--vesta-target-font, arial);
+  // Keep in sync with ANKI_CARD_STYLING in lib/srt-flashcards/src/export_apkg.rs:
+  // this copy is what the GUI ships, that one is the fallback for exports that
+  // don't come from the GUI (CLI). They must render the same deck.
+  css: `/* Vesta default card style.
+   Sizes are relative to .card's font-size, so changing that one value
+   rescales the whole card. Colours go through the variables below, and
+   Anki marks the card "nightMode" (desktop/iOS) or "night_mode"
+   (AnkiDroid), so the dark palette applies on its own. */
+.card {
+  --vesta-fg: #1c1c1e;
+  --vesta-bg: #ffffff;
+  --vesta-muted: #6b7280;
+  --vesta-accent: #a8261e;
+  --vesta-rule: #e3e3e6;
+  --vesta-pill-bg: #f2f2f5;
+  --vesta-pill-fg: #3a3a3c;
+  --vesta-ui-font: -apple-system, "Segoe UI", Roboto, "Noto Sans", arial, sans-serif;
+
+  font-family: var(--vesta-target-font, var(--vesta-ui-font));
   font-size: 20px;
+  line-height: 1.5;
   text-align: center;
-  color: black;
-  background-color: white;
+  color: var(--vesta-fg);
+  background-color: var(--vesta-bg);
+  padding: 14px 16px;
+  overflow-wrap: break-word;
+}
+.card.nightMode,
+.card.night_mode,
+.nightMode .card,
+.night_mode .card {
+  --vesta-fg: #e6e6e6;
+  --vesta-bg: #2c2c2e;
+  --vesta-muted: #9a9aa0;
+  --vesta-accent: #ff9d94;
+  --vesta-rule: #444448;
+  --vesta-pill-bg: #3a3a3d;
+  --vesta-pill-fg: #d6d6da;
+}
+/* The sentence under test leads; everything else stays secondary to it. */
+.expression {
+  font-size: 1.6em;
+  font-weight: 600;
+  max-width: 34em;
+  margin: 0.25em auto;
+}
+/* Furigana / pinyin / romanisation: target script, so target font. */
+.reading {
+  font-family: var(--vesta-target-font, inherit);
+  font-size: 1.05em;
+  color: var(--vesta-accent);
+  max-width: 34em;
+  margin: 0.2em auto;
+}
+/* The translation is in the user's own language -- the target-language font
+   stack has nothing to offer it, so it keeps the UI font. */
+.meaning {
+  font-family: var(--vesta-ui-font);
+  font-size: 1.1em;
+  max-width: 34em;
+  margin: 0.35em auto;
+}
+.sequence_marker {
+  font-size: 0.45em;
+  color: var(--vesta-muted);
+}
+/* Wraps {{Audio}} / {{Video}}: keeps Anki's replay button discreet. */
+.media {
+  font-size: 0.7em;
+  color: var(--vesta-muted);
+}
+hr {
+  border: none;
+  border-top: 1px solid var(--vesta-rule);
+  margin: 0.7em auto;
+}
+/* Snapshots and clips scale down to the screen instead of overflowing it
+   (a fixed height distorts them on phones). */
+.card img,
+.card video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.6em auto;
+  border-radius: 6px;
+}
+.card video {
+  width: 600px;
+}
+.card iframe {
+  width: 600px;
+  max-width: 100%;
+  height: 340px;
+  display: block;
+  margin: 0.6em auto;
+  border: none;
+  border-radius: 6px;
 }
 #tags-container {
   text-align: left;
@@ -362,26 +453,16 @@ export const defaultCardTemplates: CardTemplateConfig = {
 }
 .tag-pill {
   display: inline-block;
+  font-family: var(--vesta-ui-font);
   font-size: 11px;
-  font-family: arial, sans-serif;
   font-weight: 600;
-  color: #333;
-  background-color: #f0f0f0;
+  color: var(--vesta-pill-fg);
+  background-color: var(--vesta-pill-bg);
   padding: 4px 8px;
   border-radius: 8px;
   margin-right: 4px;
   margin-bottom: 4px;
-  border: 1px solid #ddd;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.05);
-}
-.card video,
-.card iframe {
-  width: 600px;
-  height: 400px;
-  max-width: 100%;
-  display: block;
-  margin: 10px auto;
-  border: 1px solid #eee;
+  border: 1px solid var(--vesta-rule);
 }`,
   noteTypeName: "Vesta_Default",
 };

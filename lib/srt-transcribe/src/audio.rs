@@ -145,36 +145,86 @@ pub async fn segment_to_wav_chunks(
 
 pub fn read_wav_to_f32(wav_path: &Path) -> Result<Vec<f32>> {
     let reader = hound::WavReader::open(wav_path).context("Failed to open WAV file")?;
-
     let spec = reader.spec();
+    let total_samples = reader.len() as usize;
+    let channels = spec.channels.max(1) as usize;
+    let expected_mono_samples = total_samples / channels;
 
-    let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Int => {
+    let mut mono_samples = Vec::with_capacity(expected_mono_samples);
+
+    match (spec.sample_format, spec.channels) {
+        (hound::SampleFormat::Int, 1) => {
             let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
-            reader
-                .into_samples::<i32>()
-                .filter_map(|s| s.ok())
-                .map(|s| s as f32 / max_val)
-                .collect()
+            for s in reader.into_samples::<i32>().flatten() {
+                mono_samples.push(s as f32 / max_val);
+            }
         }
-        hound::SampleFormat::Float => reader
-            .into_samples::<f32>()
-            .filter_map(|s| s.ok())
-            .collect(),
-    };
-
-    if spec.channels == 2 {
-        Ok(samples
-            .chunks(2)
-            .map(|chunk| {
-                if chunk.len() == 2 {
-                    (chunk[0] + chunk[1]) / 2.0
+        (hound::SampleFormat::Int, 2) => {
+            let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let mut iter = reader.into_samples::<i32>().flatten();
+            while let Some(left) = iter.next() {
+                if let Some(right) = iter.next() {
+                    mono_samples.push(((left as f32 + right as f32) / 2.0) / max_val);
                 } else {
-                    chunk[0]
+                    mono_samples.push(left as f32 / max_val);
                 }
-            })
-            .collect())
-    } else {
-        Ok(samples)
+            }
+        }
+        (hound::SampleFormat::Int, ch) => {
+            let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let mut iter = reader.into_samples::<i32>().flatten();
+            let mut chunk = Vec::with_capacity(ch as usize);
+            loop {
+                chunk.clear();
+                for _ in 0..ch {
+                    if let Some(s) = iter.next() {
+                        chunk.push(s);
+                    } else {
+                        break;
+                    }
+                }
+                if chunk.is_empty() {
+                    break;
+                }
+                let sum: f32 = chunk.iter().map(|&s| s as f32).sum();
+                mono_samples.push((sum / chunk.len() as f32) / max_val);
+            }
+        }
+        (hound::SampleFormat::Float, 1) => {
+            for s in reader.into_samples::<f32>().flatten() {
+                mono_samples.push(s);
+            }
+        }
+        (hound::SampleFormat::Float, 2) => {
+            let mut iter = reader.into_samples::<f32>().flatten();
+            while let Some(left) = iter.next() {
+                if let Some(right) = iter.next() {
+                    mono_samples.push((left + right) / 2.0);
+                } else {
+                    mono_samples.push(left);
+                }
+            }
+        }
+        (hound::SampleFormat::Float, ch) => {
+            let mut iter = reader.into_samples::<f32>().flatten();
+            let mut chunk = Vec::with_capacity(ch as usize);
+            loop {
+                chunk.clear();
+                for _ in 0..ch {
+                    if let Some(s) = iter.next() {
+                        chunk.push(s);
+                    } else {
+                        break;
+                    }
+                }
+                if chunk.is_empty() {
+                    break;
+                }
+                let sum: f32 = chunk.iter().sum();
+                mono_samples.push(sum / chunk.len() as f32);
+            }
+        }
     }
+
+    Ok(mono_samples)
 }

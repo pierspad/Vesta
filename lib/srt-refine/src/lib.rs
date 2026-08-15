@@ -79,65 +79,6 @@ pub fn analyze_tsv_columns(rows: &[Vec<String>]) -> Vec<usize> {
     text_cols
 }
 
-fn unzip_archive(zip_path: &str, dest_dir: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(zip_path).map_err(|e| format!("Impossibile aprire il file APKG: {e}"))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| format!("Errore archivio ZIP: {e}"))?;
-
-    for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| format!("Errore indice ZIP: {e}"))?;
-        let outpath = match file.enclosed_name() {
-            Some(path) => dest_dir.join(path),
-            None => continue,
-        };
-
-        if file.name().ends_with('/') {
-            fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
-        } else {
-            if let Some(p) = outpath.parent()
-                && !p.exists()
-            {
-                fs::create_dir_all(p).map_err(|e| e.to_string())?;
-            }
-            let mut outfile = fs::File::create(&outpath)
-                .map_err(|e| format!("Impossibile creare il file estratto: {e}"))?;
-            std::io::copy(&mut file, &mut outfile)
-                .map_err(|e| format!("Errore di scrittura file estratto: {e}"))?;
-        }
-    }
-    Ok(())
-}
-
-fn zip_folder(src_dir: &Path, zip_path: &str) -> Result<(), String> {
-    let file = fs::File::create(zip_path)
-        .map_err(|e| format!("Impossibile creare il file APKG di output: {e}"))?;
-    let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-
-    let walkdir =
-        fs::read_dir(src_dir).map_err(|e| format!("Errore lettura directory temporanea: {e}"))?;
-    for entry in walkdir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        if path.is_file() {
-            let filename = path.file_name().unwrap().to_str().unwrap();
-            zip.start_file(filename, options)
-                .map_err(|e| format!("Errore avvio file nel ZIP: {e}"))?;
-            let mut f = fs::File::open(&path)
-                .map_err(|e| format!("Impossibile leggere il file temporaneo: {e}"))?;
-            std::io::copy(&mut f, &mut zip)
-                .map_err(|e| format!("Errore copia file nel ZIP: {e}"))?;
-        }
-    }
-    zip.finish()
-        .map_err(|e| format!("Errore completamento ZIP: {e}"))?;
-    Ok(())
-}
-
 #[derive(Deserialize)]
 struct AnkiField {
     name: String,
@@ -248,7 +189,7 @@ fn load_cards_apkg(path: &str) -> Result<Vec<RefineCard>, String> {
     let temp_dir = tempfile::tempdir()
         .map_err(|e| format!("Impossibile creare la directory temporanea: {e}"))?;
 
-    unzip_archive(path, temp_dir.path())?;
+    srt_apkg::unzip_to(Path::new(path), temp_dir.path())?;
 
     let db_path = temp_dir.path().join("collection.anki2");
     if !db_path.exists() {
@@ -405,7 +346,7 @@ fn save_apkg_to_tsv(
         .map_err(|e| format!("Impossibile creare la directory temporanea: {e}"))?;
 
     let input_path_str = resolved_input.to_str().unwrap_or(original_input);
-    unzip_archive(input_path_str, temp_dir.path())?;
+    srt_apkg::unzip_to(Path::new(input_path_str), temp_dir.path())?;
 
     let db_path = temp_dir.path().join("collection.anki2");
     if !db_path.exists() {
@@ -474,7 +415,7 @@ fn save_apkg_to_apkg(
         .map_err(|e| format!("Impossibile creare la directory temporanea: {e}"))?;
 
     let input_path_str = resolved_input.to_str().unwrap_or(original_input);
-    unzip_archive(input_path_str, temp_dir.path())?;
+    srt_apkg::unzip_to(Path::new(input_path_str), temp_dir.path())?;
 
     let db_path = temp_dir.path().join("collection.anki2");
     if !db_path.exists() {
@@ -534,7 +475,7 @@ fn save_apkg_to_apkg(
     conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
     drop(conn);
 
-    zip_folder(temp_dir.path(), output_path)
+    srt_apkg::zip_from_dir(temp_dir.path(), Path::new(output_path))
 }
 
 pub async fn refine_card_llm(

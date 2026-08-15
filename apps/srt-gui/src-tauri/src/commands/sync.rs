@@ -88,10 +88,12 @@ pub fn sync_get_status(state: State<'_, AppSyncState>) -> Result<SyncStatus, Str
     }
 }
 
+use std::collections::HashSet;
+
 fn map_subtitle_to_info(
     engine: &SyncEngine,
     sub: &srt_parser::Subtitle,
-    anchor_ids: &[u32],
+    anchor_ids: &HashSet<u32>,
 ) -> Option<SubtitleInfo> {
     let synced = engine.get_synced_subtitle(sub.id)?;
     let offset = engine.get_current_offset(sub.id).unwrap_or(0);
@@ -119,7 +121,7 @@ pub fn sync_get_subtitles(state: State<'_, AppSyncState>) -> Result<Vec<Subtitle
         .ok_or("Nessun file SRT caricato")?;
 
     let anchors = engine.get_anchors();
-    let anchor_ids: Vec<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
+    let anchor_ids: HashSet<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
 
     let subtitles: Vec<SubtitleInfo> = engine
         .get_all_subtitles()
@@ -144,12 +146,12 @@ pub fn sync_get_subtitles_range(
         .ok_or("Nessun file SRT caricato")?;
 
     let anchors = engine.get_anchors();
-    let anchor_ids: Vec<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
+    let anchor_ids: HashSet<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
 
     let all_subs = engine.get_all_subtitles();
 
-    // Find starting index based on subtitle ID
-    let start_idx = all_subs.iter().position(|s| s.id >= start_id).unwrap_or(0);
+    // Binary search for starting index based on subtitle ID in O(log N)
+    let start_idx = all_subs.partition_point(|s| s.id < start_id);
 
     let subtitles: Vec<SubtitleInfo> = all_subs
         .iter()
@@ -176,7 +178,7 @@ pub fn sync_get_subtitle(state: State<'_, AppSyncState>, id: u32) -> Result<Subt
         .ok_or(format!("Sottotitolo {} non trovato", id))?;
 
     let anchors = engine.get_anchors();
-    let anchor_ids: Vec<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
+    let anchor_ids: HashSet<u32> = anchors.iter().map(|a| a.subtitle_index).collect();
 
     map_subtitle_to_info(engine, sub, &anchor_ids)
         .ok_or(format!("Impossibile sincronizzare sottotitolo {}", id))

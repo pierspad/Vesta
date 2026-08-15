@@ -36,21 +36,64 @@ impl Timestamp {
 
     /// Parse da formato SRT (00:00:20,000)
     pub fn from_srt_string(s: &str) -> Result<Self> {
-        let parts: Vec<&str> = s.split(&[':', ',', '.'][..]).collect();
-        let &[hours, minutes, seconds, millis] = parts.as_slice() else {
-            anyhow::bail!("Formato timestamp invalido: {}", s);
-        };
+        let trimmed = s.trim();
+        let bytes = trimmed.as_bytes();
+        // Fast path for standard fixed length format "00:00:00,000" or "00:00:00.000" (12 bytes)
+        if bytes.len() == 12
+            && bytes[2] == b':'
+            && bytes[5] == b':'
+            && (bytes[8] == b',' || bytes[8] == b'.')
+            && bytes[0].is_ascii_digit()
+            && bytes[1].is_ascii_digit()
+            && bytes[3].is_ascii_digit()
+            && bytes[4].is_ascii_digit()
+            && bytes[6].is_ascii_digit()
+            && bytes[7].is_ascii_digit()
+            && bytes[9].is_ascii_digit()
+            && bytes[10].is_ascii_digit()
+            && bytes[11].is_ascii_digit()
+        {
+            let hours = ((bytes[0] - b'0') as u32 * 10) + (bytes[1] - b'0') as u32;
+            let minutes = ((bytes[3] - b'0') as u32 * 10) + (bytes[4] - b'0') as u32;
+            let seconds = ((bytes[6] - b'0') as u32 * 10) + (bytes[7] - b'0') as u32;
+            let millis = ((bytes[9] - b'0') as u32 * 100)
+                + ((bytes[10] - b'0') as u32 * 10)
+                + (bytes[11] - b'0') as u32;
+            return Ok(Self::new(hours, minutes, seconds, millis));
+        }
 
-        let hours: u32 = hours.parse().context("Ore invalide")?;
-        let minutes: u32 = minutes.parse().context("Minuti invalidi")?;
-        let seconds: u32 = seconds.parse().context("Secondi invalidi")?;
-        let millis: u32 = millis.parse().context("Millisecondi invalidi")?;
+        let mut parts = trimmed.split([':', ',', '.']);
+        let hours: u32 = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Formato timestamp invalido: {}", s))?
+            .parse()
+            .context("Ore invalide")?;
+        let minutes: u32 = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Formato timestamp invalido: {}", s))?
+            .parse()
+            .context("Minuti invalidi")?;
+        let seconds: u32 = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Formato timestamp invalido: {}", s))?
+            .parse()
+            .context("Secondi invalidi")?;
+        let millis: u32 = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Formato timestamp invalido: {}", s))?
+            .parse()
+            .context("Millisecondi invalidi")?;
+
+        if parts.next().is_some() {
+            anyhow::bail!("Formato timestamp invalido: {}", s);
+        }
 
         Ok(Self::new(hours, minutes, seconds, millis))
     }
 
-    /// Converte in formato SRT
-    pub fn to_srt_string(&self) -> String {
+    /// Scrive il timestamp direttamente in un buffer stringa
+    pub fn write_srt_to(&self, out: &mut String) {
+        use std::fmt::Write;
         let total_seconds = self.milliseconds / 1000;
         let millis = self.milliseconds % 1000;
         let seconds = total_seconds % 60;
@@ -58,7 +101,14 @@ impl Timestamp {
         let minutes = total_minutes % 60;
         let hours = total_minutes / 60;
 
-        format!("{:02}:{:02}:{:02},{:03}", hours, minutes, seconds, millis)
+        let _ = write!(out, "{hours:02}:{minutes:02}:{seconds:02},{millis:03}");
+    }
+
+    /// Converte in formato SRT
+    pub fn to_srt_string(&self) -> String {
+        let mut s = String::with_capacity(12);
+        self.write_srt_to(&mut s);
+        s
     }
 }
 
@@ -72,15 +122,21 @@ pub struct Subtitle {
 }
 
 impl Subtitle {
+    /// Scrive il blocco sottotitolo direttamente in un buffer stringa
+    pub fn write_srt_to(&self, out: &mut String) {
+        use std::fmt::Write;
+        let _ = writeln!(out, "{}", self.id);
+        self.start.write_srt_to(out);
+        out.push_str(" --> ");
+        self.end.write_srt_to(out);
+        let _ = writeln!(out, "\n{}", self.text);
+    }
+
     /// Converte il sottotitolo in formato SRT
     pub fn to_srt_string(&self) -> String {
-        format!(
-            "{}\n{} --> {}\n{}\n",
-            self.id,
-            self.start.to_srt_string(),
-            self.end.to_srt_string(),
-            self.text
-        )
+        let mut s = String::with_capacity(32 + self.text.len());
+        self.write_srt_to(&mut s);
+        s
     }
 }
 
@@ -100,17 +156,24 @@ impl SrtParser {
     /// Parse una stringa SRT
     pub fn parse_string(content: &str) -> Result<HashMap<u32, Subtitle>> {
         let mut subtitles = HashMap::new();
-        // Tollera un BOM residuo e normalizza i line ending prima dello split
-        let normalized = content.trim_start_matches('\u{feff}').replace("\r\n", "\n");
-        let blocks: Vec<&str> = normalized.split("\n\n").collect();
+        let trimmed = content.trim_start_matches('\u{feff}');
+        let mut current_block_lines: Vec<&str> = Vec::with_capacity(4);
 
-        for block in blocks {
-            let block = block.trim();
-            if block.is_empty() {
-                continue;
+        for line in trimmed.lines() {
+            let line_trimmed = line.trim();
+            if line_trimmed.is_empty() {
+                if !current_block_lines.is_empty() {
+                    let subtitle = Self::parse_block_lines(&current_block_lines)?;
+                    subtitles.insert(subtitle.id, subtitle);
+                    current_block_lines.clear();
+                }
+            } else {
+                current_block_lines.push(line);
             }
+        }
 
-            let subtitle = Self::parse_block(block)?;
+        if !current_block_lines.is_empty() {
+            let subtitle = Self::parse_block_lines(&current_block_lines)?;
             subtitles.insert(subtitle.id, subtitle);
         }
 
@@ -118,9 +181,13 @@ impl SrtParser {
     }
 
     /// Parse un singolo blocco di sottotitolo
-    fn parse_block(block: &str) -> Result<Subtitle> {
+    pub fn parse_block(block: &str) -> Result<Subtitle> {
         let lines: Vec<&str> = block.lines().collect();
-        let [id_line, timeline, text_lines @ ..] = lines.as_slice() else {
+        Self::parse_block_lines(&lines)
+    }
+
+    fn parse_block_lines(lines: &[&str]) -> Result<Subtitle> {
+        let [id_line, timeline, text_lines @ ..] = lines else {
             anyhow::bail!("Blocco sottotitolo invalido");
         };
 
@@ -128,8 +195,7 @@ impl SrtParser {
         let id: u32 = id_line.trim().parse().context("ID invalido")?;
 
         // Parse timestamps
-        let parts: Vec<&str> = timeline.split(" --> ").collect();
-        let &[start_str, end_str] = parts.as_slice() else {
+        let Some((start_str, end_str)) = timeline.split_once(" --> ") else {
             anyhow::bail!("Timeline invalida: {}", timeline);
         };
 
@@ -138,8 +204,19 @@ impl SrtParser {
 
         // Parse testo (può essere multi-linea, può essere vuoto)
         let text = if !text_lines.is_empty() {
-            let t = text_lines.join("\n").trim().to_string();
-            if t.is_empty() { "[...]".to_string() } else { t }
+            let mut t = String::with_capacity(text_lines.len() * 32);
+            for (i, line) in text_lines.iter().enumerate() {
+                if i > 0 {
+                    t.push('\n');
+                }
+                t.push_str(line);
+            }
+            let trimmed = t.trim();
+            if trimmed.is_empty() {
+                "[...]".to_string()
+            } else {
+                trimmed.to_string()
+            }
         } else {
             "[...]".to_string()
         };
@@ -170,27 +247,49 @@ impl SrtParser {
             return;
         }
 
-        let max_id = *subtitles.keys().max().unwrap();
+        let mut existing_ids: Vec<u32> = subtitles.keys().copied().collect();
+        existing_ids.sort_unstable();
+
+        let max_id = *existing_ids.last().unwrap();
         let gap = max_id as u64 - subtitles.len() as u64;
         if gap > Self::MAX_NORMALIZE_GAP as u64 {
             return;
         }
 
-        // Raccogli gli ID mancanti e i tempi da interpolare
-        let missing: Vec<u32> = (1..=max_id)
-            .filter(|id| !subtitles.contains_key(id))
-            .collect();
+        let mut placeholders = Vec::new();
 
-        for id in missing {
-            // Cerca il sottotitolo precedente e successivo per interpolare i tempi
-            let prev_end = (1..id)
-                .rev()
-                .find_map(|prev_id| subtitles.get(&prev_id).map(|s| s.end.milliseconds))
-                .unwrap_or(0);
-            let next_start = (id + 1..=max_id)
-                .find_map(|next_id| subtitles.get(&next_id).map(|s| s.start.milliseconds))
-                .unwrap_or(prev_end + 1000);
+        // 1. Buchi iniziali se il primo ID > 1
+        let first_id = existing_ids[0];
+        if first_id > 1 {
+            let next_start = subtitles
+                .get(&first_id)
+                .map(|s| s.start.milliseconds)
+                .unwrap_or(1000);
+            for id in 1..first_id {
+                placeholders.push((id, 0, next_start));
+            }
+        }
 
+        // 2. Buchi intermedi tra elementi consecutivi
+        for window in existing_ids.windows(2) {
+            let curr_id = window[0];
+            let next_id = window[1];
+            if next_id > curr_id + 1 {
+                let prev_end = subtitles
+                    .get(&curr_id)
+                    .map(|s| s.end.milliseconds)
+                    .unwrap_or(0);
+                let next_start = subtitles
+                    .get(&next_id)
+                    .map(|s| s.start.milliseconds)
+                    .unwrap_or(prev_end + 1000);
+                for id in curr_id + 1..next_id {
+                    placeholders.push((id, prev_end, next_start));
+                }
+            }
+        }
+
+        for (id, prev_end, next_start) in placeholders {
             subtitles.insert(
                 id,
                 Subtitle {
@@ -210,11 +309,11 @@ impl SrtParser {
     /// Salva i sottotitoli in un file SRT
     pub fn save_file<P: AsRef<Path>>(path: P, subtitles: &HashMap<u32, Subtitle>) -> Result<()> {
         let mut sorted_subs: Vec<_> = subtitles.values().collect();
-        sorted_subs.sort_by_key(|s| s.id);
+        sorted_subs.sort_unstable_by_key(|s| s.id);
 
-        let mut content = String::new();
+        let mut content = String::with_capacity(sorted_subs.len() * 64);
         for (i, sub) in sorted_subs.iter().enumerate() {
-            content.push_str(&sub.to_srt_string());
+            sub.write_srt_to(&mut content);
             if i < sorted_subs.len() - 1 {
                 content.push('\n');
             }

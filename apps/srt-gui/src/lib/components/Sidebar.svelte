@@ -271,20 +271,20 @@
         }}
         class="flex items-center gap-4 group cursor-pointer focus:outline-none {collapsed ? 'w-8 h-8 justify-center' : 'w-full text-left'}"
       >
-        <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-colors border border-white/10">
-          <svg class="w-4.5 h-4.5 text-gray-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 group-hover:bg-white/10 transition-all duration-100 ease-out border border-white/10">
+          <svg class="w-4.5 h-4.5 text-gray-400 group-hover:text-white transition-all duration-100 ease-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
           </svg>
         </div>
         {#if !collapsed}
-          <span class="text-lg font-bold text-gray-300 group-hover:text-white transition-colors ml-1">{t("nav.settings")}</span>
+          <span class="text-lg font-bold text-gray-300 group-hover:text-white transition-all duration-100 ease-out ml-1">{t("nav.settings")}</span>
         {/if}
       </button>
     {:else}
       <div class="flex items-center gap-3 w-full {collapsed ? 'justify-center' : ''}">
         <button
           onclick={() => onTabChange("settings")}
-          class="brand-settings-toggle-btn text-gray-400 hover:text-white transition-colors duration-200 focus:outline-none flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 relative shrink-0 cursor-pointer"
+          class="brand-settings-toggle-btn text-gray-400 hover:text-white transition-all duration-100 ease-out focus:outline-none flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 relative shrink-0 cursor-pointer"
           title={t("nav.settings")}
         >
           <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -304,15 +304,14 @@
 
         {#if !collapsed}
           <div
-            class="flex items-center gap-3 text-left group select-none border border-transparent"
+            class="flex items-center gap-3 text-left select-none border border-transparent"
           >
-            <div class="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 relative overflow-visible ml-2 group-hover:scale-105 transition-transform duration-200" style="transform: translate3d(0, 0, 0);">
-              <div class="absolute -inset-2 bg-orange-500/22 rounded-full blur-lg z-0" style="will-change: filter; transform: translate3d(0, 0, 0);"></div>
-              <div class="absolute inset-0 bg-amber-300/12 rounded-full blur-md z-0" style="will-change: filter; transform: translate3d(0, 0, 0);"></div>
-              <img src={fireplaceIcon} alt="vesta" class="w-14 h-14 drop-shadow-[0_0_10px_rgba(249,115,22,0.55)] relative z-10" style="will-change: filter; transform: translate3d(0, 0, 0);" />
+            <div class="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 relative overflow-visible ml-2">
+              <div class="absolute -inset-1 bg-orange-500/20 rounded-full blur-md z-0 pointer-events-none"></div>
+              <img src={fireplaceIcon} alt="vesta" class="w-14 h-14 drop-shadow-[0_0_8px_rgba(249,115,22,0.45)] relative z-10 select-none" />
             </div>
             <div class="relative z-10">
-              <h1 class="text-2xl font-bold tracking-wider bg-gradient-to-r from-amber-400 via-orange-400 to-red-400 bg-clip-text text-transparent group-hover:from-amber-300 group-hover:to-red-300 transition-all duration-250">
+              <h1 class="text-2xl font-bold tracking-wider bg-gradient-to-r from-amber-400 via-orange-400 to-red-400 bg-clip-text text-transparent select-none">
                 {t("app.title")}
               </h1>
             </div>
@@ -327,13 +326,13 @@
     {#if activeTab === "settings"}
       <!-- Settings navigation buttons -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'overview'
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'overview'
           ? 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-lg shadow-sky-500/22 border-sky-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-sky-500/10 hover:text-sky-400 hover:border-sky-500/20'}"
         onclick={() => settingsSection = "overview"}
         title={collapsed ? t("settings.section.overview") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {settingsSection === 'overview' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {settingsSection === 'overview' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
           </svg>
@@ -347,13 +346,13 @@
 
       {#if !aiStore.killSwitchActive}
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'llm'
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'llm'
             ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-500/22 border-indigo-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-indigo-500/10 hover:text-indigo-400 hover:border-indigo-500/20'}"
           onclick={() => settingsSection = "llm"}
           title={collapsed ? t("settings.section.llm") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {settingsSection === 'llm' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {settingsSection === 'llm' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3h6m-7 4h8a3 3 0 013 3v7a3 3 0 01-3 3H8a3 3 0 01-3-3v-7a3 3 0 01-3-3zm4 3v4m-2-2h4" />
             </svg>
@@ -369,13 +368,13 @@
         </button>
 
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'whisper'
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'whisper'
             ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white shadow-lg shadow-cyan-500/22 border-cyan-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-400 hover:border-cyan-500/20'}"
           onclick={() => settingsSection = "whisper"}
           title={collapsed ? t("settings.section.whisper") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {settingsSection === 'whisper' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {settingsSection === 'whisper' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18a6 6 0 006-6V7a6 6 0 10-12 0v5a6 6 0 006 6zm0 0v3m-4 0h8" />
             </svg>
@@ -393,13 +392,13 @@
 
       {#if uiMode.expertMode}
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'language'
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'language'
             ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-500/22 border-emerald-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'}"
           onclick={() => settingsSection = "language"}
           title={collapsed ? t("settings.section.language") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {settingsSection === 'language' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {settingsSection === 'language' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1 9a18 18 0 01-4-5m7 12l5-10 5 10m-9-4h8" />
             </svg>
@@ -412,13 +411,13 @@
         </button>
 
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'anki'
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'anki'
             ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-500/22 border-amber-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/20'}"
           onclick={() => settingsSection = "anki"}
           title={collapsed ? t("settings.section.anki") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {settingsSection === 'anki' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {settingsSection === 'anki' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v4H4V5zm0 8h8v7H5a1 1 0 01-1-1v-6zm12 0h4v6a1 1 0 01-1 1h-3v-7z" />
             </svg>
@@ -432,13 +431,13 @@
       {/if}
 
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {settingsSection === 'shortcuts'
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {settingsSection === 'shortcuts'
           ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg shadow-purple-500/22 border-purple-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/20'}"
         onclick={() => settingsSection = "shortcuts"}
         title={collapsed ? t("settings.section.shortcuts") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {settingsSection === 'shortcuts' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {settingsSection === 'shortcuts' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7a3 3 0 013-3h10a3 3 0 013 3v10a3 3 0 01-3 3H7a3 3 0 01-3-3V7zm4 2h2m2 0h2m2 0h2M7 13h2m2 0h2m2 0h2M7 17h6" />
           </svg>
@@ -455,14 +454,14 @@
     {:else}
       <!-- 1. Flashcards -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
         'flashcards'
           ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-lg shadow-amber-500/22 shadow-orange-600/20 border-amber-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/20'}"
         onclick={() => onTabChange("flashcards")}
         title={collapsed ? t("nav.flashcards") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {activeTab === 'flashcards' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {activeTab === 'flashcards' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg
             class="w-5 h-5"
             fill="none"
@@ -487,14 +486,14 @@
       <!-- 2. Transcribe -->
       {#if !aiStore.killSwitchActive}
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
           'transcribe'
             ? 'bg-gradient-to-r from-teal-700 to-emerald-700 text-white shadow-lg shadow-teal-500/20 shadow-emerald-600/20 border-teal-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-teal-500/10 hover:text-teal-400 hover:border-teal-500/20'}"
           onclick={() => onTabChange("transcribe")}
           title={collapsed ? t("nav.transcribe") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {activeTab === 'transcribe' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {activeTab === 'transcribe' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg
               class="w-5 h-5"
               fill="none"
@@ -520,14 +519,14 @@
       <!-- 3. Translate -->
       {#if !aiStore.killSwitchActive}
         <button
-          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+          class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
           'translate'
             ? 'bg-gradient-to-r from-fuchsia-700 to-rose-700 text-white shadow-lg shadow-fuchsia-500/20 shadow-rose-600/20 border-fuchsia-500/30 bg-clip-padding'
             : 'text-gray-400 hover:bg-fuchsia-500/10 hover:text-fuchsia-400 hover:border-fuchsia-500/20'}"
           onclick={() => onTabChange("translate")}
           title={collapsed ? t("nav.translate") : undefined}
         >
-          <div class="w-9 h-9 rounded-xl {activeTab === 'translate' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+          <div class="w-9 h-9 rounded-xl {activeTab === 'translate' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
             <svg
               class="w-5 h-5"
               fill="none"
@@ -552,14 +551,14 @@
 
       <!-- 4. Synchronize -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
         'sync'
           ? 'bg-gradient-to-r from-sky-700 to-cyan-700 text-white shadow-lg shadow-cyan-500/20 shadow-sky-600/20 border-sky-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-sky-500/10 hover:text-sky-400 hover:border-sky-500/20'}"
         onclick={() => onTabChange("sync")}
         title={collapsed ? t("nav.sync") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {activeTab === 'sync' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {activeTab === 'sync' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg
             class="w-5 h-5"
             fill="none"
@@ -583,14 +582,14 @@
 
       <!-- 5. Revise -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
         'align'
           ? 'bg-gradient-to-r from-violet-700 to-indigo-700 text-white shadow-lg shadow-violet-500/20 shadow-indigo-600/20 border-violet-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-violet-500/10 hover:text-violet-400 hover:border-violet-500/20'}"
         onclick={() => onTabChange("align")}
         title={collapsed ? t("nav.revision") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {activeTab === 'align' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {activeTab === 'align' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
           </svg>
@@ -604,14 +603,14 @@
 
       <!-- 6. Annotate -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
         'refine'
           ? 'bg-gradient-to-r from-rose-600 to-pink-700 text-white shadow-lg shadow-rose-500/22 shadow-pink-600/20 border-rose-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20'}"
         onclick={() => onTabChange("refine")}
         title={collapsed ? t("nav.refine") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {activeTab === 'refine' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {activeTab === 'refine' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 8l1.5-1.5M19 4l1.5 1.5M16 5l1.5-1.5" />
@@ -626,14 +625,14 @@
 
       <!-- 7. Experimental -->
       <button
-        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-300 border border-transparent cursor-pointer {activeTab ===
+        class="w-full flex gap-3.5 items-center {collapsed ? 'px-2 justify-center' : 'px-3.5'} h-[60px] rounded-xl transition-all duration-100 ease-out border border-transparent cursor-pointer {activeTab ===
         'experimental'
           ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-lg shadow-amber-500/22 shadow-orange-600/20 border-amber-500/30 bg-clip-padding'
           : 'text-gray-400 hover:bg-amber-500/10 hover:text-amber-400 hover:border-amber-500/20'}"
         onclick={() => onTabChange("experimental")}
         title={collapsed ? t("nav.experimental") : undefined}
       >
-        <div class="w-9 h-9 rounded-xl {activeTab === 'experimental' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-colors border border-white/5">
+        <div class="w-9 h-9 rounded-xl {activeTab === 'experimental' ? 'bg-white/20' : 'bg-white/5'} flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out border border-white/5">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
           </svg>
@@ -651,11 +650,11 @@
       <button
         type="button"
         onclick={() => uiMode.toggleExpertMode()}
-        class="w-full flex h-[60px] items-center {collapsed ? 'justify-center px-2' : 'justify-between px-3.5'} rounded-xl border border-transparent bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all duration-300 cursor-pointer"
+        class="w-full flex h-[60px] items-center {collapsed ? 'justify-center px-2' : 'justify-between px-3.5'} rounded-xl border border-transparent bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all duration-100 ease-out cursor-pointer"
         title={collapsed ? (uiMode.expertMode ? t("nav.expertModeOn") : t("nav.expertModeOff")) : undefined}
       >
         <div class="flex items-center gap-3.5">
-          <div class="w-9 h-9 rounded-xl bg-white/5 text-gray-400 border border-white/5 flex items-center justify-center flex-shrink-0 relative transition-colors">
+          <div class="w-9 h-9 rounded-xl bg-white/5 text-gray-400 border border-white/5 flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
             </svg>
@@ -666,11 +665,11 @@
         </div>
         {#if !collapsed}
           <div
-            class="w-10 h-6 rounded-full p-1 transition-colors duration-200 shrink-0 {uiMode.expertMode ? 'bg-indigo-600' : 'bg-white/10'}"
+            class="w-10 h-6 rounded-full p-1 transition-colors duration-100 shrink-0 {uiMode.expertMode ? 'bg-indigo-600' : 'bg-white/10'}"
             role="switch"
             aria-checked={uiMode.expertMode}
           >
-            <div class="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 {uiMode.expertMode ? 'translate-x-4' : 'translate-x-0'}"></div>
+            <div class="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-100 {uiMode.expertMode ? 'translate-x-4' : 'translate-x-0'}"></div>
           </div>
         {/if}
       </button>
@@ -683,11 +682,11 @@
           }
         }}
         disabled={aiStore.hasActiveAiProcess}
-        class="w-full flex h-[60px] items-center {collapsed ? 'justify-center px-2' : 'justify-between px-3.5'} rounded-xl border border-transparent bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all duration-300 {aiStore.hasActiveAiProcess ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+        class="w-full flex h-[60px] items-center {collapsed ? 'justify-center px-2' : 'justify-between px-3.5'} rounded-xl border border-transparent bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 transition-all duration-100 ease-out {aiStore.hasActiveAiProcess ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
         title={collapsed ? (aiStore.killSwitchActive ? t("nav.aiKillSwitchOn") : t("nav.aiKillSwitchOff")) : undefined}
       >
         <div class="flex items-center gap-3.5">
-          <div class="w-9 h-9 rounded-xl bg-white/5 text-gray-400 border border-white/5 flex items-center justify-center flex-shrink-0 relative transition-colors">
+          <div class="w-9 h-9 rounded-xl bg-white/5 text-gray-400 border border-white/5 flex items-center justify-center flex-shrink-0 relative transition-all duration-100 ease-out">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
             </svg>
@@ -701,11 +700,11 @@
         </div>
         {#if !collapsed}
           <div 
-            class="w-10 h-6 rounded-full p-1 transition-colors duration-200 shrink-0 {aiStore.killSwitchActive ? 'bg-indigo-600' : 'bg-white/10'}"
+            class="w-10 h-6 rounded-full p-1 transition-colors duration-100 shrink-0 {aiStore.killSwitchActive ? 'bg-indigo-600' : 'bg-white/10'}"
             role="switch"
             aria-checked={aiStore.killSwitchActive}
           >
-            <div class="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 {aiStore.killSwitchActive ? 'translate-x-4' : 'translate-x-0'}"></div>
+            <div class="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-100 {aiStore.killSwitchActive ? 'translate-x-4' : 'translate-x-0'}"></div>
           </div>
         {/if}
       </button>

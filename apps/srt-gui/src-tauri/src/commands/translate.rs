@@ -272,8 +272,8 @@ pub async fn get_latest_translated_subtitles(
         .map_err(|e| format!("Errore lettura file tradotto: {}", e))?;
 
     // Ottieni gli ID ordinati dei sottotitoli tradotti
-    let mut translated_ids: Vec<u32> = translated_subs.keys().cloned().collect();
-    translated_ids.sort();
+    let mut translated_ids: Vec<u32> = translated_subs.keys().copied().collect();
+    translated_ids.sort_unstable();
 
     // Prendi gli ultimi N
     let start_idx = if translated_ids.len() > count {
@@ -285,7 +285,7 @@ pub async fn get_latest_translated_subtitles(
     let latest_ids = &translated_ids[start_idx..];
 
     // Crea le coppie
-    let mut pairs = Vec::new();
+    let mut pairs = Vec::with_capacity(latest_ids.len());
     for &id in latest_ids {
         let original_text = original_subs
             .get(&id)

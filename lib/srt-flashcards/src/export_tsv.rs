@@ -1,6 +1,8 @@
 use super::media::{MediaKind, media_filename, ms_to_ffmpeg_ts, video_clip_extension};
 use super::types::*;
 
+use std::fmt::Write;
+
 pub(crate) fn render_text_with_context<'a, F>(
     main_text: &str,
     line: &MatchedLine,
@@ -12,13 +14,13 @@ pub(crate) fn render_text_with_context<'a, F>(
 where
     F: Fn(&'a MatchedLine) -> Option<&'a str>,
 {
-    let mut text = String::new();
+    let mut text = String::with_capacity(main_text.len() + 128);
 
     for &ctx_idx in &line.leading_context {
         if let Some(ctx_line) = all_lines.get(ctx_idx)
             && let Some(ctx_text) = get_text(ctx_line)
         {
-            text.push_str(&format!("<span {}>{}</span><br>", span_attr, ctx_text));
+            let _ = write!(text, "<span {span_attr}>{ctx_text}</span><br>");
         }
     }
 
@@ -28,15 +30,28 @@ where
         if let Some(ctx_line) = all_lines.get(ctx_idx)
             && let Some(ctx_text) = get_text(ctx_line)
         {
-            text.push_str(&format!("<br><span {}>{}</span>", span_attr, ctx_text));
+            let _ = write!(text, "<br><span {span_attr}>{ctx_text}</span>");
         }
     }
 
-    let mut result = text.replace('\n', "<br>");
-    if replace_tabs {
-        result = result.replace('\t', " ");
+    let mut result = String::with_capacity(text.len() + 16);
+    for ch in text.chars() {
+        match ch {
+            '\n' => result.push_str("<br>"),
+            '\t' if replace_tabs => result.push(' '),
+            _ => result.push(ch),
+        }
     }
     result
+}
+
+#[inline]
+fn append_field(tsv: &mut String, first: &mut bool, val: &str) {
+    if !*first {
+        tsv.push('\t');
+    }
+    tsv.push_str(val);
+    *first = false;
 }
 
 pub(crate) fn generate_tsv(
@@ -46,34 +61,33 @@ pub(crate) fn generate_tsv(
     _snapshot_dir: &str,
     _video_dir: &str,
 ) -> String {
-    let active_lines: Vec<&MatchedLine> = lines.iter().filter(|l| l.active).collect();
-    let mut tsv = String::with_capacity(active_lines.len() * 200);
+    let active_count = lines.iter().filter(|l| l.active).count();
+    let mut tsv = String::with_capacity(active_count * 200);
 
     let sanitized_deck = sanitize_filename(&config.deck_name);
     let ep = config.episode_number;
     let video_ext = video_clip_extension(&config.video_codec);
-
     let of = &config.output_fields;
 
-    for (seq, line) in active_lines.iter().enumerate() {
-        let mut fields: Vec<String> = Vec::with_capacity(9);
-
+    for (seq, line) in lines.iter().filter(|l| l.active).enumerate() {
         let seq_num = seq + 1;
         let start_ts = ms_to_ffmpeg_ts(line.subs1.start_ms);
+        let mut first = true;
 
         if of.include_subs1 {
-            fields.push(render_text_with_context(
+            let rendered = render_text_with_context(
                 &line.subs1.text,
                 line,
                 lines,
                 |m| Some(m.subs1.text.as_str()),
                 "style=\"color:gray\"",
                 true,
-            ));
+            );
+            append_field(&mut tsv, &mut first, &rendered);
         }
 
         if of.include_subs2 {
-            fields.push(match &line.subs2 {
+            let rendered = match &line.subs2 {
                 Some(s2) => render_text_with_context(
                     &s2.text,
                     line,
@@ -83,69 +97,84 @@ pub(crate) fn generate_tsv(
                     true,
                 ),
                 None => String::new(),
-            });
+            };
+            append_field(&mut tsv, &mut first, &rendered);
         }
 
         if of.include_audio {
-            fields.push(if config.generate_audio {
-                format!(
-                    "[sound:{}]",
-                    media_filename(
-                        MediaKind::Audio(config.audio_format),
-                        &sanitized_deck,
-                        ep,
-                        seq_num
-                    )
-                )
+            if config.generate_audio {
+                let filename = media_filename(
+                    MediaKind::Audio(config.audio_format),
+                    &sanitized_deck,
+                    ep,
+                    seq_num,
+                );
+                if !first {
+                    tsv.push('\t');
+                }
+                let _ = write!(tsv, "[sound:{filename}]");
+                first = false;
             } else {
-                String::new()
-            });
+                append_field(&mut tsv, &mut first, "");
+            }
         }
 
         if of.include_snapshot {
-            fields.push(if config.generate_snapshots {
-                format!(
-                    "<img src=\"{}\">",
-                    media_filename(
-                        MediaKind::Snapshot(config.snapshot_format),
-                        &sanitized_deck,
-                        ep,
-                        seq_num
-                    )
-                )
+            if config.generate_snapshots {
+                let filename = media_filename(
+                    MediaKind::Snapshot(config.snapshot_format),
+                    &sanitized_deck,
+                    ep,
+                    seq_num,
+                );
+                if !first {
+                    tsv.push('\t');
+                }
+                let _ = write!(tsv, "<img src=\"{filename}\">");
+                first = false;
             } else {
-                String::new()
-            });
+                append_field(&mut tsv, &mut first, "");
+            }
         }
 
         if of.include_video {
-            fields.push(if config.generate_video_clips {
-                format!(
-                    "[sound:{}]",
-                    media_filename(MediaKind::Video(video_ext), &sanitized_deck, ep, seq_num)
-                )
+            if config.generate_video_clips {
+                let filename =
+                    media_filename(MediaKind::Video(video_ext), &sanitized_deck, ep, seq_num);
+                if !first {
+                    tsv.push('\t');
+                }
+                let _ = write!(tsv, "[sound:{filename}]");
+                first = false;
             } else {
-                String::new()
-            });
+                append_field(&mut tsv, &mut first, "");
+            }
         }
 
         if of.include_tag {
-            fields.push(format!("{}_{:03}", config.deck_name, ep));
+            if !first {
+                tsv.push('\t');
+            }
+            let _ = write!(tsv, "{}_{ep:03}", config.deck_name);
+            first = false;
         }
 
         if of.include_sequence {
-            fields.push(format!("{:03}_{:04}_{}", ep, seq_num, start_ts));
+            if !first {
+                tsv.push('\t');
+            }
+            let _ = write!(tsv, "{ep:03}_{seq_num:04}_{start_ts}");
+            first = false;
         }
 
         if of.include_reading {
-            fields.push(String::new());
+            append_field(&mut tsv, &mut first, "");
         }
 
         if of.include_notes {
-            fields.push(String::new());
+            append_field(&mut tsv, &mut first, "");
         }
 
-        tsv.push_str(&fields.join("\t"));
         tsv.push('\n');
     }
 

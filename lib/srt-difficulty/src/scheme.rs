@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 pub enum LevelScheme {
     Cefr,
     Hsk,
+    Tocfl,
     Jlpt,
+    Topik,
     Custom,
 }
 
@@ -14,7 +16,9 @@ impl LevelScheme {
         match self {
             Self::Cefr => "CEFR",
             Self::Hsk => "HSK",
+            Self::Tocfl => "TOCFL",
             Self::Jlpt => "JLPT",
+            Self::Topik => "TOPIK",
             Self::Custom => "CUSTOM",
         }
     }

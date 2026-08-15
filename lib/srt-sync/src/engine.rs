@@ -156,6 +156,21 @@ impl SyncEngine {
         })
     }
 
+    #[inline]
+    pub fn get_synced_times(&self, id: u32) -> Option<(u64, u64)> {
+        self.subtitles.get(&id).map(|sub| {
+            let start_offset = self
+                .time_mapper
+                .calculate_offset(sub.start.milliseconds as i64);
+            let end_offset = self
+                .time_mapper
+                .calculate_offset(sub.end.milliseconds as i64);
+            let start = (sub.start.milliseconds as i64 + start_offset).max(0) as u64;
+            let end = (sub.end.milliseconds as i64 + end_offset).max(0) as u64;
+            (start, end)
+        })
+    }
+
     pub fn get_all_subtitles(&self) -> Vec<&Subtitle> {
         self.sorted_ids
             .iter()
@@ -171,29 +186,68 @@ impl SyncEngine {
     }
 
     pub fn find_subtitle_at_time(&self, video_time_ms: u64) -> Option<u32> {
-        for id in &self.sorted_ids {
-            if let Some(synced) = self.get_synced_subtitle(*id)
-                && video_time_ms >= synced.start.milliseconds
-                && video_time_ms <= synced.end.milliseconds
+        if self.sorted_ids.is_empty() {
+            return None;
+        }
+
+        // Binary search: find the first subtitle that starts strictly after video_time_ms in O(log N)
+        let idx = self.sorted_ids.partition_point(|&id| {
+            self.get_synced_times(id)
+                .is_some_and(|(start, _)| start <= video_time_ms)
+        });
+
+        // The subtitle containing video_time_ms, if any, started at or before video_time_ms (index idx - 1)
+        if idx > 0 {
+            let id = self.sorted_ids[idx - 1];
+            if let Some((start, end)) = self.get_synced_times(id)
+                && video_time_ms >= start
+                && video_time_ms <= end
             {
-                return Some(*id);
+                return Some(id);
+            }
+            // Check immediately preceding entries in case of small overlapping timestamps
+            for i in (0..idx - 1).rev().take(3) {
+                let id = self.sorted_ids[i];
+                if let Some((start, end)) = self.get_synced_times(id) {
+                    if video_time_ms >= start && video_time_ms <= end {
+                        return Some(id);
+                    }
+                    if end < video_time_ms.saturating_sub(10_000) {
+                        break;
+                    }
+                }
             }
         }
+
         None
     }
 
     pub fn find_nearest_subtitle(&self, video_time_ms: u64) -> Option<u32> {
+        if self.sorted_ids.is_empty() {
+            return None;
+        }
+
+        // Binary search for closest start time in O(log N)
+        let idx = self.sorted_ids.partition_point(|&id| {
+            self.get_synced_times(id)
+                .is_some_and(|(start, _)| start < video_time_ms)
+        });
+
         let mut nearest_id = None;
         let mut min_distance = i64::MAX;
 
-        for id in &self.sorted_ids {
-            if let Some(synced) = self.get_synced_subtitle(*id) {
-                let center = (synced.start.milliseconds + synced.end.milliseconds) / 2;
+        let start_window = idx.saturating_sub(2);
+        let end_window = (idx + 3).min(self.sorted_ids.len());
+
+        for i in start_window..end_window {
+            let id = self.sorted_ids[i];
+            if let Some((start, end)) = self.get_synced_times(id) {
+                let center = (start + end) / 2;
                 let distance = (center as i64 - video_time_ms as i64).abs();
 
                 if distance < min_distance {
                     min_distance = distance;
-                    nearest_id = Some(*id);
+                    nearest_id = Some(id);
                 }
             }
         }
@@ -366,7 +420,61 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_subtitle_at_time() {}
+    fn test_find_subtitle_at_time() {
+        let mut subs = HashMap::new();
+        subs.insert(
+            1,
+            Subtitle {
+                id: 1,
+                start: Timestamp { milliseconds: 1000 },
+                end: Timestamp { milliseconds: 3000 },
+                text: "First".to_string(),
+            },
+        );
+        subs.insert(
+            2,
+            Subtitle {
+                id: 2,
+                start: Timestamp { milliseconds: 4000 },
+                end: Timestamp { milliseconds: 6000 },
+                text: "Second".to_string(),
+            },
+        );
+        subs.insert(
+            3,
+            Subtitle {
+                id: 3,
+                start: Timestamp { milliseconds: 7000 },
+                end: Timestamp { milliseconds: 9000 },
+                text: "Third".to_string(),
+            },
+        );
+
+        let engine = SyncEngine {
+            subtitles: subs,
+            sorted_ids: vec![1, 2, 3],
+            time_mapper: TimeMapper::new(),
+            sampler: AdaptiveSampler::new(3, SamplerStrategy::BinarySearch),
+            srt_path: "test.srt".to_string(),
+            video_path: None,
+            current_index: 0,
+        };
+
+        assert_eq!(engine.find_subtitle_at_time(500), None);
+        assert_eq!(engine.find_subtitle_at_time(1000), Some(1));
+        assert_eq!(engine.find_subtitle_at_time(2000), Some(1));
+        assert_eq!(engine.find_subtitle_at_time(3000), Some(1));
+        assert_eq!(engine.find_subtitle_at_time(3500), None);
+        assert_eq!(engine.find_subtitle_at_time(5000), Some(2));
+        assert_eq!(engine.find_subtitle_at_time(8500), Some(3));
+        assert_eq!(engine.find_subtitle_at_time(10000), None);
+
+        assert_eq!(engine.find_nearest_subtitle(500), Some(1));
+        assert_eq!(engine.find_nearest_subtitle(3400), Some(1));
+        assert_eq!(engine.find_nearest_subtitle(3700), Some(2));
+        assert_eq!(engine.find_nearest_subtitle(8000), Some(3));
+        assert_eq!(engine.find_nearest_subtitle(20000), Some(3));
+    }
 
     #[test]
     fn test_anchor_offset() {

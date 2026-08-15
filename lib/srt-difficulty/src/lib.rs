@@ -35,8 +35,8 @@ mod tests {
         assert_eq!(tag_for(LevelScheme::Jlpt, 1), "JLPT::N5");
 
         let card2 = analyze("これは概念が複雑です。", &table, &opts);
-        assert_eq!(card2.level, Some(4)); // 複雑/概念 is level 4 (N2)
-        assert_eq!(tag_for(LevelScheme::Jlpt, 4), "JLPT::N2");
+        assert_eq!(card2.level, Some(5)); // 概念 is JLPT N1 (level 5)
+        assert_eq!(tag_for(LevelScheme::Jlpt, 5), "JLPT::N1");
     }
 
     #[test]
@@ -54,6 +54,56 @@ mod tests {
     }
 
     #[test]
+    fn test_italian_cefr_analysis() {
+        let table = LevelTable::builtin(LevelScheme::Cefr, "it").unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("Ciao amico mio, come stai oggi?", &table, &opts);
+        assert_eq!(card1.level, Some(1));
+        assert_eq!(tag_for(LevelScheme::Cefr, 1), "CEFR::A1");
+    }
+
+    #[test]
+    fn test_spanish_cefr_analysis() {
+        let table = LevelTable::builtin(LevelScheme::Cefr, "es").unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("Hola amigo, ¿cómo estás hoy?", &table, &opts);
+        assert_eq!(card1.level, Some(1));
+        assert_eq!(tag_for(LevelScheme::Cefr, 1), "CEFR::A1");
+    }
+
+    #[test]
+    fn test_german_cefr_analysis() {
+        let table = LevelTable::builtin(LevelScheme::Cefr, "de").unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("Hallo Freund, wie geht es dir?", &table, &opts);
+        assert_eq!(card1.level, Some(1));
+        assert_eq!(tag_for(LevelScheme::Cefr, 1), "CEFR::A1");
+    }
+
+    #[test]
+    fn test_korean_topik_analysis() {
+        let table = LevelTable::builtin(LevelScheme::Topik, "ko").unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("안녕하세요, 친구입니다.", &table, &opts);
+        assert!(card1.level.is_some());
+        assert_eq!(tag_for(LevelScheme::Topik, 1), "TOPIK::1");
+    }
+
+    #[test]
+    fn test_chinese_tocfl_analysis() {
+        let table = LevelTable::builtin(LevelScheme::Tocfl, "zh-TW").unwrap();
+        let opts = AnalyzeOptions::default();
+
+        let card1 = analyze("你好！我是學生。", &table, &opts);
+        assert!(card1.level.is_some());
+        assert_eq!(tag_for(LevelScheme::Tocfl, 1), "TOCFL::A1");
+    }
+
+    #[test]
     fn test_unknown_policy_highest() {
         let table = LevelTable::builtin(LevelScheme::Hsk, "zh").unwrap();
         let opts = AnalyzeOptions {
@@ -62,7 +112,7 @@ mod tests {
         };
 
         let card = analyze("你好！xyz_unknown_word", &table, &opts);
-        assert_eq!(card.level, Some(5)); // highest level in sample dictionary
+        assert_eq!(card.level, Some(6)); // highest level in HSK dictionary (HSK 6)
     }
 
     #[test]

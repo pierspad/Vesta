@@ -132,18 +132,13 @@ pub fn get_missing_or_incorrect_subtitle_ids(
 ) -> Vec<u32> {
     original
         .iter()
-        .filter(|(id, original_sub)| {
-            if !translated.contains_key(id) {
-                return true;
-            }
-
-            if let Some(translated_sub) = translated.get(id) {
+        .filter(|(id, original_sub)| match translated.get(id) {
+            None => true,
+            Some(translated_sub) => {
                 let original_lines = original_sub.text.lines().count();
                 let translated_lines = translated_sub.text.lines().count();
-                return original_lines != translated_lines;
+                original_lines != translated_lines
             }
-
-            false
         })
         .map(|(id, _)| *id)
         .collect()

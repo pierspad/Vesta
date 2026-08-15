@@ -34,6 +34,8 @@ fn tokenize_cjk(text: &str, table: &LevelTable, min_token_chars: usize) -> Vec<T
     let mut i = 0;
     let max_window = table.max_token_len.max(1);
 
+    let mut candidate_buf = String::with_capacity(max_window * 4);
+
     while i < chars.len() {
         let ch = chars[i];
         if !is_cjk_char(ch) {
@@ -42,8 +44,9 @@ fn tokenize_cjk(text: &str, table: &LevelTable, min_token_chars: usize) -> Vec<T
                 while i < chars.len() && chars[i].is_alphanumeric() && !is_cjk_char(chars[i]) {
                     i += 1;
                 }
-                let word: String = chars[start..i].iter().collect();
-                if word.chars().count() >= min_token_chars {
+                let char_len = i - start;
+                if char_len >= min_token_chars {
+                    let word: String = chars[start..i].iter().collect();
                     let level = table.get(&word.to_lowercase());
                     matches.push(TokenMatch { token: word, level });
                 }
@@ -61,12 +64,12 @@ fn tokenize_cjk(text: &str, table: &LevelTable, min_token_chars: usize) -> Vec<T
                 continue;
             }
 
-            let candidate: String = chars[i..i + len].iter().collect();
-            let lower_cand = candidate.to_lowercase();
+            candidate_buf.clear();
+            candidate_buf.extend(chars[i..i + len].iter().copied());
 
-            if let Some(level) = table.get(&lower_cand) {
+            if let Some(level) = table.get(&candidate_buf) {
                 matches.push(TokenMatch {
-                    token: candidate,
+                    token: candidate_buf.clone(),
                     level: Some(level),
                 });
                 i += len;
@@ -76,10 +79,9 @@ fn tokenize_cjk(text: &str, table: &LevelTable, min_token_chars: usize) -> Vec<T
         }
 
         if !matched {
-            let single: String = chars[i..i + 1].iter().collect();
-            if single.chars().count() >= min_token_chars {
+            if 1 >= min_token_chars {
                 matches.push(TokenMatch {
-                    token: single,
+                    token: chars[i].to_string(),
                     level: None,
                 });
             }
@@ -95,7 +97,11 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
 
     for word in text.split(|c: char| !c.is_alphanumeric()) {
         let trimmed = word.trim();
-        if trimmed.is_empty() || trimmed.chars().count() < min_token_chars {
+        if trimmed.is_empty() {
+            continue;
+        }
+        let total_chars = trimmed.chars().count();
+        if total_chars < min_token_chars {
             continue;
         }
 
@@ -110,7 +116,7 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
             continue;
         }
 
-        // 2. Simple lemmatization fallbacks (English endings: s, es, ed, ing)
+        // 2. Lemmatization fallbacks & stem prefix matching (inflected/agglutinative forms)
         let mut found_level = None;
 
         if lower.ends_with("ing") && lower.len() > 5 {
@@ -124,6 +130,23 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
             found_level = table.get(base);
         }
 
+        // Fallback: prefix stem matching (e.g. Korean particles, European clitics)
+        // Zero-allocation slicing using UTF-8 char boundaries iterator
+        if found_level.is_none() && total_chars > min_token_chars {
+            let mut current_chars = total_chars;
+            for (byte_end, _) in lower.char_indices().rev().skip(1) {
+                current_chars -= 1;
+                if current_chars < min_token_chars {
+                    break;
+                }
+                let prefix = &lower[..byte_end];
+                if let Some(lvl) = table.get(prefix) {
+                    found_level = Some(lvl);
+                    break;
+                }
+            }
+        }
+
         matches.push(TokenMatch {
             token: trimmed.to_string(),
             level: found_level,
@@ -134,6 +157,10 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
 }
 
 fn clean_html(text: &str) -> String {
+    if !text.contains('<') {
+        return text.to_string();
+    }
+
     let mut result = String::with_capacity(text.len());
     let mut inside_tag = false;
 

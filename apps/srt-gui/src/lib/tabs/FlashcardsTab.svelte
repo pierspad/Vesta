@@ -35,6 +35,7 @@
   } from "$lib/types/noteTypes";
   import PathPreviewModal from "$lib/modals/PathPreviewModal.svelte";
   import { buildFlashcardConfig } from "$lib/utils/flashcardConfig";
+  import { inferSchemeForLanguage } from "$lib/utils/difficultySchemes";
   import SearchableSelect from "$lib/components/SearchableSelect.svelte";
   import LogPanel from "$lib/panels/LogPanel.svelte";
   import CodeEditor from "$lib/components/CodeEditor.svelte";
@@ -714,12 +715,18 @@
     try {
       const saved = vestaConfig.getItem(DIFFICULTY_SETTINGS_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Migrate legacy "cefr" scheme to "cefr_en" so the searchable select
+        // always has a valid entry to display.
+        if (parsed.scheme === "cefr") {
+          parsed.scheme = "cefr_en";
+        }
+        return parsed;
       }
     } catch {}
     return {
       enabled: false,
-      scheme: "cefr",
+      scheme: "cefr_en",
       unknownPolicy: "ignore",
       customPrefix: "Level",
     };
@@ -888,15 +895,11 @@
   let noteTypeOptions = $derived(
     noteTypeList.map((nt) => ({
       value: nt.id,
-      label: nt.predefined ? nt.name : `★ ${nt.name}`,
-      searchTerms: nt.predefined
-        ? [nt.name, languages.find((l) => l.code === nt.language)?.nameEn ?? ""]
-            .filter(Boolean)
-            .join(" ")
-        : nt.name,
-      icon: nt.predefined
-        ? languages.find((l) => l.code === nt.language)?.flag ?? "🃏"
-        : "★",
+      label: nt.name,
+      searchTerms: [nt.name, languages.find((l) => l.code === nt.language)?.nameEn ?? ""]
+        .filter(Boolean)
+        .join(" "),
+      icon: languages.find((l) => l.code === nt.language)?.flag ?? "🃏",
     })),
   );
 
@@ -1527,8 +1530,10 @@
       autoCardFont: ankiStore.autoCardFont,
       difficulty: (difficultyStore.enabled && difficultySettings.enabled) ? {
         enabled: true,
-        scheme: difficultySettings.scheme,
-        language: getStudiedLanguagePreference(),
+        scheme: difficultySettings.scheme.startsWith("cefr_") ? "cefr" : difficultySettings.scheme,
+        language: difficultySettings.scheme.startsWith("cefr_")
+          ? difficultySettings.scheme.replace("cefr_", "")
+          : (difficultySettings.language || getStudiedLanguagePreference()),
         unknown_policy: difficultySettings.unknownPolicy,
         tag_prefix: difficultySettings.customPrefix?.trim() || null,
         custom_file_path: difficultySettings.customFilePath?.trim() || null,
@@ -1541,11 +1546,22 @@
     targetSubsPath = path;
     const filename = getFileName(targetSubsPath);
 
-    if (!noteTypeLanguage) {
-      const inferredLanguage = inferLanguageFromPath(targetSubsPath);
-      if (inferredLanguage) {
-        noteTypeLanguage = inferredLanguage;
-        vestaConfig.setItem(NOTE_TYPE_LANGUAGE_KEY, inferredLanguage);
+    // Always try to infer language from the newly loaded file path.
+    // If found, it overrides any previously stored language so that
+    // loading a different-language subtitle always picks the right scheme.
+    const inferredFromPath = inferLanguageFromPath(targetSubsPath);
+    if (inferredFromPath) {
+      noteTypeLanguage = inferredFromPath;
+      vestaConfig.setItem(NOTE_TYPE_LANGUAGE_KEY, inferredFromPath);
+    } else if (!noteTypeLanguage) {
+      // No token in filename and nothing stored — leave as-is
+    }
+
+    const currentLang = inferredFromPath || noteTypeLanguage;
+    if (currentLang && difficultySettings.scheme !== "custom" && !difficultySettings.customSchemeId) {
+      const inferred = inferSchemeForLanguage(currentLang);
+      if (inferred) {
+        difficultySettings.scheme = inferred;
       }
     }
 
@@ -1884,8 +1900,10 @@
           autoCardFont: ankiStore.autoCardFont,
           difficulty: (difficultyStore.enabled && difficultySettings.enabled) ? {
             enabled: true,
-            scheme: difficultySettings.scheme,
-            language: getStudiedLanguagePreference(),
+            scheme: difficultySettings.scheme.startsWith("cefr_") ? "cefr" : difficultySettings.scheme,
+            language: difficultySettings.scheme.startsWith("cefr_")
+              ? difficultySettings.scheme.replace("cefr_", "")
+              : (difficultySettings.language || getStudiedLanguagePreference()),
             unknown_policy: difficultySettings.unknownPolicy,
             tag_prefix: difficultySettings.customPrefix?.trim() || null,
             custom_file_path: difficultySettings.customFilePath?.trim() || null,

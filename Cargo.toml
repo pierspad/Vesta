@@ -30,6 +30,7 @@ chardetng = "1"
 
 # Internal crates
 srt-parser = { path = "./core/srt-parser", version = "0.20.0" }
+srt-apkg = { path = "./core/srt-apkg", version = "0.20.0" }
 srt-extract = { path = "./lib/srt-extract", version = "0.20.0" }
 srt-translate = { path = "./lib/srt-translate", version = "0.20.0" }
 srt-sync = { path = "./lib/srt-sync", version = "0.20.0" }

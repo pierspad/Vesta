@@ -564,10 +564,9 @@ pub(crate) fn generate_apkg(
     for (idx_str, file_path) in &media_files {
         zip.start_file(idx_str, options)
             .map_err(|e| format!("ZIP error adding media: {e}"))?;
-        let file_bytes =
-            std::fs::read(file_path).map_err(|e| format!("Cannot read media file: {e}"))?;
-        zip.write_all(&file_bytes)
-            .map_err(|e| format!("ZIP write error: {e}"))?;
+        let mut file =
+            std::fs::File::open(file_path).map_err(|e| format!("Cannot read media file: {e}"))?;
+        std::io::copy(&mut file, &mut zip).map_err(|e| format!("ZIP write error: {e}"))?;
     }
 
     zip.finish().map_err(|e| format!("ZIP finish error: {e}"))?;
@@ -640,7 +639,105 @@ pub(crate) const ANKI_BACK_TEMPLATE: &str = concat!(
     anki_tag_script!()
 );
 
+/// Fallback styling for exports that don't come from the GUI (the GUI always
+/// sends `card_css`). Keep in sync with `defaultCardTemplates.css` in
+/// apps/srt-gui/src/lib/types/noteTypes.ts — both must render the same deck.
 pub(crate) const ANKI_CARD_STYLING: &str = r#"
+/* Vesta default card style.
+   Sizes are relative to .card's font-size, so changing that one value
+   rescales the whole card. Colours go through the variables below, and
+   Anki marks the card "nightMode" (desktop/iOS) or "night_mode"
+   (AnkiDroid), so the dark palette applies on its own. */
+.card {
+  --vesta-fg: #1c1c1e;
+  --vesta-bg: #ffffff;
+  --vesta-muted: #6b7280;
+  --vesta-accent: #a8261e;
+  --vesta-rule: #e3e3e6;
+  --vesta-pill-bg: #f2f2f5;
+  --vesta-pill-fg: #3a3a3c;
+  --vesta-ui-font: -apple-system, "Segoe UI", Roboto, "Noto Sans", arial, sans-serif;
+
+  font-family: var(--vesta-target-font, var(--vesta-ui-font));
+  font-size: 20px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--vesta-fg);
+  background-color: var(--vesta-bg);
+  padding: 14px 16px;
+  overflow-wrap: break-word;
+}
+.card.nightMode,
+.card.night_mode,
+.nightMode .card,
+.night_mode .card {
+  --vesta-fg: #e6e6e6;
+  --vesta-bg: #2c2c2e;
+  --vesta-muted: #9a9aa0;
+  --vesta-accent: #ff9d94;
+  --vesta-rule: #444448;
+  --vesta-pill-bg: #3a3a3d;
+  --vesta-pill-fg: #d6d6da;
+}
+/* The sentence under test leads; everything else stays secondary to it. */
+.expression {
+  font-size: 1.6em;
+  font-weight: 600;
+  max-width: 34em;
+  margin: 0.25em auto;
+}
+/* Furigana / pinyin / romanisation: target script, so target font. */
+.reading {
+  font-family: var(--vesta-target-font, inherit);
+  font-size: 1.05em;
+  color: var(--vesta-accent);
+  max-width: 34em;
+  margin: 0.2em auto;
+}
+/* The translation is in the user's own language -- the target-language font
+   stack has nothing to offer it, so it keeps the UI font. */
+.meaning {
+  font-family: var(--vesta-ui-font);
+  font-size: 1.1em;
+  max-width: 34em;
+  margin: 0.35em auto;
+}
+.sequence_marker {
+  font-size: 0.45em;
+  color: var(--vesta-muted);
+}
+/* Wraps {{Audio}} / {{Video}}: keeps Anki's replay button discreet. */
+.media {
+  font-size: 0.7em;
+  color: var(--vesta-muted);
+}
+hr {
+  border: none;
+  border-top: 1px solid var(--vesta-rule);
+  margin: 0.7em auto;
+}
+/* Snapshots and clips scale down to the screen instead of overflowing it
+   (a fixed height distorts them on phones). */
+.card img,
+.card video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.6em auto;
+  border-radius: 6px;
+}
+.card video {
+  width: 600px;
+}
+.card iframe {
+  width: 600px;
+  max-width: 100%;
+  height: 340px;
+  display: block;
+  margin: 0.6em auto;
+  border: none;
+  border-radius: 6px;
+}
 #tags-container {
   text-align: left;
   margin-bottom: 8px;
@@ -648,55 +745,16 @@ pub(crate) const ANKI_CARD_STYLING: &str = r#"
 }
 .tag-pill {
   display: inline-block;
+  font-family: var(--vesta-ui-font);
   font-size: 11px;
-  font-family: arial, sans-serif;
   font-weight: 600;
-  color: #333;
-  background-color: #f0f0f0;
+  color: var(--vesta-pill-fg);
+  background-color: var(--vesta-pill-bg);
   padding: 4px 8px;
   border-radius: 8px;
   margin-right: 4px;
   margin-bottom: 4px;
-  border: 1px solid #ddd;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.05);
-}
-.card video,
-.card iframe {
-  width: 600px;
-  height: 400px;
-  max-width: 100%;
-  display: block;
-  margin: 10px auto;
-  border: 1px solid #eee;
-}
-.card {
-  font-family: var(--vesta-target-font, arial);
-  font-size: 20px;
-  text-align: center;
-  color: black;
-  background-color: white;
-}
-hr.solid {
-  border-top: 3px solid #bbb;
-}
-.expression {
-  font-size: 36px;
-}
-.reading {
-  font-family: var(--vesta-target-font, inherit);
-  font-size: 36px;
-  color: #AA0000;
-}
-.meaning {
-  font-family: var(--vesta-target-font, inherit);
-  font-size: 36px;
-}
-.sequence_marker {
-  font-size: 9px;
-}
-.media {
-  font-size: 8px;
-  color: #000000;
+  border: 1px solid var(--vesta-rule);
 }
 "#;
 
@@ -765,6 +823,26 @@ mod tests {
         (mid.clone(), names, notes)
     }
 
+    /// The stylesheet Anki will actually apply, straight out of the deck file.
+    fn read_model_css(path: &Path) -> String {
+        let file = std::fs::File::open(path).unwrap();
+        let mut zip = zip::ZipArchive::new(file).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("collection.anki2");
+        {
+            let mut entry = zip.by_name("collection.anki2").unwrap();
+            let mut out = std::fs::File::create(&db_path).unwrap();
+            std::io::copy(&mut entry, &mut out).unwrap();
+        }
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let models: String = conn
+            .query_row("SELECT models FROM col WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&models).unwrap();
+        let (_, model) = v.as_object().unwrap().iter().next().unwrap();
+        model["css"].as_str().unwrap().to_string()
+    }
+
     const CANONICAL: [&str; 9] = [
         "Expression",
         "Meaning",
@@ -789,6 +867,62 @@ mod tests {
             include_reading: true,
             include_notes: true,
         }
+    }
+
+    /// fonts.rs has unit tests for the stack itself, but nothing checked that
+    /// the block survives into the deck a user actually opens -- and the GUI
+    /// path routes around the default stylesheet via `card_css`, so the two
+    /// entry points have to be proven separately.
+    #[test]
+    fn target_language_font_reaches_the_exported_model_css() {
+        let tmp = tempfile::tempdir().unwrap();
+        let media = tmp.path().join("media");
+        std::fs::create_dir_all(&media).unwrap();
+        let lines = vec![line(
+            0,
+            "可以称呼她张女士",
+            Some("You can call her Ms. Zhang"),
+        )];
+
+        // Left: what the GUI sends. Right: the CLI fallback to ANKI_CARD_STYLING.
+        let card_css_variants = [
+            Some(".card { font-family: var(--vesta-target-font, arial); }".to_string()),
+            None,
+        ];
+
+        for (i, card_css) in card_css_variants.into_iter().enumerate() {
+            let path = tmp.path().join(format!("zh{i}.apkg"));
+            let config = FlashcardConfig {
+                target_language: Some("zh".into()),
+                auto_card_font: true,
+                card_css: card_css.clone(),
+                ..base_config("Deck", "Zh_Vesta", all_fields())
+            };
+            generate_apkg(&lines, &config, &media, &path).unwrap();
+
+            let css = read_model_css(&path);
+            assert!(
+                css.contains("--vesta-target-font"),
+                "variant {i}: the font variable never reached the model CSS"
+            );
+            assert!(
+                css.contains("Noto Sans CJK SC"),
+                "variant {i}: Chinese deck got no Chinese font stack: {css}"
+            );
+        }
+
+        // Opting out must leave the user's stylesheet untouched.
+        let off = tmp.path().join("off.apkg");
+        let config = FlashcardConfig {
+            target_language: Some("zh".into()),
+            auto_card_font: false,
+            ..base_config("Deck", "Zh_Vesta", all_fields())
+        };
+        generate_apkg(&lines, &config, &media, &off).unwrap();
+        assert!(
+            !read_model_css(&off).contains("Noto Sans CJK SC"),
+            "auto_card_font=false still injected a font stack"
+        );
     }
 
     #[test]

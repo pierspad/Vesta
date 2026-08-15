@@ -199,24 +199,23 @@ impl TimeMapper {
             return last.offset();
         }
 
-        for i in 0..self.anchors.len() - 1 {
-            let anchor_before = &self.anchors[i];
-            let anchor_after = &self.anchors[i + 1];
+        // Binary search for the enclosing anchor interval in O(log N)
+        let idx = self
+            .anchors
+            .partition_point(|a| a.original_time_ms < original_time_ms);
+        let anchor_before = &self.anchors[idx - 1];
+        let anchor_after = &self.anchors[idx];
 
-            if original_time_ms >= anchor_before.original_time_ms
-                && original_time_ms <= anchor_after.original_time_ms
-            {
-                let t = (original_time_ms - anchor_before.original_time_ms) as f64
-                    / (anchor_after.original_time_ms - anchor_before.original_time_ms) as f64;
-
-                let offset_before = anchor_before.offset() as f64;
-                let offset_after = anchor_after.offset() as f64;
-
-                return (offset_before + t * (offset_after - offset_before)).round() as i64;
-            }
+        let span = (anchor_after.original_time_ms - anchor_before.original_time_ms) as f64;
+        if span <= 0.0 {
+            return anchor_before.offset();
         }
 
-        0
+        let t = (original_time_ms - anchor_before.original_time_ms) as f64 / span;
+        let offset_before = anchor_before.offset() as f64;
+        let offset_after = anchor_after.offset() as f64;
+
+        (offset_before + t * (offset_after - offset_before)).round() as i64
     }
 
     pub fn estimate_error_at(&self, original_time_ms: i64) -> Option<f64> {
@@ -224,12 +223,18 @@ impl TimeMapper {
             return None;
         }
 
-        let min_distance = self
+        let idx = self
             .anchors
-            .iter()
-            .map(|a| (a.original_time_ms - original_time_ms).abs())
-            .min()
-            .unwrap_or(0);
+            .partition_point(|a| a.original_time_ms < original_time_ms);
+        let mut min_distance = (self.anchors[idx.min(self.anchors.len() - 1)].original_time_ms
+            - original_time_ms)
+            .abs();
+        if idx > 0 {
+            let prev_dist = (self.anchors[idx - 1].original_time_ms - original_time_ms).abs();
+            if prev_dist < min_distance {
+                min_distance = prev_dist;
+            }
+        }
 
         Some(min_distance as f64 / 1000.0)
     }

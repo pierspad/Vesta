@@ -198,41 +198,41 @@ fn is_subtitle_path(path: &Path) -> bool {
 
 fn normalized_tokens(name: &str) -> Vec<String> {
     const STOPWORDS: &[&str] = &[
+        "1080p",
+        "2160p",
+        "480p",
+        "720p",
+        "aac",
+        "bluray",
+        "brrip",
+        "de",
+        "dvdrip",
+        "en",
+        "eng",
+        "es",
+        "fr",
+        "fra",
+        "ger",
+        "h264",
+        "h265",
+        "hevc",
+        "it",
+        "ita",
+        "ja",
+        "jpn",
+        "ru",
+        "rus",
+        "spa",
         "srt",
         "sub",
         "subs",
         "subtitle",
         "subtitles",
-        "eng",
-        "en",
-        "ita",
-        "it",
-        "jpn",
-        "ja",
-        "spa",
-        "es",
-        "fra",
-        "fr",
-        "ger",
-        "de",
-        "rus",
-        "ru",
         "v2",
         "v3",
+        "webrip",
         "x264",
         "x265",
-        "h264",
-        "h265",
-        "hevc",
-        "1080p",
-        "720p",
-        "2160p",
-        "480p",
-        "webrip",
-        "bluray",
-        "brrip",
-        "dvdrip",
-        "aac",
     ];
 
     let mut token = String::new();
@@ -250,7 +250,7 @@ fn normalized_tokens(name: &str) -> Vec<String> {
 
     tokens
         .into_iter()
-        .filter(|t| !STOPWORDS.contains(&t.as_str()))
+        .filter(|t| STOPWORDS.binary_search(&t.as_str()).is_err())
         .collect()
 }
 
@@ -342,43 +342,51 @@ fn extract_subtitle_role(name: &str) -> Option<&'static str> {
 /// sullo stesso stem.
 fn simplify_subtitle_stem(name: &str) -> String {
     const NOISE: &[&str] = &[
+        "de",
+        "en",
+        "eng",
+        "es",
+        "fr",
+        "fra",
+        "ger",
+        "it",
+        "ita",
+        "ja",
+        "jpn",
         "native",
-        "original",
         "orig",
-        "source",
-        "translated",
-        "translation",
-        "tradotto",
-        "traduzione",
-        "reference",
+        "original",
         "ref",
+        "reference",
+        "ru",
+        "rus",
+        "source",
+        "spa",
         "srt",
         "sub",
         "subs",
         "subtitle",
         "subtitles",
-        "it",
-        "ita",
-        "en",
-        "eng",
-        "ja",
-        "jpn",
-        "es",
-        "spa",
-        "fr",
-        "fra",
-        "de",
-        "ger",
-        "ru",
-        "rus",
+        "tradotto",
+        "traduzione",
+        "translated",
+        "translation",
     ];
 
-    name.split(|c: char| !c.is_ascii_alphanumeric())
+    let mut result = String::with_capacity(name.len());
+    for token in name
+        .split(|c: char| !c.is_ascii_alphanumeric())
         .filter(|t| !t.is_empty())
-        .map(|t| t.to_ascii_lowercase())
-        .filter(|t| !NOISE.contains(&t.as_str()))
-        .collect::<Vec<_>>()
-        .join(" ")
+    {
+        let lower = token.to_ascii_lowercase();
+        if NOISE.binary_search(&lower.as_str()).is_err() {
+            if !result.is_empty() {
+                result.push(' ');
+            }
+            result.push_str(&lower);
+        }
+    }
+    result
 }
 
 /// Suggerisce in modo best-effort i file sottotitoli associati a un file media.
@@ -398,6 +406,7 @@ pub fn suggest_subtitles_for_media(media_path: &Path) -> std::io::Result<Vec<(Pa
     let media_tokens = normalized_tokens(media_stem);
     let media_ep = extract_episode_number(media_stem);
     let media_joined = media_tokens.join(" ");
+    let media_stem_simplified = simplify_subtitle_stem(media_stem);
 
     let mut candidates: Vec<(PathBuf, i32)> = Vec::new();
     for entry in std::fs::read_dir(parent)? {
@@ -421,7 +430,6 @@ pub fn suggest_subtitles_for_media(media_path: &Path) -> std::io::Result<Vec<(Pa
         }
 
         let srt_stem_simplified = simplify_subtitle_stem(stem);
-        let media_stem_simplified = simplify_subtitle_stem(media_stem);
         if !srt_stem_simplified.is_empty()
             && srt_stem_simplified.eq_ignore_ascii_case(&media_stem_simplified)
         {
@@ -446,7 +454,7 @@ pub fn suggest_subtitles_for_media(media_path: &Path) -> std::io::Result<Vec<(Pa
         candidates.push((path, score));
     }
 
-    candidates.sort_by_key(|c| std::cmp::Reverse(c.1));
+    candidates.sort_unstable_by_key(|c| std::cmp::Reverse(c.1));
 
     Ok(candidates)
 }

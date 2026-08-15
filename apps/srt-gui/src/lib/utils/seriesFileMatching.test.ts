@@ -64,6 +64,23 @@ describe("extractEpisodeNumber", () => {
     expect(extractEpisodeNumber("Show 5x09.mkv", rules.episodeRegexes)).toBe(9);
   });
 
+  it("finds multi-lingual and international episode formats", () => {
+    expect(extractEpisodeNumber("Anime_Show_第03话.mkv", rules.episodeRegexes)).toBe(3);
+    expect(extractEpisodeNumber("Chinese_Drama_第12集.mp4", rules.episodeRegexes)).toBe(12);
+    expect(extractEpisodeNumber("K-Drama.07화.mkv", rules.episodeRegexes)).toBe(7);
+    expect(extractEpisodeNumber("Serie_Capitulo_15.srt", rules.episodeRegexes)).toBe(15);
+    expect(extractEpisodeNumber("Serie_Capítulo_05.srt", rules.episodeRegexes)).toBe(5);
+    expect(extractEpisodeNumber("Serie.Épisode.08.srt", rules.episodeRegexes)).toBe(8);
+    expect(extractEpisodeNumber("Deutsche.Serie.Folge.06.mkv", rules.episodeRegexes)).toBe(6);
+    expect(extractEpisodeNumber("Russian.Show.Серия.09.mkv", rules.episodeRegexes)).toBe(9);
+    expect(extractEpisodeNumber("Anime.OVA.02.mkv", rules.episodeRegexes)).toBe(2);
+    expect(extractEpisodeNumber("[SubGroup] Show Name - 04 [1080p].mkv", rules.episodeRegexes)).toBe(4);
+    expect(extractEpisodeNumber("[Erai-raws] Jujutsu Kaisen - 23v2 [720p].mkv", rules.episodeRegexes)).toBe(23);
+    expect(extractEpisodeNumber("[Fansub][12][720p].mkv", rules.episodeRegexes)).toBe(12);
+    expect(extractEpisodeNumber("Show.Name.#05.mkv", rules.episodeRegexes)).toBe(5);
+    expect(extractEpisodeNumber("Show.S01E01-E02.mkv", rules.episodeRegexes)).toBe(1);
+  });
+
   it("finds a delimited bare number as last resort", () => {
     // Bare numbers only match with a delimiter (space/./-/_) on the
     // matching side — an undelimited "04" alone is deliberately too

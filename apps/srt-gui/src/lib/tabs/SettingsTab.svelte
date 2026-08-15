@@ -14,6 +14,7 @@
   import AddApiKeyModal from "$lib/modals/AddApiKeyModal.svelte";
   import { apiKeyEditorStore } from "$lib/stores/apiKeyEditorStore.svelte";
   import AnkiSettingsPanel from "$lib/panels/AnkiSettingsPanel.svelte";
+  import DifficultySettingsPanel from "$lib/panels/DifficultySettingsPanel.svelte";
   import { ankiTemplateStore } from "$lib/stores/ankiTemplateStore.svelte";
   import WhisperSettingsPanel from "$lib/panels/WhisperSettingsPanel.svelte";
   import { whisperModelsStore } from "$lib/stores/whisperModelsStore.svelte";
@@ -1243,6 +1244,9 @@
   <div class="mb-6 flex flex-col gap-4">
     {@render defaultLanguagesCard()}
 
+    <!-- Difficulty Schemes & Vocabulary Databases Card -->
+    <DifficultySettingsPanel />
+
     <!-- Smart Matching Card -->
     {#if uiMode.expertMode}
       <div class="glass-card p-6 flex flex-col gap-4">
@@ -1278,7 +1282,9 @@
   {/if}
 
   {#snippet defaultLanguagesCard()}
-    <div class="glass-card p-6">
+    <!-- glass-card creates a stacking context (backdrop-filter), so the card itself
+         must be lifted for the language dropdowns to paint over the cards below -->
+    <div class="glass-card p-6 relative z-30">
       <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-5">
         <div class="relative z-40 rounded-xl border border-transparent bg-white/5 p-5">
           <div class="flex items-center justify-between gap-3 mb-4">
@@ -1608,19 +1614,17 @@
     }
   }
 
-	  :global(.language-select .searchable-select-input) {
-    min-height: 3.25rem;
-    font-size: 1rem;
-    padding-block: 0.95rem;
+  :global(.language-select .searchable-select-input) {
+    background: rgba(24, 24, 42, 0.98) !important;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+
+  :global(.language-select .searchable-select-dropdown) {
+    background: #0f172a !important;
   }
 
   :global(.language-select .searchable-select-option) {
-    min-height: 2.75rem;
-    font-size: 0.95rem;
-  }
-
-  :global(.language-select .searchable-select-option span:first-child) {
-    font-size: 1.35rem;
+    background: #0f172a !important;
   }
 
 </style>

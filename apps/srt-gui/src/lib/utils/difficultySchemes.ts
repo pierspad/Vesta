@@ -13,134 +13,33 @@ export interface SchemeInfo {
   defaultFilename: string;
 }
 
-export const CEFR_TEMPLATE_TSV = `# CEFR Vocabulary Level Database (Common European Framework of Reference)
-# Format: word<TAB>level_number (1=A1, 2=A2, 3=B1, 4=B2, 5=C1, 6=C2)
-# Lines starting with # are ignored.
-the	1
-a	1
-an	1
-is	1
-are	1
-was	1
-were	1
-have	1
-has	1
-had	1
-do	1
-does	1
-did	1
-say	1
-said	1
-go	1
-good	1
-day	1
-man	1
-woman	1
-child	1
-book	1
-friend	1
-hello	1
-house	1
-water	1
-food	1
-work	1
-time	1
-year	1
-journey	2
-arrive	2
-departure	2
-receive	2
-explain	2
-decision	2
-future	2
-possible	2
-analyze	3
-analyse	3
-hypothesis	4
-paradigm	5
-ubiquitous	6
-`;
+import rawCefrEn from "$lib/data/difficulty/cefr_en.tsv?raw";
+import rawCefrIt from "$lib/data/difficulty/cefr_it.tsv?raw";
+import rawCefrEs from "$lib/data/difficulty/cefr_es.tsv?raw";
+import rawCefrFr from "$lib/data/difficulty/cefr_fr.tsv?raw";
+import rawCefrDe from "$lib/data/difficulty/cefr_de.tsv?raw";
+import rawCefrRu from "$lib/data/difficulty/cefr_ru.tsv?raw";
+import rawCefrPt from "$lib/data/difficulty/cefr_pt.tsv?raw";
+import rawHsk from "$lib/data/difficulty/hsk.tsv?raw";
+import rawTocfl from "$lib/data/difficulty/tocfl.tsv?raw";
+import rawJlpt from "$lib/data/difficulty/jlpt.tsv?raw";
+import rawTopik from "$lib/data/difficulty/topik.tsv?raw";
 
-export const HSK_TEMPLATE_TSV = `# HSK Vocabulary Level Database (Chinese Proficiency Test)
-# Format: word<TAB>level_number (1=HSK1, 2=HSK2, 3=HSK3, 4=HSK4, 5=HSK5, 6=HSK6)
-# Lines starting with # are ignored.
-你	1
-好	1
-我	1
-是	1
-中国	1
-人	1
-谢谢	1
-不	1
-喜欢	1
-水	1
-吃	1
-喝	1
-看	1
-听	1
-去	1
-来	1
-想	1
-小	1
-大	1
-好	1
-学习	2
-帮助	2
-简单	2
-问题	2
-工作	2
-开始	2
-因为	2
-所以	2
-但是	2
-已经	2
-经常	3
-环境	3
-解决	3
-提高	3
-选择	3
-几乎	3
-关系	3
-影响	3
-偶尔	4
-频繁	4
-判断	4
-趋势	4
-极其	4
-抽象	5
-震撼	5
-涵盖	5
-`;
+export const CEFR_LANG_MAP: Record<string, { label: string; content: string; filename: string }> = {
+  en: { label: "English", content: rawCefrEn, filename: "cefr-english-vocabulary.tsv" },
+  it: { label: "Italiano", content: rawCefrIt, filename: "cefr-italian-vocabulary.tsv" },
+  es: { label: "Español", content: rawCefrEs, filename: "cefr-spanish-vocabulary.tsv" },
+  fr: { label: "Français", content: rawCefrFr, filename: "cefr-french-vocabulary.tsv" },
+  de: { label: "Deutsch", content: rawCefrDe, filename: "cefr-german-vocabulary.tsv" },
+  ru: { label: "Русский", content: rawCefrRu, filename: "cefr-russian-vocabulary.tsv" },
+  pt: { label: "Português", content: rawCefrPt, filename: "cefr-portuguese-vocabulary.tsv" },
+};
 
-export const JLPT_TEMPLATE_TSV = `# JLPT Vocabulary Level Database (Japanese Language Proficiency Test)
-# Format: word<TAB>level_number (1=N5, 2=N4, 3=N3, 4=N2, 5=N1)
-# Lines starting with # are ignored.
-私	1
-本	1
-人	1
-日本	1
-食べる	1
-飲む	1
-行く	1
-来る	1
-見る	1
-聞く	1
-大きい	1
-小さい	1
-勉強	2
-簡単	2
-問題	2
-仕事	2
-始まる	2
-選ぶ	3
-環境	3
-関係	3
-影响	3
-複雑	4
-概念	4
-判断	4
-顕著	5
-`;
+export const CEFR_TEMPLATE_TSV = rawCefrEn;
+export const HSK_TEMPLATE_TSV = rawHsk;
+export const TOCFL_TEMPLATE_TSV = rawTocfl;
+export const JLPT_TEMPLATE_TSV = rawJlpt;
+export const TOPIK_TEMPLATE_TSV = rawTopik;
 
 export const CUSTOM_TEMPLATE_TSV = `# Custom User Vocabulary Level Database
 # Format: word<TAB>level_number or word,level_number
@@ -158,40 +57,63 @@ export const SCHEMES: SchemeInfo[] = [
   {
     id: "cefr",
     name: "CEFR (A1 - C2)",
-    langCoverage: "English, Italian, Spanish, French, German, Portuguese, Russian, Dutch, Polish, etc.",
+    langCoverage: "English, Italiano, Español, Français, Deutsch, Русский, Português",
     levels: "A1 (1) · A2 (2) · B1 (3) · B2 (4) · C1 (5) · C2 (6)",
-    description: "Common European Framework of Reference for Languages based on frequency and lexical complexity.",
+    description: "Common European Framework of Reference for Languages",
     templateContent: CEFR_TEMPLATE_TSV,
-    defaultFilename: "cefr-vocabulary-template.tsv",
+    defaultFilename: "cefr-english-vocabulary.tsv",
   },
   {
     id: "hsk",
     name: "HSK (1 - 6)",
     langCoverage: "Chinese (Mandarin / Simplified & Traditional)",
     levels: "HSK 1 (1) · HSK 2 (2) · HSK 3 (3) · HSK 4 (4) · HSK 5 (5) · HSK 6 (6)",
-    description: "Hànyǔ Shuǐpíng Kǎoshì (Chinese Proficiency Test - 汉语水平考试) official standard vocabulary lists.",
+    description: "Hànyǔ Shuǐpíng Kǎoshì (Chinese Proficiency Test - 汉语水平考试)",
     templateContent: HSK_TEMPLATE_TSV,
-    defaultFilename: "hsk-vocabulary-template.tsv",
+    defaultFilename: "hsk-vocabulary-database.tsv",
+  },
+  {
+    id: "tocfl",
+    name: "TOCFL (1 - 6)",
+    langCoverage: "Chinese Traditional (Taiwan / Hong Kong / 繁體中文)",
+    levels: "Novice/A1 (1) · A2 (2) · B1 (3) · B2 (4) · C1 (5) · C2 (6)",
+    description: "Test of Chinese as a Foreign Language (華語文能力測驗)",
+    templateContent: TOCFL_TEMPLATE_TSV,
+    defaultFilename: "tocfl-vocabulary-database.tsv",
   },
   {
     id: "jlpt",
     name: "JLPT (N5 - N1)",
-    langCoverage: "Japanese",
+    langCoverage: "Japanese (日本語)",
     levels: "N5 (1) · N4 (2) · N3 (3) · N2 (4) · N1 (5)",
-    description: "Japanese-Language Proficiency Test (JLPT - 日本語能力試験 / Nihongo Nōryoku Shiken) official standard vocabulary lists.",
+    description: "Japanese-Language Proficiency Test (JLPT - 日本語能力試験 / Nihongo Nōryoku Shiken)",
     templateContent: JLPT_TEMPLATE_TSV,
-    defaultFilename: "jlpt-vocabulary-template.tsv",
+    defaultFilename: "jlpt-vocabulary-database.tsv",
+  },
+  {
+    id: "topik",
+    name: "TOPIK (1 - 6)",
+    langCoverage: "Korean (한국어)",
+    levels: "Level 1 (1) · Level 2 (2) · Level 3 (3) · Level 4 (4) · Level 5 (5) · Level 6 (6)",
+    description: "Test of Proficiency in Korean (TOPIK - 한국어능력시험)",
+    templateContent: TOPIK_TEMPLATE_TSV,
+    defaultFilename: "topik-vocabulary-database.tsv",
   },
 ];
 
-export async function exportSchemeTsv(schemeId: string) {
+export async function exportSchemeTsv(schemeId: string, langCode?: string) {
   let content = CUSTOM_TEMPLATE_TSV;
   let filename = "custom-vocabulary-template.tsv";
 
-  const found = SCHEMES.find((s) => s.id === schemeId);
-  if (found) {
-    content = found.templateContent;
-    filename = found.defaultFilename;
+  if (schemeId === "cefr" && langCode && CEFR_LANG_MAP[langCode]) {
+    content = CEFR_LANG_MAP[langCode].content;
+    filename = CEFR_LANG_MAP[langCode].filename;
+  } else {
+    const found = SCHEMES.find((s) => s.id === schemeId);
+    if (found) {
+      content = found.templateContent;
+      filename = found.defaultFilename;
+    }
   }
 
   try {
@@ -228,13 +150,42 @@ export async function exportSchemeTsv(schemeId: string) {
 }
 
 export function inferSchemeForLanguage(language: string): string {
-  if (!language) return "cefr";
-  const primary = language.toLowerCase().split(/[-_]/)[0];
-  if (primary === "zh" || primary === "cmn" || primary === "chinese") {
+  if (!language) return "cefr_en";
+  const full = language.toLowerCase().trim();
+  const primary = full.split(/[-_]/)[0];
+
+  if (full.includes("tw") || full.includes("hk") || full.includes("hant") || full.includes("traditional") || primary === "tocfl") {
+    return "tocfl";
+  }
+  if (primary === "zh" || primary === "cmn" || primary === "chinese" || primary === "zho" || primary === "chi") {
     return "hsk";
   }
-  if (primary === "ja" || primary === "jpn" || primary === "japanese") {
+  if (primary === "ja" || primary === "jpn" || primary === "japanese" || primary === "jap") {
     return "jlpt";
   }
-  return "cefr";
+  if (primary === "ko" || primary === "kor" || primary === "korean") {
+    return "topik";
+  }
+  if (primary === "it" || primary === "ita" || primary === "italian") {
+    return "cefr_it";
+  }
+  if (primary === "es" || primary === "spa" || primary === "spanish") {
+    return "cefr_es";
+  }
+  if (primary === "fr" || primary === "fra" || primary === "fre" || primary === "french") {
+    return "cefr_fr";
+  }
+  if (primary === "de" || primary === "deu" || primary === "ger" || primary === "german") {
+    return "cefr_de";
+  }
+  if (primary === "ru" || primary === "rus" || primary === "russian") {
+    return "cefr_ru";
+  }
+  if (primary === "pt" || primary === "por" || primary === "portuguese") {
+    return "cefr_pt";
+  }
+  if (primary === "en" || primary === "eng" || primary === "english") {
+    return "cefr_en";
+  }
+  return "cefr_en";
 }

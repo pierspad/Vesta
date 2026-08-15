@@ -14,6 +14,7 @@ name = "srt_refine"
 path = "src/lib.rs"
 
 [dependencies]
+srt-apkg = { workspace = true }
 srt-translate = { workspace = true }
 serde = { workspace = true }
 serde_json.workspace = true

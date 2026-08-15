@@ -280,20 +280,20 @@
   {/if}
 </div>
 
-<style lang="postcss">
+<style>
   .searchable-select-input {
-    background: #0b0f19;
-    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(24, 24, 42, 0.98) !important;
+    border: 1px solid rgba(148, 163, 184, 0.22);
     border-radius: 10px;
     padding: 11px 40px 11px 14px;
     color: white;
-    transition: border-color 0.16s ease, background-color 0.16s ease;
+    transition: border-color 0.12s ease, background-color 0.12s ease;
     font-size: 0.875rem;
   }
 
   .searchable-select-input:focus {
     outline: none;
-    background: #0b0f19;
+    background: rgba(27, 28, 47, 1) !important;
     border-color: rgba(129, 140, 248, 0.58);
   }
 
@@ -313,7 +313,7 @@
     background: #0f172a !important;
     border: 1px solid rgba(148, 163, 184, 0.25);
     border-radius: 10px;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
     z-index: 9999;
     opacity: 1 !important;
     isolation: isolate;
@@ -326,7 +326,7 @@
     gap: 8px;
     padding: 10px 14px;
     font-size: 0.875rem;
-    transition: background-color 0.1s ease, color 0.1s ease;
+    transition: background-color 0.08s ease, color 0.08s ease;
     cursor: pointer;
     border: none;
     background: #0f172a !important;
@@ -357,15 +357,15 @@
   }
 
   .searchable-select-option:first-child {
-    border-radius: 11px 11px 0 0;
+    border-radius: 9px 9px 0 0;
   }
 
   .searchable-select-option:last-child {
-    border-radius: 0 0 11px 11px;
+    border-radius: 0 0 9px 9px;
   }
 
   .searchable-select-option:only-child {
-    border-radius: 11px;
+    border-radius: 9px;
   }
 
   .searchable-select-dropdown::-webkit-scrollbar {

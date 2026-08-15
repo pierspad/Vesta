@@ -43,25 +43,35 @@ pub(crate) fn match_subtitles(subs1: &[SubEntry], subs2: &[SubEntry]) -> Vec<Mat
 }
 
 pub(crate) fn combine_consecutive_repeats(matched: &mut Vec<MatchedLine>) {
-    let mut i = 0;
-    while i + 1 < matched.len() {
-        let same_s2 = match (&matched[i].subs2, &matched[i + 1].subs2) {
+    if matched.is_empty() {
+        return;
+    }
+
+    let mut write_idx = 0;
+    for read_idx in 1..matched.len() {
+        let same_s2 = match (&matched[write_idx].subs2, &matched[read_idx].subs2) {
             (Some(a), Some(b)) => a.id == b.id,
             _ => false,
         };
 
         if same_s2 {
-            let next_text = matched[i + 1].subs1.text.clone();
-            let next_end = matched[i + 1].subs1.end_ms;
-            matched[i].subs1.text = format!("{} {}", matched[i].subs1.text, next_text);
-            matched[i].subs1.end_ms = next_end;
-            matched.remove(i + 1);
-
-            for (j, m) in matched.iter_mut().enumerate() {
-                m.index = j;
-            }
+            let next_end = matched[read_idx].subs1.end_ms;
+            let next_text = std::mem::take(&mut matched[read_idx].subs1.text);
+            matched[write_idx].subs1.text.reserve(1 + next_text.len());
+            matched[write_idx].subs1.text.push(' ');
+            matched[write_idx].subs1.text.push_str(&next_text);
+            matched[write_idx].subs1.end_ms = next_end;
         } else {
-            i += 1;
+            write_idx += 1;
+            if write_idx != read_idx {
+                matched.swap(write_idx, read_idx);
+            }
         }
+    }
+
+    matched.truncate(write_idx + 1);
+
+    for (j, m) in matched.iter_mut().enumerate() {
+        m.index = j;
     }
 }

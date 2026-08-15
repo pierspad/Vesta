@@ -292,15 +292,63 @@ fn vad_speech_spans(
         .collect())
 }
 
-pub fn text_similarity(left: &str, right: &str) -> f64 {
-    let token_score = token_overlap_score(left, right);
-    let char_score = normalized_char_similarity(left, right);
-    token_score * 0.7 + char_score * 0.3
+#[derive(Debug, Clone)]
+pub struct NormalizedText {
+    pub raw: String,
+    pub norm: String,
+    pub tokens: Vec<String>,
+    pub token_set: HashSet<String>,
+    pub chars: Vec<char>,
 }
 
-fn token_overlap_score(left: &str, right: &str) -> f64 {
-    let left_tokens = normalized_tokens(left);
-    let right_tokens = normalized_tokens(right);
+impl NormalizedText {
+    pub fn new(text: &str) -> Self {
+        let norm = normalize_text(text);
+        let tokens: Vec<String> = norm
+            .split_whitespace()
+            .filter(|token| token.len() > 1)
+            .map(str::to_string)
+            .collect();
+        let token_set: HashSet<String> = tokens.iter().cloned().collect();
+        let chars = norm.chars().collect();
+        Self {
+            raw: text.to_string(),
+            norm,
+            tokens,
+            token_set,
+            chars,
+        }
+    }
+
+    pub fn similarity(&self, other: &Self) -> f64 {
+        let token_score = if self.tokens.is_empty() || other.tokens.is_empty() {
+            0.0
+        } else {
+            let overlap = self
+                .tokens
+                .iter()
+                .filter(|token| other.token_set.contains(*token))
+                .count() as f64;
+            let precision = overlap / other.tokens.len() as f64;
+            let recall = overlap / self.tokens.len() as f64;
+            if precision + recall == 0.0 {
+                0.0
+            } else {
+                (2.0 * precision * recall) / (precision + recall)
+            }
+        };
+        let char_score = char_similarity_precomputed(&self.chars, &other.chars);
+        token_score * 0.7 + char_score * 0.3
+    }
+}
+
+pub fn text_similarity(left: &str, right: &str) -> f64 {
+    let left_norm = NormalizedText::new(left);
+    let right_norm = NormalizedText::new(right);
+    left_norm.similarity(&right_norm)
+}
+
+pub fn token_overlap_score_precomputed(left_tokens: &[String], right_tokens: &[String]) -> f64 {
     if left_tokens.is_empty() || right_tokens.is_empty() {
         return 0.0;
     }
@@ -319,36 +367,67 @@ fn token_overlap_score(left: &str, right: &str) -> f64 {
     }
 }
 
-fn normalized_char_similarity(left: &str, right: &str) -> f64 {
-    let left = normalize_text(left);
-    let right = normalize_text(right);
-    if left.is_empty() || right.is_empty() {
+pub fn char_similarity_precomputed(left_chars: &[char], right_chars: &[char]) -> f64 {
+    if left_chars.is_empty() || right_chars.is_empty() {
         return 0.0;
     }
 
-    let left_chars = left.chars().collect::<Vec<_>>();
-    let right_chars = right.chars().collect::<Vec<_>>();
-    let distance = levenshtein_distance(&left_chars, &right_chars) as f64;
+    let distance = levenshtein_distance(left_chars, right_chars) as f64;
     let max_len = left_chars.len().max(right_chars.len()) as f64;
     (1.0 - distance / max_len).max(0.0)
 }
 
 fn levenshtein_distance(left: &[char], right: &[char]) -> usize {
-    let mut previous = (0..=right.len()).collect::<Vec<_>>();
-    let mut current = vec![0; right.len() + 1];
+    // Ensure `right` is the shorter slice to minimize allocation/buffer size
+    let (left, right) = if left.len() < right.len() {
+        (right, left)
+    } else {
+        (left, right)
+    };
 
-    for (i, left_char) in left.iter().enumerate() {
-        current[0] = i + 1;
-        for (j, right_char) in right.iter().enumerate() {
-            let cost = usize::from(left_char != right_char);
-            current[j + 1] = (previous[j + 1] + 1)
-                .min(current[j] + 1)
-                .min(previous[j] + cost);
-        }
-        std::mem::swap(&mut previous, &mut current);
+    let r_len = right.len();
+    if r_len == 0 {
+        return left.len();
     }
 
-    previous[right.len()]
+    // Fast path: use stack-allocated buffers for typical short subtitle strings (<= 127 chars)
+    if r_len < 128 {
+        let mut previous = [0usize; 128];
+        let mut current = [0usize; 128];
+
+        for (j, item) in previous.iter_mut().take(r_len + 1).enumerate() {
+            *item = j;
+        }
+
+        for (i, &left_char) in left.iter().enumerate() {
+            current[0] = i + 1;
+            for (j, &right_char) in right.iter().enumerate() {
+                let cost = usize::from(left_char != right_char);
+                current[j + 1] = (previous[j + 1] + 1)
+                    .min(current[j] + 1)
+                    .min(previous[j] + cost);
+            }
+            previous[..=r_len].copy_from_slice(&current[..=r_len]);
+        }
+
+        previous[r_len]
+    } else {
+        let mut previous: Vec<usize> = (0..=r_len).collect();
+        let mut current: Vec<usize> = vec![0; r_len + 1];
+
+        for (i, &left_char) in left.iter().enumerate() {
+            current[0] = i + 1;
+            for (j, &right_char) in right.iter().enumerate() {
+                let cost = usize::from(left_char != right_char);
+                current[j + 1] = (previous[j + 1] + 1)
+                    .min(current[j] + 1)
+                    .min(previous[j] + cost);
+            }
+            std::mem::swap(&mut previous, &mut current);
+        }
+
+        previous[r_len]
+    }
 }
 
 pub fn normalized_tokens(value: &str) -> Vec<String> {
@@ -360,18 +439,23 @@ pub fn normalized_tokens(value: &str) -> Vec<String> {
 }
 
 pub fn normalize_text(value: &str) -> String {
-    value
-        .to_lowercase()
-        .chars()
-        .map(|ch| {
-            if ch.is_alphanumeric() || ch.is_whitespace() {
-                ch
-            } else {
-                ' '
+    let mut result = String::with_capacity(value.len());
+    let mut last_was_space = true; // Skip leading whitespace
+
+    for ch in value.chars() {
+        for low in ch.to_lowercase() {
+            if low.is_alphanumeric() {
+                result.push(low);
+                last_was_space = false;
+            } else if !last_was_space {
+                result.push(' ');
+                last_was_space = true;
             }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+        }
+    }
+
+    if result.ends_with(' ') {
+        result.pop();
+    }
+    result
 }

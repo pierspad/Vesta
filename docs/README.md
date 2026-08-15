@@ -1,5 +1,8 @@
 # Vesta
 
+> [!WARNING]
+> **Work in Progress**: This README is currently a work in progress (WIP), is not definitive, and should not be considered final or fully reliable.
+
 **subs2srs, but actually fast.**
 
 Vesta is a desktop app for turning video files into translated subtitles and Anki decks. 
@@ -29,23 +32,49 @@ Each card can also include:
 - an audio snippet
 - a snapshot of the sentence
 - a video clip of the sentence
-- **Difficulty Tagging** (CEFR, HSK, JLPT, or Custom TSV database)
+- **Difficulty Tagging** (CEFR multi-lingual, HSK, TOCFL, JLPT, TOPIK, or Custom TSV database)
 
 ### Difficulty Tagging & Vocabulary Schemes
 
-Vesta can automatically analyze the lexical complexity of each subtitle line and tag generated Anki cards with their corresponding difficulty level (e.g. `CEFR::B1`, `HSK::3`, `JLPT::N2`, `Level::4`):
+Vesta can automatically analyze the lexical complexity of each subtitle line and tag generated Anki cards with their corresponding difficulty level (e.g. `CEFR::B1`, `HSK::3`, `TOCFL::B2`, `JLPT::N2`, `TOPIK::3`, `Level::4`):
 
-- **Smart Matching**: Vesta automatically selects the appropriate proficiency scheme based on the target subtitle language:
-  - `Chinese` (`zh`, `cmn`) → **HSK** (Levels 1 to 6)
+- **Smart Matching**: Vesta automatically selects the appropriate proficiency scheme and language-specific database based on the target subtitle language:
+  - `Chinese Simplified` (`zh`, `cmn`) → **HSK** (Levels 1 to 6)
+  - `Chinese Traditional / Taiwan` (`zh-TW`, `zh-HK`, `tocfl`) → **TOCFL** (Levels 1 to 6 / A1 to C2)
   - `Japanese` (`ja`, `jpn`) → **JLPT** (Levels N5 to N1)
-  - `European & other languages` (`en`, `it`, `es`, `fr`, `de`, `pt`, `ru`, `nl`, `pl`, etc.) → **CEFR** (Levels A1=1 to C2=6)
+  - `Korean` (`ko`, `kor`) → **TOPIK** (Levels 1 to 6)
+  - `European languages` (`en`, `it`, `es`, `fr`, `de`, `pt`, `ru`) → **CEFR** (Levels A1=1 to C2=6) using the specific, dedicated vocabulary database for each respective language (English, Italian, Spanish, French, German, Portuguese, Russian).
   - `Custom`: User-defined lists and files.
 
-- **Custom Scheme Databases & Templates**:
-  - In **Settings > Anki**, you can download official starter `.tsv` templates for CEFR, HSK, and JLPT.
-  - Modify or expand the list in any spreadsheet or text editor.
-  - **File Format**: `word<TAB>level_number` (or `word,level_number`), with levels specified as integer numbers (1 to 6). Lines starting with `#` are treated as comments.
-  - Load your custom `.tsv` file or paste word lists directly in the Flashcards tab.
+- **Pre-bundled Official Vocabulary Databases & Local Export**:
+  - In **Settings > Languages & Smart Matching**, Vesta comes pre-bundled with complete official lexical databases:
+    - **CEFR Multi-lingual**: Dedicated databases for **English** (8,600+ words), **German** (41,900+ entries), **Italian** (19,900+ entries), **Spanish** (19,900+ entries), **French** (19,900+ entries), **Russian** (19,900+ entries), and **Portuguese** (19,900+ entries) mapped across A1 (1) to C2 (6).
+    - **HSK**: 12,500+ official words mapped across HSK 1 to 6.
+    - **TOCFL**: 11,100+ official Traditional Chinese words mapped across Levels 1 to 6.
+    - **JLPT**: 13,900+ official words (kanji & kana readings) mapped across N5 (1) to N1 (5).
+    - **TOPIK**: 6,600+ official Korean words mapped across Levels 1 to 6.
+  - All databases are 100% offline and embedded directly into Vesta. Clicking **"Scarica Database TSV"** exports the full database directly from the application to your disk (zero internet access required).
+  - **File Format**: `word<TAB>level_number` (or `word,level_number`), with levels specified as integer numbers. Lines starting with `#` are treated as comments.
+  - You can modify or expand exported lists and load custom `.tsv` vocabulary files directly into Vesta.
+  - **Community Contributions**: If you have improved a vocabulary list or want to propose a new database for another language, you can share it directly with the community via the GitHub repository link in Settings.
+
+#### Exact Vocabulary Sources & Raw Dataset Links
+
+To guarantee 100% provenance transparency and verifiability, here are the exact open-source repositories and raw data files from which each vocabulary database was extracted, parsed, and embedded into Vesta:
+
+| Scheme / Language | Entries | Official Standard / Framework | Exact Dataset Repository & Download Source |
+| :--- | :--- | :--- | :--- |
+| 🇨🇳 **HSK** (Cinese Semplificato) | 12,543 | Standard Hanban / CLEC (HSK 1–6) | Extracted from the official HSK vocabulary database: [glxxyz/hskhsk.com](https://github.com/glxxyz/hskhsk.com) & [krmanik/HSK-3.0-words-list](https://github.com/krmanik/HSK-3.0-words-list) |
+| 🇹🇼 **TOCFL** (Cinese Tradizionale) | 11,170 | Standard SC-TOP / NAER Taiwan (A1–C2) | Parsed directly from Ivan Kra's official SC-TOP 2023 wordlist: [ivankra/tocfl](https://github.com/ivankra/tocfl) ([raw `tocfl-202307.csv`](https://raw.githubusercontent.com/ivankra/tocfl/master/tocfl-202307.csv)) |
+| 🇯🇵 **JLPT** (Giapponese) | 13,906 | Standard Japan Foundation / JEES (N5–N1) | Extracted from the validated JLPT Kanji/Kana lexicon: [jtransc/jlpt-words](https://github.com/jtransc/jlpt-words) & [bryant1410/jlpt-words](https://github.com/bryant1410/jlpt-words) |
+| 🇰🇷 **TOPIK** (Coreano) | 6,671 | Standard NIKL & TOPIK I/II (1–6) | Extracted directly from Julien Shim's combined NIKL + TOPIK corpus: [julienshim/combined_korean_vocabulary_list](https://github.com/julienshim/combined_korean_vocabulary_list) ([raw `results.tsv`](https://raw.githubusercontent.com/julienshim/combined_korean_vocabulary_list/master/results.tsv)) |
+| 🇬🇧 **CEFR English** | 8,653 | CEFR-J (TUFS) & Cambridge English Profile | Extracted from the CEFR-J Octanove English vocabulary list: [open-language-data/cefr-j-vocabulary](https://github.com/open-language-data/cefr-j-vocabulary) & [octanove/cefr-word-list](https://github.com/octanove/cefr-word-list) |
+| 🇩🇪 **CEFR Tedesco** | 41,900 | Goethe-Institut / TELC Curriculum + Subtitles | Merged from Aditya's Goethe CEFR database: [Adityav20/vocabforge-cefr-german](https://github.com/Adityav20/vocabforge-cefr-german) ([raw `cefr_vocabulary.csv`](https://raw.githubusercontent.com/Adityav20/vocabforge-cefr-german/main/data/cefr_vocabulary.csv)) + [HermitDave German Subtitle Corpus](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/de/de_50k.txt) |
+| 🇮🇹 **CEFR Italiano** | 19,951 | Standard Zipfian CEFR Bands (A1–C2) | Extracted from the OpenSubtitles Italian frequency corpus: [HermitDave/FrequencyWords - `it_50k.txt`](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/it/it_50k.txt) |
+| 🇪🇸 **CEFR Spagnolo** | 19,945 | Standard Zipfian CEFR Bands (A1–C2) | Extracted from the OpenSubtitles Spanish frequency corpus: [HermitDave/FrequencyWords - `es_50k.txt`](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt) |
+| 🇫🇷 **CEFR Francese** | 19,941 | Standard Zipfian CEFR Bands (A1–C2) | Extracted from the OpenSubtitles French frequency corpus: [HermitDave/FrequencyWords - `fr_50k.txt`](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/fr/fr_50k.txt) |
+| 🇷🇺 **CEFR Russo** | 19,970 | Standard Zipfian CEFR Bands (A1–C2) | Extracted from the OpenSubtitles Russian frequency corpus: [HermitDave/FrequencyWords - `ru_50k.txt`](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/ru/ru_50k.txt) |
+| 🇵🇹 **CEFR Portoghese** | 19,950 | Standard Zipfian CEFR Bands (A1–C2) | Extracted from the OpenSubtitles Portuguese frequency corpus: [HermitDave/FrequencyWords - `pt_50k.txt`](https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/pt/pt_50k.txt) |
 
 ## More Features
 
@@ -137,25 +166,49 @@ Development was done using the public domain film **Detour (1945)** — good len
 
 ---
 
-## Series naming convention
+## Smart Matching & Series Naming Conventions
 
-When processing multiple episodes, name your files so Vesta can automatically detect season and episode numbers:
+Vesta features a multi-lingual, regex-driven **Smart Matching** engine that automatically groups video files, target subtitles, and translated/reference subtitles into aligned episodes without requiring manual file renaming.
 
-```
-name_[season<N>]_[ep]<N>.ext
-```
-or the simpler:
-```
-<name>_S<N>E<N>.ext
-```
+### Supported Episode Patterns
 
-**Examples:**
-```
-12_angry_men_[season01]_[ep]01.mp4
-breaking_bad_s01e05.mp4
-```
+Vesta recognizes a wide spectrum of international naming conventions:
 
-The bracketed format exists specifically for titles that start with numbers (like "12 Angry Men"), so Vesta doesn't confuse the title with episode metadata. Exported decks will come out as `<DeckName>_<Episode>.apkg`, one per episode.
+- **Western Series & TV Standards**:
+  - `S01E05`, `s1e5`, `S01.E05`, `S02_E10`, `S01E01-E02` (multi-episode spans)
+  - `1x05`, `02x14`, `5X09` (Season × Episode notation)
+  - `Episode 01`, `Ep. 12`, `EP03`, `E05`, `ep_04`, `#01`
+- **Multi-lingual Keywords**:
+  - **Italian / Spanish / Portuguese**: `Episodio 03`, `Parte 2`, `Capitulo 15`, `Capítulo 05`
+  - **French**: `Épisode 08`, `Partie 03`
+  - **German**: `Folge 06`, `Teil 2`
+  - **Russian / Cyrillic**: `Серия 09`, `Выпуск 02`
+- **Anime & Asian Drama Formats**:
+  - **Anime / Fansub Releases**: `[SubGroup] Title - 01 [1080p].mkv`, `[Release] Title - 23v2 [720p].mkv`, `[Fansub][12][720p].mkv`
+  - **Specials / OVA / OAD**: `OVA 01`, `OAD 2`, `SP 03`, `NCED 1`, `NCOP 2`
+  - **Chinese (Donghua / Drama)**: `第01话`, `第12集`, `第3期`
+  - **Korean (K-Drama)**: `01화`, `12화`
+- **Delimited & Bracketed Numbers**:
+  - `Show - 04.mkv`, `04 - Show.mkv`, `Show.04.1080p.mkv`
+  - Explicit bracket format for titles starting with numbers: `12_angry_men_[season01]_[ep]01.mp4`
+
+### Automatic Subtitle Role Matching (Original vs Reference)
+
+When dropping multiple subtitle files for the same episode, Vesta automatically categorizes them using language codes and role hints:
+
+- **Original / Native Subtitles**: `native`, `original`, `orig`, `originale`, `source`, `sorgente`, `raw`, `dialogue`, `target`, `vo`, `vost`, `vostfr`, `omuu`
+- **Reference / Translated Subtitles**: `translated`, `translation`, `tradotto`, `traduzione`, `traducido`, `traduit`, `übersetzt`, `sub_ita`, `sub-ita`, `sub_en`, `sub-en`, `sub_es`, `sub_fr`, `sub_de`, `sub_pt`, `sub_ru`, `vf`, `subbed`
+
+### Video & Codec Tag Sanitization
+
+Vesta automatically strips release artifacts when aligning media with subtitles:
+- **Resolutions**: `2160p`, `4K`, `UHD`, `1080p`, `1080i`, `720p`, `576p`, `480p`, `360p`
+- **Video Codecs**: `H.264`, `H.265`, `x264`, `x265`, `HEVC`, `AVC`, `AV1`, `VP9`, `10bit`, `Hi10P`
+- **Color & HDR**: `HDR10+`, `Dolby Vision (DV/DoVi)`, `HLG`, `SDR`
+- **Audio Formats**: `AAC`, `AC3`, `EAC3`, `DDP5.1`, `DTS-HD`, `TrueHD`, `Atmos`, `FLAC`, `Opus`, `Dual-Audio`, `Multi`
+- **Sources & Releases**: `BluRay`, `BDRip`, `WEBRip`, `WEB-DL`, `DVDRip`, `HDTV`, `Remux`, `Repack`, `Proper`, `v2`, `CRC32`
+
+> **Note**: In **Settings > Languages & Smart Matching** (with Expert Mode enabled), you can inspect, customize, or add your own JSON rules and regexes in the live code editor.
 
 ---
 

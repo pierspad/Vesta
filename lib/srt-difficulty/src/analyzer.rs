@@ -51,7 +51,11 @@ pub fn analyze(text: &str, table: &LevelTable, opts: &AnalyzeOptions) -> CardLev
     }
 
     if opts.unknown == UnknownPolicy::Highest && unknown_count > 0 {
-        let table_max = table.map.values().copied().max().unwrap_or(6);
+        let table_max = if table.max_level > 0 {
+            table.max_level
+        } else {
+            6
+        };
         max_level = Some(max_level.map_or(table_max, |m| m.max(table_max)));
     }
 
@@ -65,6 +69,15 @@ pub fn analyze(text: &str, table: &LevelTable, opts: &AnalyzeOptions) -> CardLev
 pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
     match scheme {
         LevelScheme::Hsk => format!("HSK::{}", level),
+        LevelScheme::Tocfl => match level {
+            1 => "TOCFL::A1".to_string(),
+            2 => "TOCFL::A2".to_string(),
+            3 => "TOCFL::B1".to_string(),
+            4 => "TOCFL::B2".to_string(),
+            5 => "TOCFL::C1".to_string(),
+            6 => "TOCFL::C2".to_string(),
+            _ => format!("TOCFL::{}", level),
+        },
         LevelScheme::Jlpt => match level {
             1 => "JLPT::N5".to_string(),
             2 => "JLPT::N4".to_string(),
@@ -73,6 +86,7 @@ pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
             5 => "JLPT::N1".to_string(),
             _ => format!("JLPT::N{}", level),
         },
+        LevelScheme::Topik => format!("TOPIK::{}", level),
         LevelScheme::Cefr => match level {
             1 => "CEFR::A1".to_string(),
             2 => "CEFR::A2".to_string(),

@@ -79,7 +79,12 @@
     <div class="grid grid-cols-2 gap-2">
       {#if mediaType === "video" && (audioTracksLoading || audioTracks.length >= 1)}
         <div class={easyMode ? "col-span-2" : ""}>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.audioTrack")}</span>
+          <span class="flex items-center gap-1.5 text-xs text-gray-400 mb-1 font-medium">
+            <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+            </svg>
+            <span>{t("flashcards.audioTrack")}</span>
+          </span>
           {#if audioTracksLoading}
             <div class="input-modern text-xs text-gray-500">
               {t("flashcards.audioTracksLoading")}
@@ -108,7 +113,12 @@
 
       {#if !easyMode}
         <div class={mediaType === "video" && (audioTracksLoading || audioTracks.length >= 1) ? "" : "col-span-2"}>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.bitrate")}</span>
+          <span class="flex items-center gap-1.5 text-xs text-gray-400 mb-1 font-medium">
+            <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>{t("flashcards.bitrate")}</span>
+          </span>
           <SearchableSelect
             noResultsText={t("common.noResults")}
             options={bitrateOptions}
@@ -129,8 +139,11 @@
         onchange={(e) => setAudioFormat(e.currentTarget.checked ? "opus" : "mp3")}
         class="vesta-check-input shrink-0"
       />
-      <span class="min-w-0 text-left text-xs font-medium text-gray-300">
-        {t("flashcards.compactAudio")}
+      <span class="min-w-0 text-left text-xs font-medium text-gray-300 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
+        </svg>
+        <span>{t("flashcards.compactAudio")}</span>
       </span>
     </label>
     {#if settings.audioFormat === "opus"}
@@ -139,14 +152,24 @@
     {#if !easyMode}
       <div class="grid grid-cols-3 gap-2 items-end">
         <div>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.padStart")}</span>
+          <span class="flex items-center gap-1.5 text-xs text-gray-400 mb-1 font-medium">
+            <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+            <span>{t("flashcards.padStart")}</span>
+          </span>
           <div class="flex items-center gap-1">
             <input type="number" bind:value={settings.audioPadStart} class="input-modern w-full text-xs" />
             <span class="text-xs text-gray-500">ms</span>
           </div>
         </div>
         <div>
-          <span class="block text-xs text-gray-500 mb-1">{t("flashcards.padEnd")}</span>
+          <span class="flex items-center gap-1.5 text-xs text-gray-400 mb-1 font-medium">
+            <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+            <span>{t("flashcards.padEnd")}</span>
+          </span>
           <div class="flex items-center gap-1">
             <input type="number" bind:value={settings.audioPadEnd} class="input-modern w-full text-xs" />
             <span class="text-xs text-gray-500">ms</span>

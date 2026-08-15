@@ -173,8 +173,11 @@
 
   <div class="space-y-3 transition-all duration-200 {!settings.enabled ? 'opacity-40 pointer-events-none' : ''}">
     <div>
-      <label for="difficulty-scheme-select" class="block text-xs font-semibold text-gray-400 mb-1">
-        {t("flashcards.difficulty.schemeLabel")}
+      <label for="difficulty-scheme-select" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 mb-1">
+        <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <span>{t("flashcards.difficulty.schemeLabel")}</span>
       </label>
       <SearchableSelect
         options={schemeOptions}
@@ -217,8 +220,11 @@
     {/if}
 
     <div>
-      <label for="difficulty-policy-select" class="block text-xs font-semibold text-gray-400 mb-1">
-        {t("flashcards.difficulty.unknownPolicyLabel")}
+      <label for="difficulty-policy-select" class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 mb-1">
+        <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+        <span>{t("flashcards.difficulty.unknownPolicyLabel")}</span>
       </label>
       <SearchableSelect
         options={policyOptions}

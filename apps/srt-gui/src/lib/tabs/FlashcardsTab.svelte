@@ -2313,10 +2313,10 @@
           </div>
           <div class="min-w-0">
             <p class="text-xs font-bold text-cyan-200">
-              {t("flashcards.fontSuggestionTitle") || "Caratteri per"} {proactiveFont.language_name} ({proactiveFont.name})
+              {t("flashcards.fontSuggestionTitle") || "Caratteri per"} {proactiveFont.language_name}
             </p>
             <p class="text-[11px] text-gray-300 mt-0.5 leading-relaxed">
-              {t("flashcards.fontSuggestionDesc") || "Scarica ed embedda il font"} ({proactiveFont.approx_size}) {t("flashcards.fontSuggestionDescEnd") || "per visualizzare correttamente i caratteri su AnkiDroid e iOS,"} {t("flashcards.fontSuggestionDescLight") || "oppure continua con i font di sistema per un mazzo più leggero."}
+              {t("flashcards.fontSuggestionDesc") || "Scarica ed embedda il font"} ({proactiveFont.approx_size}) {t("flashcards.fontSuggestionDescEnd") || "per visualizzare correttamente i caratteri su dispositivi senza font preinstallati,"} {t("flashcards.fontSuggestionDescLight") || "oppure continua con i font di sistema per un mazzo più leggero."}
             </p>
           </div>
         </div>

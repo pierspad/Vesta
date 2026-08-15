@@ -1,11 +1,13 @@
-# <img src="docs/fireplace.svg" alt="Vesta" height="32" valign="middle"> Vesta
+# <img src="docs/fireplace.svg" alt="Vesta" height="42" align="absmiddle"> Vesta
 
 > [!WARNING]
 > **Work in Progress**: This README is currently temporary and a work in progress (WIP), is subject to ongoing reorganization, and will be further refined and expanded.
 
 **subs2srs, but actually fast.**
 
-Vesta is a modern desktop application for language learners and power users that turns video and subtitle files into rich, synchronized Anki flashcard decks, auto-aligned subtitles, and translated media in minutes instead of hours — running **~2.5× faster than subs2srs** with parallelized multi-core processing and 100% offline capability.
+Vesta is a modern desktop application for language learners and power users that turns video and subtitle files into rich, synchronized Anki flashcard decks, auto-aligned subtitles, and translated media in minutes instead of hours — running **~2.5× faster than subs2srs** with parallel multi-core processing.
+
+![Benchmark comparison: Vesta vs subs2srs](docs/benchmark.svg)
 
 ---
 

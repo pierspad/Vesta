@@ -26,11 +26,11 @@ Verificato sul codice a `c0395d7`. Non ripartire da assunzioni diverse.
 | Compressione media (WebP/AVIF + Opus) | **Fatto** | `lib/srt-flashcards/src/types.rs` (`SnapshotFormat`, `AudioFormat`) |
 | Audio sul fronte della carta | **Fatto** | template note type in `apps/srt-gui/src/lib/types/noteTypes.ts` |
 | Preset di qualità disaccoppiati snapshot/video | **Fatto** | `SnapshotsPanel.svelte`, `VideoClipsPanel.svelte` |
-| Preset di **risoluzione** snapshot (144p/240p/360p/480p) | **Fatto** | `RESOLUTION_PRESETS` in `apps/srt-gui/src/lib/panels/SnapshotsPanel.svelte:37` |
-| Drag & drop dei file, anche per i film | **Fatto** | `apps/srt-gui/src/lib/utils/dragDrop.ts` + `FlashcardsTab.svelte:963` (`handleFileDrop`, ramo `else` = modalità film) |
-| Font CJK/internazionali nel CSS Anki | **Da fare** | Workstream A |
-| Tagging automatico di difficoltà (CEFR/HSK/JLPT) | **Da fare** | Workstream B |
-| Modelli STT leggeri alternativi a Whisper | **Da fare** | Workstream C |
+| Preset di **risoluzione** snapshot (144p/240p/360p/480p/720p/1080p) | **Fatto** | `RESOLUTION_PRESETS` in `apps/srt-gui/src/lib/panels/SnapshotsPanel.svelte` |
+| Drag & drop dei file, anche per i film | **Fatto** | `apps/srt-gui/src/lib/utils/dragDrop.ts` + `FlashcardsTab.svelte` |
+| Font CJK/internazionali nel CSS Anki | **Fatto** | Font stack injection per CJK/Arabic/Devanagari/Thai/Hebrew/Cyrillic in `apps/srt-gui/src/lib/types/noteTypes.ts` |
+| Tagging automatico di difficoltà (CEFR/HSK/JLPT/TOPIK/TOCFL) | **Fatto** | Crate `lib/srt-difficulty` con database embedded, Level 0 tagging e policy parole sconosciute |
+| Modelli STT e integrazione VAD Silero/Energy | **Fatto** | Crate `lib/srt-transcribe`, Silero VAD / Energy VAD, failover cloud e benchmark |
 | OCR di sottotitoli hardcoded (pag. 9 del PDF) | Backlog, fuori scope | — |
 
 Nota su pag. 6 del PDF: il file `..._0031.mp3.opus` con doppia estensione viene

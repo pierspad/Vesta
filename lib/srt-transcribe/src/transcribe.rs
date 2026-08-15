@@ -321,6 +321,10 @@ impl NormalizedText {
     }
 
     pub fn similarity(&self, other: &Self) -> f64 {
+        self.similarity_with_min_threshold(other, 0.0)
+    }
+
+    pub fn similarity_with_min_threshold(&self, other: &Self, min_threshold: f64) -> f64 {
         let token_score = if self.tokens.is_empty() || other.tokens.is_empty() {
             0.0
         } else {
@@ -337,6 +341,22 @@ impl NormalizedText {
                 (2.0 * precision * recall) / (precision + recall)
             }
         };
+
+        let l1 = self.chars.len();
+        let l2 = other.chars.len();
+        if l1 == 0 || l2 == 0 {
+            return token_score * 0.7;
+        }
+
+        if min_threshold > 0.0 {
+            let max_l = l1.max(l2) as f64;
+            let diff_l = (l1 as f64 - l2 as f64).abs();
+            let max_char_score = (1.0 - diff_l / max_l).max(0.0);
+            if token_score * 0.7 + max_char_score * 0.3 < min_threshold {
+                return token_score * 0.7 + max_char_score * 0.3;
+            }
+        }
+
         let char_score = char_similarity_precomputed(&self.chars, &other.chars);
         token_score * 0.7 + char_score * 0.3
     }
@@ -378,6 +398,10 @@ pub fn char_similarity_precomputed(left_chars: &[char], right_chars: &[char]) ->
 }
 
 fn levenshtein_distance(left: &[char], right: &[char]) -> usize {
+    if left == right {
+        return 0;
+    }
+
     // Ensure `right` is the shorter slice to minimize allocation/buffer size
     let (left, right) = if left.len() < right.len() {
         (right, left)
@@ -390,10 +414,10 @@ fn levenshtein_distance(left: &[char], right: &[char]) -> usize {
         return left.len();
     }
 
-    // Fast path: use stack-allocated buffers for typical short subtitle strings (<= 127 chars)
-    if r_len < 128 {
-        let mut previous = [0usize; 128];
-        let mut current = [0usize; 128];
+    // Fast path: use stack-allocated buffers for typical subtitle strings (<= 255 chars)
+    if r_len < 256 {
+        let mut previous = [0usize; 256];
+        let mut current = [0usize; 256];
 
         for (j, item) in previous.iter_mut().take(r_len + 1).enumerate() {
             *item = j;

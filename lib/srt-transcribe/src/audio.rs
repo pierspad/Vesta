@@ -154,24 +154,25 @@ pub fn read_wav_to_f32(wav_path: &Path) -> Result<Vec<f32>> {
 
     match (spec.sample_format, spec.channels) {
         (hound::SampleFormat::Int, 1) => {
-            let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let inv_max_val = 1.0 / (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
             for s in reader.into_samples::<i32>().flatten() {
-                mono_samples.push(s as f32 / max_val);
+                mono_samples.push(s as f32 * inv_max_val);
             }
         }
         (hound::SampleFormat::Int, 2) => {
-            let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let inv_max_val = (1.0 / (1 << (spec.bits_per_sample.saturating_sub(1))) as f32) * 0.5;
             let mut iter = reader.into_samples::<i32>().flatten();
             while let Some(left) = iter.next() {
                 if let Some(right) = iter.next() {
-                    mono_samples.push(((left as f32 + right as f32) / 2.0) / max_val);
+                    mono_samples.push((left as f32 + right as f32) * inv_max_val);
                 } else {
-                    mono_samples.push(left as f32 / max_val);
+                    mono_samples.push(left as f32 * (inv_max_val * 2.0));
                 }
             }
         }
         (hound::SampleFormat::Int, ch) => {
-            let max_val = (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let inv_max_val = 1.0 / (1 << (spec.bits_per_sample.saturating_sub(1))) as f32;
+            let inv_ch = 1.0 / ch as f32;
             let mut iter = reader.into_samples::<i32>().flatten();
             let mut chunk = Vec::with_capacity(ch as usize);
             loop {
@@ -187,7 +188,7 @@ pub fn read_wav_to_f32(wav_path: &Path) -> Result<Vec<f32>> {
                     break;
                 }
                 let sum: f32 = chunk.iter().map(|&s| s as f32).sum();
-                mono_samples.push((sum / chunk.len() as f32) / max_val);
+                mono_samples.push((sum * inv_ch) * inv_max_val);
             }
         }
         (hound::SampleFormat::Float, 1) => {
@@ -199,13 +200,14 @@ pub fn read_wav_to_f32(wav_path: &Path) -> Result<Vec<f32>> {
             let mut iter = reader.into_samples::<f32>().flatten();
             while let Some(left) = iter.next() {
                 if let Some(right) = iter.next() {
-                    mono_samples.push((left + right) / 2.0);
+                    mono_samples.push((left + right) * 0.5);
                 } else {
                     mono_samples.push(left);
                 }
             }
         }
         (hound::SampleFormat::Float, ch) => {
+            let inv_ch = 1.0 / ch as f32;
             let mut iter = reader.into_samples::<f32>().flatten();
             let mut chunk = Vec::with_capacity(ch as usize);
             loop {
@@ -221,7 +223,7 @@ pub fn read_wav_to_f32(wav_path: &Path) -> Result<Vec<f32>> {
                     break;
                 }
                 let sum: f32 = chunk.iter().sum();
-                mono_samples.push(sum / chunk.len() as f32);
+                mono_samples.push(sum * inv_ch);
             }
         }
     }

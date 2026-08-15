@@ -4412,6 +4412,9 @@ name = "srt-flashcards"
 version = "0.20.0"
 dependencies = [
  "anyhow",
+ "dirs",
+ "futures",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",

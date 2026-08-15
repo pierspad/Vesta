@@ -529,7 +529,7 @@ pub async fn run_auto_sync(
                             continue;
                         }
 
-                        let sim = tseg_norm.similarity(&sub.norm);
+                        let sim = tseg_norm.similarity_with_min_threshold(&sub.norm, 0.42);
                         if sim > 0.42 {
                             let score = sim * temporal_weight(time_diff);
                             if score < 0.40 {

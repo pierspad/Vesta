@@ -173,8 +173,9 @@ pub async fn flashcard_get_cpu_count() -> Result<usize, String> {
 
 #[tauri::command]
 pub async fn flashcard_get_total_memory_mb() -> Result<u64, String> {
-    let mut sys = sysinfo::System::new();
-    sys.refresh_memory();
+    let sys = sysinfo::System::new_with_specifics(
+        sysinfo::RefreshKind::nothing().with_memory(sysinfo::MemoryRefreshKind::everything()),
+    );
     let total_mb = sys.total_memory() / (1024 * 1024);
 
     Ok(if total_mb > 0 { total_mb } else { 4096 })
@@ -235,4 +236,69 @@ pub async fn save_temp_subtitles(
     srt_parser::SrtParser::save_file(&temp_file_path, &subtitles).map_err(|e| e.to_string())?;
 
     Ok(temp_file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn flashcard_list_fonts() -> Result<Vec<srt_flashcards::fonts::FontStatusInfo>, String> {
+    srt_flashcards::fonts::list_fonts().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn flashcard_check_language_font(
+    lang: String,
+) -> Result<Option<srt_flashcards::fonts::FontStatusInfo>, String> {
+    if let Some(entry) = srt_flashcards::fonts::font_entry_for_lang(&lang) {
+        let downloaded = srt_flashcards::fonts::font_file_path_for_entry(entry)
+            .map(|p| p.exists())
+            .unwrap_or(false);
+        Ok(Some(srt_flashcards::fonts::FontStatusInfo {
+            id: entry.id.to_string(),
+            name: entry.name.to_string(),
+            language_name: entry.language_name.to_string(),
+            target_languages: entry
+                .target_languages
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            filename: entry.filename.to_string(),
+            approx_size: entry.approx_size.to_string(),
+            downloaded,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct FontDownloadProgressEvent {
+    pub font_id: String,
+    pub percentage: u32,
+}
+
+#[tauri::command]
+pub async fn flashcard_download_font(app: AppHandle, font_id: String) -> Result<bool, String> {
+    let app_progress = app.clone();
+    let font_id_progress = font_id.clone();
+
+    srt_flashcards::fonts::download_font(
+        &font_id,
+        move |percentage| {
+            let _ = app_progress.emit(
+                "font-download-progress",
+                FontDownloadProgressEvent {
+                    font_id: font_id_progress.clone(),
+                    percentage,
+                },
+            );
+        },
+        None,
+    )
+    .await
+    .map(|_| true)
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn flashcard_delete_font(font_id: String) -> Result<bool, String> {
+    srt_flashcards::fonts::delete_font(&font_id).map_err(|e| e.to_string())
 }

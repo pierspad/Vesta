@@ -157,16 +157,22 @@ impl SyncEngine {
     }
 
     #[inline]
+    pub fn get_synced_info_for(&self, sub: &Subtitle) -> (u64, u64, i64) {
+        let start_offset = self
+            .time_mapper
+            .calculate_offset(sub.start.milliseconds as i64);
+        let end_offset = self
+            .time_mapper
+            .calculate_offset(sub.end.milliseconds as i64);
+        let start = (sub.start.milliseconds as i64 + start_offset).max(0) as u64;
+        let end = (sub.end.milliseconds as i64 + end_offset).max(0) as u64;
+        (start, end, start_offset)
+    }
+
+    #[inline]
     pub fn get_synced_times(&self, id: u32) -> Option<(u64, u64)> {
         self.subtitles.get(&id).map(|sub| {
-            let start_offset = self
-                .time_mapper
-                .calculate_offset(sub.start.milliseconds as i64);
-            let end_offset = self
-                .time_mapper
-                .calculate_offset(sub.end.milliseconds as i64);
-            let start = (sub.start.milliseconds as i64 + start_offset).max(0) as u64;
-            let end = (sub.end.milliseconds as i64 + end_offset).max(0) as u64;
+            let (start, end, _) = self.get_synced_info_for(sub);
             (start, end)
         })
     }

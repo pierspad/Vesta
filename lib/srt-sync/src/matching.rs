@@ -258,7 +258,12 @@ fn token_overlap_score(a: &[String], b: &[String]) -> i32 {
     if a.is_empty() || b.is_empty() {
         return 0;
     }
-    let common = a.iter().filter(|t| b.contains(t)).count() as i32;
+    let common = if a.len() <= 6 && b.len() <= 6 {
+        a.iter().filter(|t| b.iter().any(|bt| bt == *t)).count() as i32
+    } else {
+        let b_set: std::collections::HashSet<&str> = b.iter().map(String::as_str).collect();
+        a.iter().filter(|t| b_set.contains(t.as_str())).count() as i32
+    };
     let denom = a.len().max(b.len()) as i32;
     (common * 50) / denom
 }

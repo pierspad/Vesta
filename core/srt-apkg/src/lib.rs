@@ -7,8 +7,35 @@
 //! - [`zip_from_dir`]: create a ZIP archive from the flat contents of a directory.
 
 use std::fs;
-use std::io;
+use std::io::{self, BufReader, BufWriter};
 use std::path::Path;
+
+fn is_media_extension(ext: &str) -> bool {
+    matches!(
+        ext,
+        "mp3"
+            | "m4a"
+            | "wav"
+            | "ogg"
+            | "opus"
+            | "flac"
+            | "aac"
+            | "jpg"
+            | "jpeg"
+            | "png"
+            | "webp"
+            | "gif"
+            | "mp4"
+            | "mkv"
+            | "avi"
+            | "mov"
+            | "webm"
+            | "ttf"
+            | "otf"
+            | "woff"
+            | "woff2"
+    )
+}
 
 /// Extract the ZIP archive at `zip_path` into `dest_dir`.
 ///
@@ -16,8 +43,9 @@ use std::path::Path;
 /// the archive are created as needed.
 pub fn unzip_to(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
     let file = fs::File::open(zip_path).map_err(|e| format!("Cannot open ZIP archive: {e}"))?;
+    let reader = BufReader::with_capacity(128 * 1024, file);
     let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| format!("Invalid ZIP archive: {e}"))?;
+        zip::ZipArchive::new(reader).map_err(|e| format!("Invalid ZIP archive: {e}"))?;
 
     for i in 0..archive.len() {
         let mut entry = archive
@@ -36,9 +64,10 @@ pub fn unzip_to(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
             {
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            let mut outfile = fs::File::create(&outpath)
+            let outfile = fs::File::create(&outpath)
                 .map_err(|e| format!("Cannot create extracted file: {e}"))?;
-            io::copy(&mut entry, &mut outfile)
+            let mut writer = BufWriter::with_capacity(128 * 1024, outfile);
+            io::copy(&mut entry, &mut writer)
                 .map_err(|e| format!("Error writing extracted file: {e}"))?;
         }
     }
@@ -48,13 +77,16 @@ pub fn unzip_to(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
 /// Create a ZIP archive at `zip_path` containing every *file* (non-recursive)
 /// directly inside `src_dir`.
 ///
-/// Files are stored with Deflate compression using their plain filename (no
-/// directory path) as the archive entry name.
+/// Pre-compressed media files use Stored (0 compression) to save CPU/time,
+/// while other files use Deflate.
 pub fn zip_from_dir(src_dir: &Path, zip_path: &Path) -> Result<(), String> {
     let file = fs::File::create(zip_path).map_err(|e| format!("Cannot create output ZIP: {e}"))?;
-    let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default()
+    let writer = BufWriter::with_capacity(256 * 1024, file);
+    let mut zip = zip::ZipWriter::new(writer);
+    let options_deflated = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
+    let options_stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     let entries =
         fs::read_dir(src_dir).map_err(|e| format!("Cannot read source directory: {e}"))?;
@@ -67,11 +99,21 @@ pub fn zip_from_dir(src_dir: &Path, zip_path: &Path) -> Result<(), String> {
                 .file_name()
                 .and_then(|n| n.to_str())
                 .ok_or_else(|| "Invalid filename in source directory".to_string())?;
-            zip.start_file(filename, options)
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let opt = if is_media_extension(&ext) {
+                options_stored
+            } else {
+                options_deflated
+            };
+            zip.start_file(filename, opt)
                 .map_err(|e| format!("ZIP start_file error: {e}"))?;
-            let mut f =
-                fs::File::open(&path).map_err(|e| format!("Cannot read source file: {e}"))?;
-            io::copy(&mut f, &mut zip).map_err(|e| format!("ZIP copy error: {e}"))?;
+            let f = fs::File::open(&path).map_err(|e| format!("Cannot read source file: {e}"))?;
+            let mut reader = BufReader::with_capacity(128 * 1024, f);
+            io::copy(&mut reader, &mut zip).map_err(|e| format!("ZIP copy error: {e}"))?;
         }
     }
 

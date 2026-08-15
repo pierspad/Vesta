@@ -184,9 +184,32 @@ pub async fn condense(
     }
     let output_duration_ms: i64 = spans.iter().map(|(s, e)| e - s).sum();
 
-    // ── Stage 2: parallel segment extraction ─────────────────────────────────
+    // ── Stage 2: parallel segment extraction from pre-extracted audio ───────
     let temp = tempfile::tempdir().map_err(|e| format!("Directory temporanea: {e}"))?;
     let total = spans.len();
+
+    emit(
+        "prepare_audio",
+        "Preparazione traccia audio sorgente...".to_string(),
+        0,
+        total,
+    );
+
+    let source_audio_path = temp.path().join("source_audio.wav");
+    extract_source_audio(
+        ffmpeg_cmd,
+        &config.media_path,
+        &source_audio_path,
+        config.audio_track_index,
+        Some(&token),
+    )
+    .await
+    .map_err(|e| format!("Errore estrazione audio sorgente: {e}"))?;
+
+    if token.is_cancelled() {
+        return Err("Operazione annullata".to_string());
+    }
+
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
@@ -194,7 +217,7 @@ pub async fn condense(
         .max(1);
     let semaphore = Arc::new(tokio::sync::Semaphore::new(workers));
     let ffmpeg: Arc<str> = Arc::from(ffmpeg_cmd);
-    let media: Arc<str> = Arc::from(config.media_path.as_str());
+    let audio_source_arc: Arc<PathBuf> = Arc::new(source_audio_path);
 
     let mut tasks: tokio::task::JoinSet<Result<usize, String>> = tokio::task::JoinSet::new();
     let mut segment_paths: Vec<PathBuf> = Vec::with_capacity(total);
@@ -205,10 +228,9 @@ pub async fn condense(
 
         let semaphore = semaphore.clone();
         let ffmpeg = ffmpeg.clone();
-        let media = media.clone();
+        let audio_source = audio_source_arc.clone();
         let token = token.clone();
         let bitrate = config.bitrate_kbps;
-        let track = config.audio_track_index;
 
         tasks.spawn(async move {
             let _permit = semaphore
@@ -218,7 +240,7 @@ pub async fn condense(
             if token.is_cancelled() {
                 return Err("Operazione annullata".to_string());
             }
-            extract_segment(&ffmpeg, &media, &seg_path, start_ms, end_ms, bitrate, track)
+            extract_segment(&ffmpeg, &audio_source, &seg_path, start_ms, end_ms, bitrate)
                 .await
                 .map_err(|e| format!("Segmento {}: {e}", idx + 1))?;
             Ok(idx)
@@ -307,15 +329,63 @@ fn merge_spans(spans: &[(i64, i64)], pad_ms: i64, merge_gap_ms: i64) -> Vec<(i64
     merged
 }
 
-/// Estrae un singolo segmento audio come MP3.
-async fn extract_segment(
+/// Estrae l'intera traccia audio in un file temporaneo per consentire uno slicing
+/// ultra-rapido senza riaprire e parsare il container video per ogni segmento.
+async fn extract_source_audio(
     ffmpeg_cmd: &str,
     media_path: &str,
+    output_audio_path: &Path,
+    audio_track_index: Option<usize>,
+    token: Option<&CancellationToken>,
+) -> anyhow::Result<()> {
+    let mut cmd = tokio::process::Command::new(ffmpeg_cmd);
+    cmd.args([
+        "-nostdin",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        media_path,
+        "-vn",
+        "-sn",
+        "-dn",
+    ]);
+    if let Some(track) = audio_track_index {
+        cmd.args(["-map", &format!("0:a:{track}")]);
+    } else {
+        cmd.args(["-map", "0:a:0?"]);
+    }
+    cmd.args(["-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le"]);
+    cmd.arg(output_audio_path);
+
+    let mut child = cmd.spawn()?;
+    let res = if let Some(token) = token {
+        tokio::select! {
+            res = child.wait() => res,
+            _ = token.cancelled() => {
+                let _ = child.kill().await;
+                anyhow::bail!("Operazione annullata");
+            }
+        }
+    } else {
+        child.wait().await
+    };
+
+    let status = res?;
+    if !status.success() {
+        anyhow::bail!("Estrazione traccia audio sorgente fallita");
+    }
+    Ok(())
+}
+
+/// Estrae un singolo segmento audio da una sorgente audio WAV pre-estratta come MP3.
+async fn extract_segment(
+    ffmpeg_cmd: &str,
+    audio_source_path: &Path,
     output_path: &Path,
     start_ms: i64,
     end_ms: i64,
     bitrate_kbps: u32,
-    audio_track_index: Option<usize>,
 ) -> anyhow::Result<()> {
     let mut cmd = tokio::process::Command::new(ffmpeg_cmd);
     cmd.args([
@@ -328,14 +398,8 @@ async fn extract_segment(
         "-t",
         &ms_to_ts(end_ms - start_ms),
         "-i",
-        media_path,
-        "-vn",
-        "-sn",
-        "-dn",
     ]);
-    if let Some(track) = audio_track_index {
-        cmd.args(["-map", &format!("0:a:{track}")]);
-    }
+    cmd.arg(audio_source_path);
     cmd.args([
         "-ac",
         "2",

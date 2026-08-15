@@ -10,7 +10,7 @@
     scheme: string;
     language?: string;
     customSchemeId?: string;
-    unknownPolicy: "ignore" | "highest";
+    unknownPolicy: "ignore" | "highest" | "zero";
     customFilePath?: string;
     customTsv?: string;
     customPrefix?: string;
@@ -102,24 +102,24 @@
       {
         value: "tocfl",
         label: "TOCFL (Cinese Tradizionale / Taiwan · 1 - 6)",
-        searchTerms: "tocfl chinese traditional taiwanese taiwan hong kong 繁體中文 華語文能力測驗 1 2 3 4 5 6 zh-tw zh-hk",
+        searchTerms: "tocfl chinese cinese taiwanese traditional 華語文能力測驗 華語 流利 精通 基礎 進階 高等 流利 zh-tw zh-hk",
       },
       {
         value: "jlpt",
         label: "JLPT (Giapponese / Japanese · N5 - N1)",
-        searchTerms: "jlpt japanese giapponese nihongo 日本語 日本語能力試験 n5 n4 n3 n2 n1 ja jpn",
+        searchTerms: "jlpt japanese giapponese kanji 日本語 日本語能力試験 n5 n4 n3 n2 n1 ja jpn",
       },
       {
         value: "topik",
         label: "TOPIK (Coreano / Korean · 1 - 6)",
-        searchTerms: "topik korean coreano hangul 한국어 한국어능력시험 nikl 1 2 3 4 5 6 ko kor",
+        searchTerms: "topik korean coreano hangul 한국어 한국어능력시험 topik1 topik2 topik3 topik4 topik5 topik6 ko kor",
       },
     ];
 
     const custom = difficultyStore.customSchemes.map((cs) => ({
       value: `custom:${cs.id}`,
-      label: `Personalizzato: ${cs.name} (${getFileName(cs.filePath) || cs.filePath})`,
-      searchTerms: `custom personalizzato tsv csv ${cs.name} ${cs.tagPrefix || ""}`,
+      label: `${cs.name} (${getFileName(cs.filePath) || cs.name})`,
+      searchTerms: `${cs.name} custom personalizzato ${cs.filePath} ${cs.tagPrefix || ""}`,
     }));
 
     return [...builtIn, ...custom];
@@ -141,6 +141,11 @@
       value: "highest",
       label: t("flashcards.difficulty.highest") || "Assign highest level to unknown words",
       searchTerms: "highest massimo livello parole sconosciute",
+    },
+    {
+      value: "zero",
+      label: t("flashcards.difficulty.zero") || "Assign Level 0 to unlisted words",
+      searchTerms: "zero livello 0 parole sconosciute fuori lista",
     },
   ]);
 </script>
@@ -219,7 +224,7 @@
         options={policyOptions}
         value={settings.unknownPolicy}
         onchange={(val) => {
-          if (val === "ignore" || val === "highest") {
+          if (val === "ignore" || val === "highest" || val === "zero") {
             settings.unknownPolicy = val;
           }
         }}

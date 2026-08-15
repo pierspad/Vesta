@@ -226,6 +226,8 @@ pub struct FlashcardConfig {
     pub target_language: Option<String>,
     #[serde(default = "default_true")]
     pub auto_card_font: bool,
+    #[serde(default = "default_true")]
+    pub embed_card_font: bool,
 
     #[serde(default)]
     pub difficulty: Option<DifficultyConfig>,
@@ -300,6 +302,7 @@ impl Default for FlashcardConfig {
             card_css: None,
             target_language: None,
             auto_card_font: true,
+            embed_card_font: true,
             difficulty: None,
         }
     }

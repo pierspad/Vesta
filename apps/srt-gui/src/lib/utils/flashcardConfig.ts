@@ -30,6 +30,7 @@ export interface FlashcardConfigInputs {
   cpuCores: number;
   targetLanguage?: string | null;
   autoCardFont?: boolean;
+  embedCardFont?: boolean;
   difficulty?: any;
 }
 
@@ -103,6 +104,7 @@ export function buildFlashcardConfig(i: FlashcardConfigInputs) {
     card_css: templates.css,
     target_language: i.targetLanguage ?? null,
     auto_card_font: i.autoCardFont ?? true,
+    embed_card_font: i.embedCardFont ?? true,
     difficulty: i.difficulty ?? null,
   };
 }

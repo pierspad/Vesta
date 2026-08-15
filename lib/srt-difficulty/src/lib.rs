@@ -116,6 +116,33 @@ mod tests {
     }
 
     #[test]
+    fn test_unknown_policy_zero() {
+        let table = LevelTable::builtin(LevelScheme::Hsk, "zh").unwrap();
+        let opts = AnalyzeOptions {
+            unknown: UnknownPolicy::Zero,
+            min_token_chars: 1,
+        };
+
+        // Unknown text only -> Level 0
+        let card = analyze("xyz_unknown_word_only", &table, &opts);
+        assert_eq!(card.level, Some(0));
+
+        // Known word (HSK 1) + Unknown word -> Level 1 (known level preserved)
+        let card2 = analyze("你好！xyz_unknown_word", &table, &opts);
+        assert_eq!(card2.level, Some(1));
+    }
+
+    #[test]
+    fn test_level_zero_tags_all_schemes() {
+        assert_eq!(tag_for(LevelScheme::Hsk, 0), "HSK::0");
+        assert_eq!(tag_for(LevelScheme::Cefr, 0), "CEFR::0");
+        assert_eq!(tag_for(LevelScheme::Jlpt, 0), "JLPT::0");
+        assert_eq!(tag_for(LevelScheme::Topik, 0), "TOPIK::0");
+        assert_eq!(tag_for(LevelScheme::Tocfl, 0), "TOCFL::0");
+        assert_eq!(tag_for(LevelScheme::Custom, 0), "Level::0");
+    }
+
+    #[test]
     fn test_custom_scheme_analysis() {
         let custom_tsv = "hello\t1\nworld\t2\nquantum\t4\n";
         let table = LevelTable::from_tsv(custom_tsv, LevelScheme::Custom).unwrap();

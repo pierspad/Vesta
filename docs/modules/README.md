@@ -11,12 +11,16 @@ as a standalone binary or as a Rust dependency — without dragging in the GUI.
 | Module | What it does | Library | CLI binary |
 |---|---|---|---|
 | [srt-parser](srt-parser.md) | Parse / write SRT files | `core/srt-parser` | — |
+| srt-apkg | Anki package (`.apkg`) generator & SQLite writer | `core/srt-apkg` | — |
 | [srt-extract](srt-extract.md) | Extract & convert subtitle data (JSON, stats…) | `lib/srt-extract` | `srt-extract` |
 | [srt-translate](srt-translate.md) | LLM subtitle translation (multi-tier failover) | `lib/srt-translate` | `srt-translate` |
 | [srt-sync](srt-sync.md) | Anchor-based subtitle re-timing engine | `lib/srt-sync` | — (see srt-autosync) |
 | [srt-autosync](srt-autosync.md) | Automatic alignment via Whisper anchors | `lib/srt-autosync` | `srt-autosync` |
-| [srt-transcribe](srt-transcribe.md) | Transcription pipeline: media → SRT | `lib/srt-transcribe` | `srt-transcribe` |
+| [srt-transcribe](srt-transcribe.md) | Transcription pipeline: media → SRT (whisper + VAD + cloud) | `lib/srt-transcribe` | `srt-transcribe` |
 | [srt-flashcards](srt-flashcards.md) | subs2srs-style Anki deck generation | `lib/srt-flashcards` | `srt-flashcards` |
+| srt-difficulty | Lexical difficulty analysis & tagging (CEFR, HSK, JLPT, etc.) | `lib/srt-difficulty` | — |
+| srt-ankiconnect | AnkiConnect integration client | `lib/srt-ankiconnect` | — |
+| srt-condense | Audio dialogue extraction & silence elimination | `lib/srt-condense` | — |
 | [srt-refine](srt-refine.md) | LLM enrichment of Anki decks (TSV/APKG) | `lib/srt-refine` | — |
 
 ## Two ways to reuse a module

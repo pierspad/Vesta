@@ -7,11 +7,14 @@ class AnkiStore {
   version = $state<number | null>(null);
   decks = $state<string[]>([]);
   autoCardFont = $state<boolean>(true);
+  embedCardFont = $state<boolean>(true);
 
   constructor() {
     this.url = vestaConfig.getItem("vesta-ankiconnect-url") || "http://127.0.0.1:8765";
     const savedAutoFont = vestaConfig.getItem("vesta-auto-card-font");
     this.autoCardFont = savedAutoFont !== "false";
+    const savedEmbedFont = vestaConfig.getItem("vesta-embed-card-font");
+    this.embedCardFont = savedEmbedFont !== "false";
   }
 
   setUrl(newUrl: string) {
@@ -25,6 +28,13 @@ class AnkiStore {
     this.autoCardFont = val;
     try {
       vestaConfig.setItem("vesta-auto-card-font", String(val));
+    } catch {}
+  }
+
+  setEmbedCardFont(val: boolean) {
+    this.embedCardFont = val;
+    try {
+      vestaConfig.setItem("vesta-embed-card-font", String(val));
     } catch {}
   }
 

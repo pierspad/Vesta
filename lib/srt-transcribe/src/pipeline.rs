@@ -43,8 +43,12 @@ pub struct TranscriptionConfig {
     #[serde(default)]
     pub vad_custom_path: Option<String>,
 
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub use_gpu: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

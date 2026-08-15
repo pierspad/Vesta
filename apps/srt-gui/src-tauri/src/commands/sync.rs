@@ -95,17 +95,16 @@ fn map_subtitle_to_info(
     sub: &srt_parser::Subtitle,
     anchor_ids: &HashSet<u32>,
 ) -> Option<SubtitleInfo> {
-    let synced = engine.get_synced_subtitle(sub.id)?;
-    let offset = engine.get_current_offset(sub.id).unwrap_or(0);
+    let (synced_start_ms, synced_end_ms, offset_ms) = engine.get_synced_info_for(sub);
 
     Some(SubtitleInfo {
         id: sub.id,
         start_ms: sub.start.milliseconds,
         end_ms: sub.end.milliseconds,
         text: sub.text.clone(),
-        synced_start_ms: synced.start.milliseconds,
-        synced_end_ms: synced.end.milliseconds,
-        offset_ms: offset,
+        synced_start_ms,
+        synced_end_ms,
+        offset_ms,
         is_anchor: anchor_ids.contains(&sub.id),
     })
 }

@@ -147,11 +147,14 @@
     window.removeEventListener(FIELD_NAMES_UPDATED_EVENT, store.syncFieldStateFromStorage);
     window.removeEventListener(ACTIVE_NOTE_TYPE_CHANGED_EVENT, store.refreshActiveNoteTypeId);
   });
+  import { fontStore } from "$lib/stores/fontStore.svelte";
+
+  let showFontsList = $state(false);
 </script>
 
 <div class="mt-6 space-y-4">
 
-  <div class="glass-card p-5 mb-4">
+  <div class="glass-card p-5 mb-4 space-y-4">
     <ToggleRow
       label={t("settings.anki.autoCardFont") || "Automatic font for language"}
       description={t("settings.anki.autoCardFontDesc") || "Automatically configures the CSS font stack (Noto Fonts/System) in the Anki model based on target subtitle language to prevent missing glyphs."}
@@ -160,6 +163,96 @@
       iconPath="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10"
       onchange={(val) => ankiStore.setAutoCardFont(val)}
     />
+
+    {#if ankiStore.autoCardFont}
+      <div class="border-t border-white/5 pt-3">
+        <ToggleRow
+          label={t("settings.anki.embedCardFont") || "Embed Noto fonts in Anki deck (.apkg)"}
+          description={t("settings.anki.embedCardFontDesc") || "Embeds downloaded Noto fonts directly inside the deck package (@font-face) for perfect typography on Android (AnkiDroid), iOS and devices without pre-installed fonts."}
+          checked={ankiStore.embedCardFont}
+          accent="sky"
+          iconPath="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+          onchange={(val) => ankiStore.setEmbedCardFont(val)}
+        />
+      </div>
+
+      <div class="border-t border-white/5 pt-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-gray-300">{t("settings.anki.fontCatalogTitle") || "Noto Fonts Library"}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-medium">
+              {fontStore.fonts.filter(f => f.downloaded).length} / {fontStore.fonts.length} {t("settings.anki.downloadedBadge") || "scaricati"}
+            </span>
+          </div>
+          <button
+            type="button"
+            onclick={() => (showFontsList = !showFontsList)}
+            class="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
+          >
+            <span>{showFontsList ? (t("common.hide") || "Nascondi") : (t("common.manage") || "Gestisci")}</span>
+            <svg class="w-3.5 h-3.5 transition-transform {showFontsList ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {#if showFontsList}
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3 pt-2">
+            {#each fontStore.fonts as font (font.id)}
+              {@const isThisDownloading = fontStore.downloadingFontId === font.id}
+              <div class="p-3 rounded-lg border bg-black/20 {font.downloaded ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-white/10'} flex flex-col justify-between gap-2">
+                <div>
+                  <div class="flex items-start justify-between gap-1">
+                    <span class="text-xs font-semibold text-white truncate" title={font.name}>{font.name}</span>
+                    {#if font.downloaded}
+                      <span class="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
+                        OK
+                      </span>
+                    {/if}
+                  </div>
+                  <p class="text-[11px] text-gray-400 truncate">{font.language_name}</p>
+                  <p class="text-[10px] text-gray-500 font-mono mt-0.5">{font.approx_size}</p>
+                </div>
+
+                <div class="pt-1">
+                  {#if isThisDownloading}
+                    <div class="space-y-1">
+                      <div class="w-full h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          class="h-full bg-cyan-500 transition-all duration-150"
+                          style="width: {fontStore.downloadProgress}%"
+                        ></div>
+                      </div>
+                      <span class="text-[10px] text-cyan-300 font-mono block text-right">{fontStore.downloadProgress}%</span>
+                    </div>
+                  {:else if font.downloaded}
+                    <button
+                      type="button"
+                      onclick={() => fontStore.deleteFont(font.id)}
+                      class="w-full py-1 px-2 rounded border border-red-500/20 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/40 text-[11px] font-medium transition-colors"
+                    >
+                      {t("settings.delete") || "Elimina"}
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      disabled={fontStore.isDownloading}
+                      onclick={() => fontStore.downloadFont(font.id)}
+                      class="w-full py-1 px-2 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:border-cyan-500/50 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      <span>{t("settings.download") || "Scarica"}</span>
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <div class="glass-card p-5">

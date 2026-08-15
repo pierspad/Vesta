@@ -333,6 +333,7 @@ export const defaultCardTemplates: CardTemplateConfig = {
   frontHtml: `<div id="tags-container"></div>
 <div id="tags-source" style="display: none;">{{Tags}}</div>
 <div id="timestamp-source" style="display: none;">{{SequenceMarker}}</div>
+<span class='media'>{{Audio}}</span>
 <div class='expression'>{{Expression}}</div>
 <hr>`,
   backHtml: `<div id="tags-container"></div>

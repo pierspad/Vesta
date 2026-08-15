@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub enum UnknownPolicy {
     Ignore,
     Highest,
+    Zero,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +58,10 @@ pub fn analyze(text: &str, table: &LevelTable, opts: &AnalyzeOptions) -> CardLev
             6
         };
         max_level = Some(max_level.map_or(table_max, |m| m.max(table_max)));
+    } else if opts.unknown == UnknownPolicy::Zero
+        && (max_level.is_none() || (known_count == 0 && unknown_count > 0))
+    {
+        max_level = Some(0);
     }
 
     CardLevel {
@@ -70,6 +75,7 @@ pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
     match scheme {
         LevelScheme::Hsk => format!("HSK::{}", level),
         LevelScheme::Tocfl => match level {
+            0 => "TOCFL::0".to_string(),
             1 => "TOCFL::A1".to_string(),
             2 => "TOCFL::A2".to_string(),
             3 => "TOCFL::B1".to_string(),
@@ -79,6 +85,7 @@ pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
             _ => format!("TOCFL::{}", level),
         },
         LevelScheme::Jlpt => match level {
+            0 => "JLPT::0".to_string(),
             1 => "JLPT::N5".to_string(),
             2 => "JLPT::N4".to_string(),
             3 => "JLPT::N3".to_string(),
@@ -88,6 +95,7 @@ pub fn tag_for(scheme: LevelScheme, level: u8) -> String {
         },
         LevelScheme::Topik => format!("TOPIK::{}", level),
         LevelScheme::Cefr => match level {
+            0 => "CEFR::0".to_string(),
             1 => "CEFR::A1".to_string(),
             2 => "CEFR::A2".to_string(),
             3 => "CEFR::B1".to_string(),

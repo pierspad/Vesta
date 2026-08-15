@@ -15,7 +15,7 @@ Built with **Rust (Tauri)** + **Svelte 5** + **TypeScript**.
 
 Load a video and its subtitles. Synchronize them, translate them with AI if needed, and export a ready-to-study Anki deck with high-quality audio clips, snapshots, video clips, and difficulty tags synced to the exact lines of dialogue.
 
-![Benchmark comparison: Vesta vs subs2srs](fireplace.png)
+![Benchmark comparison: Vesta vs subs2srs](docs/fireplace.png)
 
 ### Why Vesta?
 
@@ -147,17 +147,17 @@ cargo build --release -p srt-flashcards-cli
   --audio-format opus
 ```
 
-For comprehensive module guides and Rust integration examples, see [`modules/README.md`](modules/README.md) and [`ARCHITECTURE.md`](ARCHITECTURE.md).
+For comprehensive module guides and Rust integration examples, see [`docs/modules/README.md`](docs/modules/README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
 ## Documentation Map
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — Architectural design contracts, layering rules, and conventions.
-- [`modules/`](modules/) — Detailed module specifications and embedding instructions.
-- [`plans/`](plans/) — Development roadmaps, design documents, and feature plans.
-- [`superpowers/specs/`](superpowers/specs/) — Technical specifications for media presets, codec evaluations, and format benchmarks.
-- [`../benchmarking_against_subs2srs/`](../benchmarking_against_subs2srs/) — Reproducible benchmarking scripts and methodology.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Architectural design contracts, layering rules, and conventions.
+- [`docs/modules/`](docs/modules/) — Detailed module specifications and embedding instructions.
+- [`docs/plans/`](docs/plans/) — Development roadmaps, design documents, and feature plans.
+- [`docs/superpowers/specs/`](docs/superpowers/specs/) — Technical specifications for media presets, codec evaluations, and format benchmarks.
+- [`benchmarking_against_subs2srs/`](benchmarking_against_subs2srs/) — Reproducible benchmarking scripts and methodology.
 
 ---
 
@@ -193,7 +193,5 @@ Pull requests are welcome! For major changes or architectural proposals, please 
 
 ## License & Disclosures
 
-- **License**: GNU General Public License v3.0 (GPLv3) — see the [../LICENSE](../LICENSE) file for details.
+- **License**: GNU General Public License v3.0 (GPLv3) — see the [LICENSE](LICENSE) file for details.
 - **AI Disclosure**: This project was developed with the assistance of Large Language Models to support implementation, refactoring, and documentation.
-
-

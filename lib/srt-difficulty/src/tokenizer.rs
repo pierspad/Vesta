@@ -1,4 +1,5 @@
 use crate::table::LevelTable;
+use std::borrow::Cow;
 
 #[derive(Debug, Clone)]
 pub struct TokenMatch {
@@ -156,9 +157,9 @@ fn tokenize_alphabetic(text: &str, table: &LevelTable, min_token_chars: usize) -
     matches
 }
 
-fn clean_html(text: &str) -> String {
+fn clean_html(text: &str) -> Cow<'_, str> {
     if !text.contains('<') {
-        return text.to_string();
+        return Cow::Borrowed(text);
     }
 
     let mut result = String::with_capacity(text.len());
@@ -175,5 +176,5 @@ fn clean_html(text: &str) -> String {
         }
     }
 
-    result
+    Cow::Owned(result)
 }

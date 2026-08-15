@@ -130,14 +130,22 @@ pub fn get_missing_or_incorrect_subtitle_ids(
     original: &HashMap<u32, Subtitle>,
     translated: &HashMap<u32, Subtitle>,
 ) -> Vec<u32> {
+    #[inline]
+    fn count_lines(s: &str) -> usize {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            0
+        } else {
+            trimmed.bytes().filter(|&b| b == b'\n').count() + 1
+        }
+    }
+
     original
         .iter()
         .filter(|(id, original_sub)| match translated.get(id) {
             None => true,
             Some(translated_sub) => {
-                let original_lines = original_sub.text.lines().count();
-                let translated_lines = translated_sub.text.lines().count();
-                original_lines != translated_lines
+                count_lines(&original_sub.text) != count_lines(&translated_sub.text)
             }
         })
         .map(|(id, _)| *id)

@@ -67,10 +67,9 @@
   let wordTimestamps = $state(true);
   let maxSegmentLength = $state(30);
 
-  // ─── Local-whisper add-ons: quality (beam search), VAD, GPU ────────────────
+  // ─── Local-whisper add-ons: quality (beam search), VAD ──────────────────────
   const TRANSCRIBE_QUALITY_KEY = "vesta-transcribe-quality";
   const TRANSCRIBE_VAD_KEY = "vesta-transcribe-vad";
-  const TRANSCRIBE_GPU_KEY = "vesta-transcribe-gpu";
   let qualityMode = $state(vestaConfig.getItem(TRANSCRIBE_QUALITY_KEY) === "true");
   // Defaults to ON: once a VAD model is installed it's a strict improvement
   // for local transcription (skips silence, fewer hallucinations). The toggle
@@ -78,9 +77,6 @@
   // inert for users without the model.
   const storedVad = vestaConfig.getItem(TRANSCRIBE_VAD_KEY);
   let vadEnabled = $state(storedVad === null ? true : storedVad === "true");
-  // GPU defaults to ON in GPU-capable builds: whisper.cpp falls back to CPU
-  // by itself when no usable device exists.
-  let useGpu = $state(vestaConfig.getItem(TRANSCRIBE_GPU_KEY) !== "false");
   let vadInstalled = $state(false);
   let gpuSupported = $state(false);
   let vadModels = $state<{ id: string; size: string; downloaded: boolean }[]>([]);
@@ -93,10 +89,6 @@
   function toggleVad() {
     vadEnabled = !vadEnabled;
     vestaConfig.setItem(TRANSCRIBE_VAD_KEY, String(vadEnabled));
-  }
-  function toggleGpu() {
-    useGpu = !useGpu;
-    vestaConfig.setItem(TRANSCRIBE_GPU_KEY, String(useGpu));
   }
 
   /** Re-derive `vadInstalled` for whichever variant (built-in or custom) is
@@ -721,7 +713,7 @@
             vad: !isCloudEntry && vadEnabled && vadInstalled,
             vad_model_id: vadSelection.customPath ? null : vadSelection.modelId,
             vad_custom_path: vadSelection.customPath,
-            use_gpu: !isCloudEntry && useGpu && gpuSupported,
+            use_gpu: !isCloudEntry,
           });
 
           result = res;
@@ -1019,28 +1011,6 @@
               ></div>
             </button>
           </div>
-          <!-- GPU offload (only shown in GPU-capable builds) -->
-          {#if gpuSupported}
-          <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-            <div class="min-w-0 pr-3">
-              <span class="text-gray-200 text-sm">{t("transcribe.useGpu")}</span>
-              <p class="text-[11px] text-gray-500 mt-0.5">{t("transcribe.useGpuHint")}</p>
-            </div>
-            <button
-              onclick={toggleGpu}
-              class="shrink-0 w-12 h-6 rounded-full transition-all duration-200 relative {useGpu
-                ? 'bg-cyan-500'
-                : 'bg-gray-600'}"
-              aria-label="Toggle GPU"
-            >
-              <div
-                class="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all duration-200 {useGpu
-                  ? 'left-6'
-                  : 'left-0.5'}"
-              ></div>
-            </button>
-          </div>
-          {/if}
           <div>
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm text-gray-400">

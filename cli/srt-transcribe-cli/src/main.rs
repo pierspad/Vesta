@@ -75,10 +75,10 @@ struct RunArgs {
     /// hallucinations (local only; requires `srt-transcribe download vad`).
     #[arg(long)]
     vad: bool,
-    /// Offload inference to the GPU (only in builds compiled with a GPU
-    /// backend, e.g. --features vulkan; ignored otherwise).
+    /// Force CPU execution even if a GPU backend is compiled in. By default,
+    /// GPU acceleration is used whenever available, with automatic CPU fallback.
     #[arg(long)]
-    gpu: bool,
+    no_gpu: bool,
     /// Transcription engine: "local" (whisper.cpp) or a cloud provider
     /// ("groq" | "openai" | "deepgram" | "assemblyai" | "custom").
     #[arg(long, default_value = "local")]
@@ -190,7 +190,7 @@ async fn run(args: RunArgs) -> Result<()> {
         vad: args.vad,
         vad_model_id: None,
         vad_custom_path: None,
-        use_gpu: args.gpu,
+        use_gpu: !args.no_gpu,
     };
 
     // Ctrl-C → cooperative cancellation.

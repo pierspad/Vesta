@@ -535,6 +535,17 @@ pub(crate) fn generate_apkg(
         }
     }
 
+    // If auto font and font embedding are enabled, and the downloaded font is available in cache, embed it
+    if config.auto_card_font
+        && config.embed_card_font
+        && let Some(target_lang) = config.target_language.as_deref()
+        && let Some((entry, font_path)) = crate::fonts::get_downloaded_font_for_lang(target_lang)
+        && font_path.exists()
+    {
+        media_map.insert(media_idx.to_string(), entry.filename.to_string());
+        media_files.push((media_idx.to_string(), font_path));
+    }
+
     let media_json_path = tmp_dir.path().join("media");
     std::fs::write(
         &media_json_path,
@@ -544,17 +555,20 @@ pub(crate) fn generate_apkg(
 
     let apkg_file =
         std::fs::File::create(output_path).map_err(|e| format!("Cannot create APKG: {e}"))?;
-    let mut zip = zip::ZipWriter::new(apkg_file);
-    let options = zip::write::SimpleFileOptions::default()
+    let writer = std::io::BufWriter::with_capacity(256 * 1024, apkg_file);
+    let mut zip = zip::ZipWriter::new(writer);
+    let options_deflated = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
+    let options_stored =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    zip.start_file("collection.anki2", options)
+    zip.start_file("collection.anki2", options_deflated)
         .map_err(|e| format!("ZIP error: {e}"))?;
     let db_bytes = std::fs::read(&db_path).map_err(|e| format!("Cannot read DB: {e}"))?;
     zip.write_all(&db_bytes)
         .map_err(|e| format!("ZIP write error: {e}"))?;
 
-    zip.start_file("media", options)
+    zip.start_file("media", options_deflated)
         .map_err(|e| format!("ZIP error: {e}"))?;
     let media_json_bytes =
         std::fs::read(&media_json_path).map_err(|e| format!("Cannot read media JSON: {e}"))?;
@@ -562,11 +576,12 @@ pub(crate) fn generate_apkg(
         .map_err(|e| format!("ZIP write error: {e}"))?;
 
     for (idx_str, file_path) in &media_files {
-        zip.start_file(idx_str, options)
+        zip.start_file(idx_str, options_stored)
             .map_err(|e| format!("ZIP error adding media: {e}"))?;
-        let mut file =
+        let file =
             std::fs::File::open(file_path).map_err(|e| format!("Cannot read media file: {e}"))?;
-        std::io::copy(&mut file, &mut zip).map_err(|e| format!("ZIP write error: {e}"))?;
+        let mut reader = std::io::BufReader::with_capacity(128 * 1024, file);
+        std::io::copy(&mut reader, &mut zip).map_err(|e| format!("ZIP write error: {e}"))?;
     }
 
     zip.finish().map_err(|e| format!("ZIP finish error: {e}"))?;
@@ -614,6 +629,7 @@ pub(crate) const ANKI_FRONT_TEMPLATE: &str = concat!(
 <div id="tags-container"></div>
 <div id="tags-source" style="display: none;">{{Tags}}</div>
 <div id="timestamp-source" style="display: none;">{{SequenceMarker}}</div>
+<span class='media'>{{Audio}}</span>
 <div class='expression'>{{Expression}}</div>
 <hr>
 "#,

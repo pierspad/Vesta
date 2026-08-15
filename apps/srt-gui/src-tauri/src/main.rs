@@ -454,6 +454,10 @@ fn main() {
             flashcard_check_dir_exists,
             flashcard_get_cpu_count,
             flashcard_get_total_memory_mb,
+            flashcard_list_fonts,
+            flashcard_check_language_font,
+            flashcard_download_font,
+            flashcard_delete_font,
             save_temp_subtitles,
 
             transcribe_check_backends,

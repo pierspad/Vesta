@@ -44,11 +44,21 @@
   <div class="space-y-3 transition-all duration-200 {!filters.enabled ? 'opacity-40 pointer-events-none' : ''}">
     <!-- Length Filter -->
     <div class="space-y-2">
-      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("flashcards.filterLength")}</span>
+      <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <svg class="w-3.5 h-3.5 text-amber-400/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+        <span>{t("flashcards.filterLength")}</span>
+      </span>
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400">{t("flashcards.filterMinChars")}</span>
+            <span class="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h7" />
+              </svg>
+              <span>{t("flashcards.filterMinChars")}</span>
+            </span>
             <button
               onclick={() => { filters.minCharsEnabled = !filters.minCharsEnabled; }}
               class="w-10 h-5 rounded-full transition-all duration-200 relative
@@ -80,7 +90,12 @@
         </div>
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400">{t("flashcards.filterMaxChars")}</span>
+            <span class="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span>{t("flashcards.filterMaxChars")}</span>
+            </span>
             <button
               onclick={() => { filters.maxCharsEnabled = !filters.maxCharsEnabled; }}
               class="w-10 h-5 rounded-full transition-all duration-200 relative
@@ -115,11 +130,21 @@
 
     <!-- Duration Filter -->
     <div class="space-y-2">
-      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("flashcards.filterDuration")}</span>
+      <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <svg class="w-3.5 h-3.5 text-amber-400/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{t("flashcards.filterDuration")}</span>
+      </span>
       <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400">{t("flashcards.filterMinDuration")}</span>
+            <span class="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{t("flashcards.filterMinDuration")}</span>
+            </span>
             <button
               onclick={() => { filters.minDurationEnabled = !filters.minDurationEnabled; }}
               class="w-10 h-5 rounded-full transition-all duration-200 relative
@@ -151,7 +176,12 @@
         </div>
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <span class="text-xs text-gray-400">{t("flashcards.filterMaxDuration")}</span>
+            <span class="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg class="w-3.5 h-3.5 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{t("flashcards.filterMaxDuration")}</span>
+            </span>
             <button
               onclick={() => { filters.maxDurationEnabled = !filters.maxDurationEnabled; }}
               class="w-10 h-5 rounded-full transition-all duration-200 relative
@@ -187,7 +217,12 @@
     <!-- Sentence Combining -->
     <div class="mt-4 pt-4 border-t border-gray-800/50">
       <div class="flex items-center justify-between mb-3">
-        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t("flashcards.combineSentences")}</span>
+        <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <svg class="w-3.5 h-3.5 text-amber-400/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span>{t("flashcards.combineSentences")}</span>
+        </span>
         <button
           onclick={() => (filters.combineSentences = !filters.combineSentences)}
           class="w-10 h-5 rounded-full transition-all duration-200 relative shrink-0 ml-3
@@ -199,7 +234,12 @@
         </button>
       </div>
       <div class="transition-opacity duration-200 {!filters.combineSentences ? 'opacity-40' : ''}">
-        <span class="block text-xs text-gray-500 mb-1">{t("flashcards.continuationChars")}</span>
+        <span class="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+          <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <span>{t("flashcards.continuationChars")}</span>
+        </span>
         <input
           type="text"
           bind:value={filters.continuationChars}

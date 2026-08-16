@@ -8,11 +8,11 @@ Lexical difficulty analysis, vocabulary profiling, and proficiency tagging engin
 
 ### Supported Language Schemes & Built-in Databases
 
-- 🇨🇳 **HSK** (Simplified Chinese): HSK 1–6 (12,500+ words)
-- 🇹🇼 **TOCFL** (Traditional Chinese): Levels 1–6 (11,100+ words)
-- 🇯🇵 **JLPT** (Japanese): N5–N1 (13,900+ words across kanji/kana forms)
-- 🇰🇷 **TOPIK** (Korean): TOPIK 1–6 (6,600+ words)
-- 🇪🇺 **CEFR Multi-lingual**: CEFR A1–C2 across English, German, Italian, Spanish, French, Russian, and Portuguese
+- 🇨🇳 **HSK** (Simplified Chinese): HSK 1–6 (12,500+ words) — [Official CTI](http://www.chinesetest.cn/) / [Ministry of Education PRC](http://www.moe.gov.cn/) · [HSK Open Datasets](https://github.com/gigacover/hsk)
+- 🇹🇼 **TOCFL** (Traditional Chinese): Levels 1–6 (11,100+ words) — [SC-TOP Official Portal & 8000 Vocab Downloads](https://tocfl.edu.tw/)
+- 🇯🇵 **JLPT** (Japanese): N5–N1 (13,900+ words across kanji/kana forms) — [Official JLPT](https://www.jlpt.jp/) · [Jonathan Waller's JLPT](https://www.tanos.co.uk/jlpt/) · [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html)
+- 🇰🇷 **TOPIK** (Korean): TOPIK 1–6 (6,600+ words) — [Official TOPIK Portal (NIIED)](https://www.topik.go.kr/) · [National Institute of Korean Language](https://www.korean.go.kr/)
+- 🇪🇺 **CEFR Multi-lingual**: CEFR A1–C2 across English ([Cambridge English Profile](https://www.englishprofile.org/)), German ([Goethe-Institut](https://www.goethe.de/)), Italian ([CLIQ / UniStraPg](https://www.unistrapg.it/)), Spanish ([Instituto Cervantes](https://cvc.cervantes.es/)), French ([France Éducation International](https://www.france-education-international.fr/)), Russian ([TORFL / SPbU](https://testingcenter.spbu.ru/)), and Portuguese ([CAPLE](https://caple.letras.ulisboa.pt/))
 
 All official databases are embedded directly into the crate binary (zero external file or internet lookup needed).
 

@@ -29,12 +29,19 @@ Vesta is a modern desktop application for language learners and power users that
 
 ### 2. Difficulty Tagging & Vocabulary Profiling
 Vesta automatically analyzes the lexical complexity of each subtitle sentence and tags cards with their proficiency level (e.g., `HSK::3`, `CEFR::B1`, `JLPT::N2`, `TOPIK::3`, `TOCFL::B2`):
-- **Pre-Bundled Official Vocabulary Databases**:
-  - 🇨🇳 **HSK** (Simplified Chinese): 12,500+ official words (HSK 1–6).
-  - 🇹🇼 **TOCFL** (Traditional Chinese): 11,100+ words (Levels 1–6 / A1–C2).
-  - 🇯🇵 **JLPT** (Japanese): 13,900+ words across kanji and kana readings (N5–N1).
-  - 🇰🇷 **TOPIK** (Korean): 6,600+ words (Levels 1–6).
-  - 🇪🇺 **CEFR Multi-lingual**: Dedicated European databases for **English** (8,600+ words), **German** (41,900+ entries), **Italian** (19,900+ entries), **Spanish** (19,900+ entries), **French** (19,900+ entries), **Russian** (19,900+ entries), and **Portuguese** (19,900+ entries) mapped from A1 to C2.
+- **Pre-Bundled Official Vocabulary Databases & Original Sources**:
+  - 🇨🇳 **HSK** (Simplified Chinese): 12,500+ official words (HSK 1–6) — [Official CTI Portal](http://www.chinesetest.cn/) / [Hanban & Ministry of Education PRC](http://www.moe.gov.cn/) · [HSK Open Vocabulary Datasets](https://github.com/gigacover/hsk)
+  - 🇹🇼 **TOCFL** (Traditional Chinese): 11,100+ words (Levels 1–6 / A1–C2) — [SC-TOP Official Portal](https://tocfl.edu.tw/) · [SC-TOP 8000 Vocabulary Downloads](https://tocfl.edu.tw/index.php/exam/download)
+  - 🇯🇵 **JLPT** (Japanese): 13,900+ words across kanji and kana readings (N5–N1) — [Official JLPT (JEES & Japan Foundation)](https://www.jlpt.jp/) · [Jonathan Waller's JLPT Resources](https://www.tanos.co.uk/jlpt/) · [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html)
+  - 🇰🇷 **TOPIK** (Korean): 6,600+ words (Levels 1–6) — [Official TOPIK Portal (NIIED)](https://www.topik.go.kr/) · [National Institute of Korean Language (국립국어원)](https://www.korean.go.kr/)
+  - 🇪🇺 **CEFR Multi-lingual**: Dedicated European databases mapped from A1 to C2:
+    - 🇬🇧 **English** (8,600+ words) — [Council of Europe CEFR](https://www.coe.int/en/web/common-european-framework-reference-languages) · [Cambridge English Profile (EVP)](https://www.englishprofile.org/) · [Oxford 3000/5000](https://www.oxfordlearnersdictionaries.com/wordlists/)
+    - 🇩🇪 **German** (41,900+ entries) — [Goethe-Institut / Profil Deutsch](https://www.goethe.de/)
+    - 🇮🇹 **Italian** (19,900+ entries) — [CLIQ / Università per Stranieri di Perugia & Siena](https://www.unistrapg.it/) · [OpenSubtitles Lexical Frequency](https://opus.nlpl.eu/OpenSubtitles.php)
+    - 🇫🇷 **French** (19,900+ entries) — [France Éducation International / CECRL (DELF-DALF)](https://www.france-education-international.fr/)
+    - 🇪🇸 **Spanish** (19,900+ entries) — [Instituto Cervantes (Plan Curricular PCIC / DELE)](https://cvc.cervantes.es/ensenanza/biblioteca_ele/plan_curricular/)
+    - 🇵🇹 **Portuguese** (19,900+ entries) — [CAPLE / Instituto Camões](https://caple.letras.ulisboa.pt/)
+    - 🇷🇺 **Russian** (19,900+ entries) — [TORFL / TRKI - SPbU Language Testing Center](https://testingcenter.spbu.ru/)
 - **Zero Internet Required & 1-Click Database Export**: Embedded directly into the binary. Export any database to `.tsv` with one click from Settings for inspection, customization, or community sharing.
 - **Custom Vocabulary TSVs & User Schemes**: Load your own custom frequency or vocabulary lists with user-defined tag prefixes.
 - **Configurable Unknown Word Policies**:
@@ -140,7 +147,6 @@ For comprehensive module guides and Rust integration examples, see [`docs/module
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Architectural design contracts, layering rules, and conventions.
 - [`docs/modules/`](docs/modules/) — Detailed module specifications and embedding instructions.
-- [`docs/plans/`](docs/plans/) — Development roadmaps, design documents, and feature plans.
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — Technical specifications for media presets, codec evaluations, and format benchmarks.
 - [`benchmarking_against_subs2srs/`](benchmarking_against_subs2srs/) — Reproducible benchmarking scripts and methodology.
 

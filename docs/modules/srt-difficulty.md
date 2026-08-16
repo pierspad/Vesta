@@ -6,13 +6,14 @@ Lexical difficulty analysis, vocabulary profiling, and proficiency tagging engin
 
 `srt-difficulty` analyzes sentences from subtitles and cards to determine their lexical complexity according to international language proficiency standards.
 
-### Supported Language Schemes & Built-in Databases
+### Supported Language Schemes, Built-in Databases & Provenance
 
-- 🇨🇳 **HSK** (Simplified Chinese): HSK 1–6 (12,500+ words) — [Official CTI](http://www.chinesetest.cn/) / [Ministry of Education PRC](http://www.moe.gov.cn/) · [HSK Open Datasets](https://github.com/gigacover/hsk)
-- 🇹🇼 **TOCFL** (Traditional Chinese): Levels 1–6 (11,100+ words) — [SC-TOP Official Portal & 8000 Vocab Downloads](https://tocfl.edu.tw/)
-- 🇯🇵 **JLPT** (Japanese): N5–N1 (13,900+ words across kanji/kana forms) — [Official JLPT](https://www.jlpt.jp/) · [Jonathan Waller's JLPT](https://www.tanos.co.uk/jlpt/) · [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html)
-- 🇰🇷 **TOPIK** (Korean): TOPIK 1–6 (6,600+ words) — [Official TOPIK Portal (NIIED)](https://www.topik.go.kr/) · [National Institute of Korean Language](https://www.korean.go.kr/)
-- 🇪🇺 **CEFR Multi-lingual**: CEFR A1–C2 across English ([Cambridge English Profile](https://www.englishprofile.org/)), German ([Goethe-Institut](https://www.goethe.de/)), Italian ([CLIQ / UniStraPg](https://www.unistrapg.it/)), Spanish ([Instituto Cervantes](https://cvc.cervantes.es/)), French ([France Éducation International](https://www.france-education-international.fr/)), Russian ([TORFL / SPbU](https://testingcenter.spbu.ru/)), and Portuguese ([CAPLE](https://caple.letras.ulisboa.pt/))
+- 🇨🇳 **HSK (Simplified Chinese)** — `12,543 words` (HSK 1–6): Official Hanban / [CTI](http://www.chinesetest.cn/) syllabus & [Ministry of Education PRC](http://www.moe.gov.cn/) word lists with Simplified/Traditional cross-character variants.
+- 🇹🇼 **TOCFL (Traditional Chinese)** — `11,170 words` (Levels 1–6 / Novice–Superior): Official Taiwan Ministry of Education [SC-TOP](https://tocfl.edu.tw/) *8000 Vocabulary List (華語文能力測驗 8000詞表)* ([Downloads](https://tocfl.edu.tw/index.php/exam/download)).
+- 🇯🇵 **JLPT (Japanese)** — `13,930 words` (Levels N5–N1): [Jonathan Waller's JLPT (Tanos)](https://www.tanos.co.uk/jlpt/) & [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) Japanese lexicon including kanji expressions, kana readings, and dictionary forms.
+- 🇰🇷 **TOPIK (Korean)** — `6,671 words` (Levels 1–6): Official [NIIED (국립국제교육원)](https://www.topik.go.kr/) & [National Institute of Korean Language (국립국어원)](https://www.korean.go.kr/) standard vocabulary syllabus for TOPIK.
+- 🇬🇧 **CEFR English** — `8,845 words` (Levels A1–C2): [Cambridge English Profile (EVP)](https://www.englishprofile.org/) & [Oxford 3000/5000](https://www.oxfordlearnersdictionaries.com/wordlists/) aligned with [Council of Europe CEFR](https://www.coe.int/en/web/common-european-framework-reference-languages).
+- 🇪🇺 **CEFR Multi-lingual European Databases** (🇩🇪 German `41,900`, 🇮🇹 Italian `19,951`, 🇪🇸 Spanish `19,945`, 🇫🇷 French `19,941`, 🇵🇹 Portuguese `19,950`, 🇷🇺 Russian `19,970 words`): Frequency-based corpora from [OPUS OpenSubtitles (HermitDave)](https://opus.nlpl.eu/OpenSubtitles.php) & [Leipzig Corpora](https://wortschatz.uni-leipzig.de/) partitioned into 6 CEFR difficulty brackets (A1: Top 1K, A2: +1.5K, B1: +2.5K, B2: +3.5K, C1: +4.5K, C2: 13K–20K+).
 
 All official databases are embedded directly into the crate binary (zero external file or internet lookup needed).
 

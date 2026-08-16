@@ -29,19 +29,27 @@ Vesta is a modern desktop application for language learners and power users that
 
 ### 2. Difficulty Tagging & Vocabulary Profiling
 Vesta automatically analyzes the lexical complexity of each subtitle sentence and tags cards with their proficiency level (e.g., `HSK::3`, `CEFR::B1`, `JLPT::N2`, `TOPIK::3`, `TOCFL::B2`):
-- **Pre-Bundled Official Vocabulary Databases & Original Sources**:
-  - 🇨🇳 **HSK** (Simplified Chinese): 12,500+ official words (HSK 1–6) — [Official CTI Portal](http://www.chinesetest.cn/) / [Hanban & Ministry of Education PRC](http://www.moe.gov.cn/) · [HSK Open Vocabulary Datasets](https://github.com/gigacover/hsk)
-  - 🇹🇼 **TOCFL** (Traditional Chinese): 11,100+ words (Levels 1–6 / A1–C2) — [SC-TOP Official Portal](https://tocfl.edu.tw/) · [SC-TOP 8000 Vocabulary Downloads](https://tocfl.edu.tw/index.php/exam/download)
-  - 🇯🇵 **JLPT** (Japanese): 13,900+ words across kanji and kana readings (N5–N1) — [Official JLPT (JEES & Japan Foundation)](https://www.jlpt.jp/) · [Jonathan Waller's JLPT Resources](https://www.tanos.co.uk/jlpt/) · [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html)
-  - 🇰🇷 **TOPIK** (Korean): 6,600+ words (Levels 1–6) — [Official TOPIK Portal (NIIED)](https://www.topik.go.kr/) · [National Institute of Korean Language (국립국어원)](https://www.korean.go.kr/)
-  - 🇪🇺 **CEFR Multi-lingual**: Dedicated European databases mapped from A1 to C2:
-    - 🇬🇧 **English** (8,600+ words) — [Council of Europe CEFR](https://www.coe.int/en/web/common-european-framework-reference-languages) · [Cambridge English Profile (EVP)](https://www.englishprofile.org/) · [Oxford 3000/5000](https://www.oxfordlearnersdictionaries.com/wordlists/)
-    - 🇩🇪 **German** (41,900+ entries) — [Goethe-Institut / Profil Deutsch](https://www.goethe.de/)
-    - 🇮🇹 **Italian** (19,900+ entries) — [CLIQ / Università per Stranieri di Perugia & Siena](https://www.unistrapg.it/) · [OpenSubtitles Lexical Frequency](https://opus.nlpl.eu/OpenSubtitles.php)
-    - 🇫🇷 **French** (19,900+ entries) — [France Éducation International / CECRL (DELF-DALF)](https://www.france-education-international.fr/)
-    - 🇪🇸 **Spanish** (19,900+ entries) — [Instituto Cervantes (Plan Curricular PCIC / DELE)](https://cvc.cervantes.es/ensenanza/biblioteca_ele/plan_curricular/)
-    - 🇵🇹 **Portuguese** (19,900+ entries) — [CAPLE / Instituto Camões](https://caple.letras.ulisboa.pt/)
-    - 🇷🇺 **Russian** (19,900+ entries) — [TORFL / TRKI - SPbU Language Testing Center](https://testingcenter.spbu.ru/)
+
+#### Built-in Databases & Exact Provenance:
+- 🇨🇳 **HSK (Simplified Chinese)** — `12,543 entries` (HSK 1–6):
+  - **Source**: Official Hanban / [Chinese Testing International (CTI)](http://www.chinesetest.cn/) syllabus & [Ministry of Education PRC](http://www.moe.gov.cn/) official word lists, expanded with Simplified/Traditional character cross-variants from [HSK Open Datasets](https://github.com/gigacover/hsk).
+- 🇹🇼 **TOCFL (Traditional Chinese)** — `11,170 entries` (Levels 1–6 / Novice to Superior):
+  - **Source**: Official Taiwan Ministry of Education [Steering Committee for the Test of Proficiency-Huayu (SC-TOP)](https://tocfl.edu.tw/) from the official *8000 Vocabulary List (華語文能力測驗 8000詞表)* ([SC-TOP Downloads](https://tocfl.edu.tw/index.php/exam/download)).
+- 🇯🇵 **JLPT (Japanese)** — `13,930 entries` (Levels N5–N1):
+  - **Source**: [Jonathan Waller's JLPT Resources / Tanos JLPT](https://www.tanos.co.uk/jlpt/) combined with [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) and [Official JLPT (JEES / Japan Foundation)](https://www.jlpt.jp/), covering kanji expressions, kana readings, and dictionary forms.
+- 🇰🇷 **TOPIK (Korean)** — `6,671 entries` (Levels 1–6):
+  - **Source**: Official [National Institute for International Education (NIIED - 국립국제교육원)](https://www.topik.go.kr/) and [National Institute of Korean Language (국립국어원)](https://www.korean.go.kr/) 6,000-word standard vocabulary syllabus for the Test of Proficiency in Korean (한국어능력시험).
+- 🇬🇧 **CEFR English** — `8,845 entries` (Levels A1–C2):
+  - **Source**: [Cambridge English Profile (English Vocabulary Profile - EVP)](https://www.englishprofile.org/) mapped to the [Council of Europe CEFR standard](https://www.coe.int/en/web/common-european-framework-reference-languages), aligned with [Oxford 3000/5000 CEFR tiers](https://www.oxfordlearnersdictionaries.com/wordlists/).
+- 🇪🇺 **CEFR Multi-lingual European Databases** (🇩🇪 German `41,900`, 🇮🇹 Italian `19,951`, 🇪🇸 Spanish `19,945`, 🇫🇷 French `19,941`, 🇵🇹 Portuguese `19,950`, 🇷🇺 Russian `19,970 entries`):
+  - **Source & Methodology**: Frequency distributions derived from [OPUS OpenSubtitles Lexical Corpora (HermitDave)](https://opus.nlpl.eu/OpenSubtitles.php) and [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/), mapped onto standard CEFR A1–C2 proficiency tiers:
+    - **A1 (Level 1)**: Top 1,000 most frequent lemmas (core conversational foundation)
+    - **A2 (Level 2)**: Ranks 1,001–2,500 (+1,500 lemmas)
+    - **B1 (Level 3)**: Ranks 2,501–5,000 (+2,500 lemmas)
+    - **B2 (Level 4)**: Ranks 5,001–8,500 (+3,500 lemmas)
+    - **C1 (Level 5)**: Ranks 8,501–13,000 (+4,500 lemmas)
+    - **C2 (Level 6)**: Ranks 13,001–20,000+ / extended compounds (advanced mastery)
+
 - **Zero Internet Required & 1-Click Database Export**: Embedded directly into the binary. Export any database to `.tsv` with one click from Settings for inspection, customization, or community sharing.
 - **Custom Vocabulary TSVs & User Schemes**: Load your own custom frequency or vocabulary lists with user-defined tag prefixes.
 - **Configurable Unknown Word Policies**:

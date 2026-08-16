@@ -30,25 +30,15 @@ Vesta is a modern desktop application for language learners and power users that
 ### 2. Difficulty Tagging & Vocabulary Profiling
 Vesta automatically analyzes the lexical complexity of each subtitle sentence and tags cards with their proficiency level (e.g., `HSK::3`, `CEFR::B1`, `JLPT::N2`, `TOPIK::3`, `TOCFL::B2`):
 
-#### Built-in Databases & Exact Provenance:
-- 🇨🇳 **HSK (Simplified Chinese)** — `12,543 entries` (HSK 1–6):
-  - **Source**: Official Hanban / [Chinese Testing International (CTI)](http://www.chinesetest.cn/) syllabus & [Ministry of Education PRC](http://www.moe.gov.cn/) official word lists, expanded with Simplified/Traditional character cross-variants from [HSK Open Datasets](https://github.com/gigacover/hsk).
-- 🇹🇼 **TOCFL (Traditional Chinese)** — `11,170 entries` (Levels 1–6 / Novice to Superior):
-  - **Source**: Official Taiwan Ministry of Education [Steering Committee for the Test of Proficiency-Huayu (SC-TOP)](https://tocfl.edu.tw/) from the official *8000 Vocabulary List (華語文能力測驗 8000詞表)* ([SC-TOP Downloads](https://tocfl.edu.tw/index.php/exam/download)).
-- 🇯🇵 **JLPT (Japanese)** — `13,930 entries` (Levels N5–N1):
-  - **Source**: [Jonathan Waller's JLPT Resources / Tanos JLPT](https://www.tanos.co.uk/jlpt/) combined with [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) and [Official JLPT (JEES / Japan Foundation)](https://www.jlpt.jp/), covering kanji expressions, kana readings, and dictionary forms.
-- 🇰🇷 **TOPIK (Korean)** — `6,671 entries` (Levels 1–6):
-  - **Source**: Official [National Institute for International Education (NIIED - 국립국제교육원)](https://www.topik.go.kr/) and [National Institute of Korean Language (국립국어원)](https://www.korean.go.kr/) 6,000-word standard vocabulary syllabus for the Test of Proficiency in Korean (한국어능력시험).
-- 🇬🇧 **CEFR English** — `8,845 entries` (Levels A1–C2):
-  - **Source**: [Cambridge English Profile (English Vocabulary Profile - EVP)](https://www.englishprofile.org/) mapped to the [Council of Europe CEFR standard](https://www.coe.int/en/web/common-european-framework-reference-languages), aligned with [Oxford 3000/5000 CEFR tiers](https://www.oxfordlearnersdictionaries.com/wordlists/).
-- 🇪🇺 **CEFR Multi-lingual European Databases** (🇩🇪 German `41,900`, 🇮🇹 Italian `19,951`, 🇪🇸 Spanish `19,945`, 🇫🇷 French `19,941`, 🇵🇹 Portuguese `19,950`, 🇷🇺 Russian `19,970 entries`):
-  - **Source & Methodology**: Frequency distributions derived from [OPUS OpenSubtitles Lexical Corpora (HermitDave)](https://opus.nlpl.eu/OpenSubtitles.php) and [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/), mapped onto standard CEFR A1–C2 proficiency tiers:
-    - **A1 (Level 1)**: Top 1,000 most frequent lemmas (core conversational foundation)
-    - **A2 (Level 2)**: Ranks 1,001–2,500 (+1,500 lemmas)
-    - **B1 (Level 3)**: Ranks 2,501–5,000 (+2,500 lemmas)
-    - **B2 (Level 4)**: Ranks 5,001–8,500 (+3,500 lemmas)
-    - **C1 (Level 5)**: Ranks 8,501–13,000 (+4,500 lemmas)
-    - **C2 (Level 6)**: Ranks 13,001–20,000+ / extended compounds (advanced mastery)
+#### Built-in Databases & Provenance:
+- 🇨🇳 **HSK (Simplified Chinese)** — `12,543 entries` (HSK 1–6): Official Hanban / [CTI](http://www.chinesetest.cn/) syllabus & [Ministry of Education PRC](http://www.moe.gov.cn/) with Simplified/Traditional variants ([gigacover/hsk](https://github.com/gigacover/hsk)).
+- 🇹🇼 **TOCFL (Traditional Chinese)** — `11,170 entries` (Levels 1–6 / Novice to Superior): Official Taiwan Ministry of Education [SC-TOP](https://tocfl.edu.tw/) *8000 Vocabulary List* ([Downloads](https://tocfl.edu.tw/index.php/exam/download)).
+- 🇯🇵 **JLPT (Japanese)** — `13,930 entries` (Levels N5–N1): [Jonathan Waller's JLPT (Tanos)](https://www.tanos.co.uk/jlpt/) & [EDRDG / JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) (Kanji, Kana, and dictionary forms).
+- 🇰🇷 **TOPIK (Korean)** — `6,671 entries` (Levels 1–6): Official [NIIED](https://www.topik.go.kr/) & [National Institute of Korean Language](https://www.korean.go.kr/) standard vocabulary syllabus.
+- 🇬🇧 **CEFR English** — `8,845 entries` (Levels A1–C2): [Cambridge English Profile (EVP)](https://www.englishprofile.org/) & [Oxford 3000/5000](https://www.oxfordlearnersdictionaries.com/wordlists/) aligned with the [Council of Europe CEFR](https://www.coe.int/en/web/common-european-framework-reference-languages).
+- 🇪🇺 **CEFR Multi-lingual European Databases** (🇩🇪 German `41,900`, 🇮🇹 Italian `19,951`, 🇪🇸 Spanish `19,945`, 🇫🇷 French `19,941`, 🇵🇹 Portuguese `19,950`, 🇷🇺 Russian `19,970 entries`): Frequency distributions derived from [OPUS OpenSubtitles (HermitDave)](https://opus.nlpl.eu/OpenSubtitles.php) and [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/), mapped to 6 logarithmic CEFR brackets (A1=Top 1K to C2=20K+).
+
+> 📖 **Full Linguistic Provenance & Reproduction Guide**: See [`docs/VOCABULARY_SOURCES.md`](docs/VOCABULARY_SOURCES.md) for full dataset licenses, exact entry counts, methodology, and the deterministic build script.
 
 - **Zero Internet Required & 1-Click Database Export**: Embedded directly into the binary. Export any database to `.tsv` with one click from Settings for inspection, customization, or community sharing.
 - **Custom Vocabulary TSVs & User Schemes**: Load your own custom frequency or vocabulary lists with user-defined tag prefixes.
@@ -154,6 +144,7 @@ For comprehensive module guides and Rust integration examples, see [`docs/module
 ## Documentation Map
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Architectural design contracts, layering rules, and conventions.
+- [`docs/VOCABULARY_SOURCES.md`](docs/VOCABULARY_SOURCES.md) — Exact linguistic dataset provenance, upstream sources, licenses, and build scripts.
 - [`docs/modules/`](docs/modules/) — Detailed module specifications and embedding instructions.
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — Technical specifications for media presets, codec evaluations, and format benchmarks.
 - [`benchmarking_against_subs2srs/`](benchmarking_against_subs2srs/) — Reproducible benchmarking scripts and methodology.

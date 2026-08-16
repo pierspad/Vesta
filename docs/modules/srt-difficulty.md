@@ -15,7 +15,7 @@ Lexical difficulty analysis, vocabulary profiling, and proficiency tagging engin
 - 🇬🇧 **CEFR English** — `8,845 words` (Levels A1–C2): [Cambridge English Profile (EVP)](https://www.englishprofile.org/) & [Oxford 3000/5000](https://www.oxfordlearnersdictionaries.com/wordlists/) aligned with [Council of Europe CEFR](https://www.coe.int/en/web/common-european-framework-reference-languages).
 - 🇪🇺 **CEFR Multi-lingual European Databases** (🇩🇪 German `41,900`, 🇮🇹 Italian `19,951`, 🇪🇸 Spanish `19,945`, 🇫🇷 French `19,941`, 🇵🇹 Portuguese `19,950`, 🇷🇺 Russian `19,970 words`): Frequency-based corpora from [OPUS OpenSubtitles (HermitDave)](https://opus.nlpl.eu/OpenSubtitles.php) & [Leipzig Corpora](https://wortschatz.uni-leipzig.de/) partitioned into 6 CEFR difficulty brackets (A1: Top 1K, A2: +1.5K, B1: +2.5K, B2: +3.5K, C1: +4.5K, C2: 13K–20K+).
 
-All official databases are embedded directly into the crate binary (zero external file or internet lookup needed).
+All official databases are embedded directly into the crate binary (zero external file or internet lookup needed). For complete data provenance, original links, licensing, and reproducibility instructions, see [`docs/VOCABULARY_SOURCES.md`](../VOCABULARY_SOURCES.md).
 
 ### Custom Vocabulary Databases
 Users can load custom TSV vocabulary lists (`word\tlevel`) with custom prefix tags (e.g. `Frequency::Top1000`).
